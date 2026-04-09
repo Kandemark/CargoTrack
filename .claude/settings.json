@@ -17,7 +17,10 @@
       "Bash(venv/Scripts/python.exe manage.py migrate)",
       "Bash(venv/Scripts/python.exe manage.py check --deploy)",
       "Bash(git checkout:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)"
     ]
   }
 }
