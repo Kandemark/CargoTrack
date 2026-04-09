@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}New Shipment — CargoTrack{% endblock %}
+{% block nav_create %}active{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card p-4">
+      <h5 class="fw-bold mb-4" style="color:var(--ct-navy)">
+        <i class="fas fa-plus-circle me-2" style="color:var(--ct-orange)"></i>Create New Shipment
+      </h5>
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+          {% for field in form %}
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors.0 }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-4 d-flex gap-2">
+          <button type="submit" class="btn text-white" style="background:var(--ct-orange)">
+            <i class="fas fa-save me-1"></i>Create Shipment
+          </button>
+          <a href="{% url 'shipments:list' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

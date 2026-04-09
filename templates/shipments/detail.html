@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ shipment.tracking_number }} — CargoTrack{% endblock %}
+{% block nav_shipments %}active{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <a href="{% url 'shipments:list' %}" class="btn btn-sm btn-outline-secondary mb-2">
+      <i class="fas fa-arrow-left me-1"></i>All Shipments
+    </a>
+    <h4 class="fw-bold mb-0" style="color:var(--ct-navy)">
+      {{ shipment.tracking_number }}
+      <span class="badge badge-{{ shipment.status|lower }} ms-2">{{ shipment.get_status_display }}</span>
+    </h4>
+    <p class="text-muted small mb-0">
+      {{ shipment.route.origin }} &rarr; {{ shipment.route.destination }}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if request.user.can_log_events %}
+    <a href="{% url 'tracking:log' shipment.tracking_number %}"
+       class="btn btn-sm text-white" style="background:var(--ct-orange)">
+      <i class="fas fa-map-marker-alt me-1"></i>Log Event
+    </a>
+    {% endif %}
+    <a href="{% url 'predictions:predict' shipment.tracking_number %}"
+       class="btn btn-sm btn-outline-warning">
+      <i class="fas fa-brain me-1"></i>Predict Delay
+    </a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Shipment details -->
+  <div class="col-md-4">
+    <div class="card p-3 mb-3">
+      <h6 class="fw-bold mb-3" style="color:var(--ct-navy)">
+        <i class="fas fa-info-circle me-2" style="color:var(--ct-orange)"></i>Shipment Details
+      </h6>
+      <table class="table table-sm table-borderless mb-0">
+        <tr>
+          <td class="text-muted">Weight</td>
+          <td>{{ shipment.weight_kg }} kg</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Carrier</td>
+          <td>{{ shipment.carrier_name|default:"—" }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Distance</td>
+          <td>{{ shipment.route.distance_km|default:"—" }} km</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Est. Duration</td>
+          <td>{{ shipment.route.estimated_hours|default:"—" }} h</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Sched. Departure</td>
+          <td>{{ shipment.scheduled_departure|date:"d M Y H:i"|default:"—" }}</td>
+        </tr>
+        <tr>
+          <td class="text-muted">Sched. Arrival</td>
+          <td>{{ shipment.scheduled_arrival|date:"d M Y H:i"|default:"—" }}</td>
+        </tr>
+        {% if shipment.actual_departure %}
+        <tr>
+          <td class="text-muted">Actual Departure</td>
+          <td>{{ shipment.actual_departure|date:"d M Y H:i" }}</td>
+        </tr>
+        {% endif %}
+        {% if shipment.actual_arrival %}
+        <tr>
+          <td class="text-muted">Actual Arrival</td>
+          <td>{{ shipment.actual_arrival|date:"d M Y H:i" }}</td>
+        </tr>
+        {% endif %}
+        <tr>
+          <td class="text-muted">Delay Risk</td>
+          <td>
+            <div class="progress progress-thin mt-1">
+              <div class="progress-bar {% if shipment.delay_risk_score > 0.7 %}bg-danger{% elif shipment.delay_risk_score > 0.4 %}bg-warning{% else %}bg-success{% endif %}"
+                   style="width:{{ shipment.delay_risk_score|floatformat:0 }}0%"></div>
+            </div>
+            <small class="text-muted">{{ shipment.delay_risk_score|floatformat:2 }}</small>
+          </td>
+        </tr>
+        <tr>
+          <td class="text-muted">Created</td>
+          <td>{{ shipment.created_at|date:"d M Y H:i" }}</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tracking timeline -->
+  <div class="col-md-8">
+    <div class="card p-3">
+      <h6 class="fw-bold mb-3" style="color:var(--ct-navy)">
+        <i class="fas fa-route me-2" style="color:var(--ct-orange)"></i>Tracking Timeline
+      </h6>
+      {% for event in events %}
+      <div class="d-flex gap-3 mb-3">
+        <div class="text-center" style="width:40px">
+          <div class="rounded-circle d-flex align-items-center justify-content-center"
+               style="width:36px;height:36px;background:{% if event.event_type == 'DELAY' %}#DC3545{% elif event.event_type == 'ARRIVAL' %}#198754{% else %}var(--ct-orange){% endif %}">
+            <i class="fas fa-{% if event.event_type == 'ARRIVAL' %}flag-checkered{% elif event.event_type == 'DELAY' %}exclamation{% elif event.event_type == 'DEPARTURE' %}plane-departure{% else %}map-pin{% endif %} text-white" style="font-size:.75rem"></i>
+          </div>
+          {% if not forloop.last %}
+          <div style="width:2px;height:30px;background:#dee2e6;margin:4px auto"></div>
+          {% endif %}
+        </div>
+        <div class="pb-2">
+          <div class="fw-semibold" style="color:var(--ct-navy);font-size:.9rem">
+            {{ event.get_event_type_display }}
+          </div>
+          <div class="text-muted" style="font-size:.82rem">
+            <i class="fas fa-map-marker-alt me-1"></i>{{ event.location }}
+          </div>
+          <div class="text-muted" style="font-size:.78rem">
+            <i class="fas fa-clock me-1"></i>{{ event.timestamp|date:"d M Y H:i" }}
+            {% if event.notes %} &mdash; {{ event.notes }}{% endif %}
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-muted small text-center py-3">
+        No tracking events logged yet.
+        {% if request.user.can_log_events %}
+          <a href="{% url 'tracking:log' shipment.tracking_number %}">Log the first event</a>
+        {% endif %}
+      </p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Delay Prediction — CargoTrack{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <a href="{% url 'shipments:detail' shipment.tracking_number %}" class="btn btn-sm btn-outline-secondary mb-3">
+      <i class="fas fa-arrow-left me-1"></i>Back to Shipment
+    </a>
+    <div class="card p-4 {% if prediction %}{% if prediction.is_high_risk %}prediction-high{% else %}prediction-low{% endif %}{% endif %}">
+      <h5 class="fw-bold mb-1" style="color:var(--ct-navy)">
+        <i class="fas fa-brain me-2" style="color:var(--ct-orange)"></i>Delay Prediction
+      </h5>
+      <p class="text-muted small mb-4">{{ shipment.tracking_number }} — {{ shipment.route }}</p>
+
+      {% if error %}
+      <div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>{{ error }}</div>
+      {% elif prediction %}
+        <div class="text-center mb-4">
+          <div style="font-size:3.5rem;font-weight:700;color:{% if prediction.is_high_risk %}#DC3545{% else %}#198754{% endif %}">
+            {{ prediction.delay_probability|floatformat:0 }}%
+          </div>
+          <div class="text-muted">Delay Probability</div>
+          <div class="mt-2">
+            {% if prediction.is_high_risk %}
+              <span class="badge bg-danger fs-6"><i class="fas fa-exclamation-triangle me-1"></i>HIGH RISK</span>
+            {% else %}
+              <span class="badge bg-success fs-6"><i class="fas fa-check-circle me-1"></i>LOW RISK</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="progress mb-2" style="height:12px;border-radius:6px">
+          <div class="progress-bar {% if prediction.is_high_risk %}bg-danger{% else %}bg-success{% endif %}"
+               style="width:{{ prediction.delay_probability|floatformat:0 }}%"></div>
+        </div>
+
+        <div class="row g-3 mt-2">
+          <div class="col-6">
+            <div class="card p-3 text-center" style="background:#f8f9fa">
+              <div class="fw-bold" style="font-size:1.5rem;color:var(--ct-navy)">{{ prediction.predicted_delay_hours }}h</div>
+              <div class="text-muted small">Predicted Delay</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card p-3 text-center" style="background:#f8f9fa">
+              <div class="fw-bold" style="font-size:1.5rem;color:var(--ct-navy)">v{{ prediction.model_version }}</div>
+              <div class="text-muted small">Model Version</div>
+            </div>
+          </div>
+        </div>
+
+        {% if prediction.top_features %}
+        <div class="mt-4">
+          <h6 class="fw-bold mb-3" style="color:var(--ct-navy)">Top Contributing Features</h6>
+          {% for feat, score in prediction.top_features.items %}
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted small">{{ feat|title|cut:"_" }}</span>
+            <div class="d-flex align-items-center gap-2" style="width:60%">
+              <div class="progress flex-grow-1" style="height:8px;border-radius:4px">
+                <div class="progress-bar" style="background:var(--ct-orange);width:{{ score|floatformat:0 }}00%"></div>
+              </div>
+              <span class="small fw-semibold" style="width:40px;text-align:right">{{ score|floatformat:3 }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

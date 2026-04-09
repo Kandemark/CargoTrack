@@ -1,0 +1,10 @@
+{
+  "name": "@cargotrack/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared API types and client factory for CargoTrack web and mobile",
+  "main": "api/index.ts",
+  "dependencies": {
+    "axios": "^1.7.2"
+  }
+}

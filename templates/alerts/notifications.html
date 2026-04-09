@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Alerts — CargoTrack{% endblock %}
+{% block nav_alerts %}active{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4" style="color:var(--ct-navy)">
+  <i class="fas fa-bell me-2" style="color:var(--ct-orange)"></i>Alerts &amp; Notifications
+</h4>
+{% for n in notifications %}
+<div class="card mb-2 p-3 border-start border-4
+  {% if n.severity == 'CRITICAL' %}border-danger
+  {% elif n.severity == 'HIGH' %}border-danger
+  {% elif n.severity == 'MEDIUM' %}border-warning
+  {% else %}border-info{% endif %}">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="fw-semibold" style="color:var(--ct-navy)">
+        <span class="badge me-2
+          {% if n.severity == 'CRITICAL' %}bg-danger
+          {% elif n.severity == 'HIGH' %}bg-danger
+          {% elif n.severity == 'MEDIUM' %}bg-warning text-dark
+          {% else %}bg-info text-dark{% endif %}"
+          style="font-size:.7rem">{{ n.severity }}</span>
+        Shipment {{ n.shipment.tracking_number }}
+      </div>
+      <p class="text-muted small mb-1 mt-1">{{ n.message|truncatechars:180 }}</p>
+      <span class="text-muted" style="font-size:.75rem">
+        <i class="fas fa-clock me-1"></i>{{ n.sent_at|timesince }} ago
+        &nbsp;&middot;&nbsp; Risk score: {{ n.risk_score|floatformat:2 }}
+      </span>
+    </div>
+    <form method="post" action="{% url 'alerts:mark-read' n.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-secondary ms-3">
+        <i class="fas fa-check me-1"></i>Mark Read
+      </button>
+    </form>
+  </div>
+</div>
+{% empty %}
+<div class="text-center text-muted py-5">
+  <i class="fas fa-check-circle fa-3x mb-3" style="color:#198754"></i>
+  <p>All caught up &mdash; no unread alerts.</p>
+</div>
+{% endfor %}
+{% if is_paginated %}
+<nav class="mt-3">
+  <ul class="pagination pagination-sm justify-content-center">
+    {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&lsaquo; Prev</a></li>
+    {% endif %}
+    <li class="page-item active"><a class="page-link" href="#">{{ page_obj.number }}/{{ page_obj.paginator.num_pages }}</a></li>
+    {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next &rsaquo;</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}

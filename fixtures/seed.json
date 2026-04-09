@@ -1,0 +1,81 @@
+[
+  {
+    "model": "shipments.carrier",
+    "pk": 1,
+    "fields": {
+      "name": "Kenya Transport Ltd",
+      "code": "KTL",
+      "contact_email": "ops@ktl.co.ke",
+      "contact_phone": "+254700000001",
+      "is_active": true
+    }
+  },
+  {
+    "model": "shipments.carrier",
+    "pk": 2,
+    "fields": {
+      "name": "Nairobi Freight Express",
+      "code": "NFE",
+      "contact_email": "ops@nfe.co.ke",
+      "contact_phone": "+254700000002",
+      "is_active": true
+    }
+  },
+  {
+    "model": "shipments.carrier",
+    "pk": 3,
+    "fields": {
+      "name": "Mombasa Cargo Co",
+      "code": "MCC",
+      "contact_email": "ops@mcc.co.ke",
+      "contact_phone": "+254700000003",
+      "is_active": true
+    }
+  },
+  {
+    "model": "shipments.route",
+    "pk": 1,
+    "fields": {
+      "origin": "Mombasa Port",
+      "destination": "Nairobi Inland Depot",
+      "waypoints": [],
+      "distance_km": 485.0,
+      "transport_mode": "ROAD",
+      "estimated_hours": 8.0
+    }
+  },
+  {
+    "model": "shipments.route",
+    "pk": 2,
+    "fields": {
+      "origin": "Nairobi",
+      "destination": "Kampala, Uganda",
+      "waypoints": [
+        {
+          "name": "Malaba Border",
+          "km": 380
+        }
+      ],
+      "distance_km": 620.0,
+      "transport_mode": "ROAD",
+      "estimated_hours": 14.0
+    }
+  },
+  {
+    "model": "shipments.route",
+    "pk": 3,
+    "fields": {
+      "origin": "Dar es Salaam",
+      "destination": "Nairobi",
+      "waypoints": [
+        {
+          "name": "Namanga Border",
+          "km": 245
+        }
+      ],
+      "distance_km": 850.0,
+      "transport_mode": "MULTI",
+      "estimated_hours": 20.0
+    }
+  }
+]

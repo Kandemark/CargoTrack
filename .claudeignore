@@ -1,0 +1,6 @@
+weekly_reports/
+venv/
+staticfiles/
+media/
+*.pyc
+db.sqlite3

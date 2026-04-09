@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Create Account — CargoTrack{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+  <div class="col-md-7 col-lg-6">
+    <div class="card p-4 shadow-sm">
+
+      <!-- Header -->
+      <div class="text-center mb-4">
+        <i class="fas fa-truck-fast fa-3x" style="color:var(--ct-orange)"></i>
+        <h4 class="mt-2 fw-bold" style="color:var(--ct-navy)">CargoTrack</h4>
+        <p class="text-muted small">Create a customer account to track your shipments</p>
+      </div>
+
+      <!-- Non-field errors -->
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2">
+          {% for error in form.non_field_errors %}
+            <div>{{ error }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" novalidate autocomplete="off">
+        {% csrf_token %}
+
+        <!-- Row 1: First name | Last name -->
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <label class="form-label fw-semibold small">First Name <span class="text-danger">*</span></label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}
+              <div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold small">Last Name <span class="text-danger">*</span></label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}
+              <div class="text-danger small mt-1">{{ form.last_name.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Username -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Username <span class="text-danger">*</span></label>
+          {{ form.username }}
+          {% if form.username.errors %}
+            <div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Email -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold small">Email Address <span class="text-danger">*</span></label>
+          {{ form.email }}
+          {% if form.email.errors %}
+            <div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Row 2: Company | Phone -->
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <label class="form-label fw-semibold small">Company</label>
+            {{ form.company }}
+            {% if form.company.errors %}
+              <div class="text-danger small mt-1">{{ form.company.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold small">Phone</label>
+            {{ form.phone }}
+            {% if form.phone.errors %}
+              <div class="text-danger small mt-1">{{ form.phone.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Row 3: Password | Confirm password -->
+        <div class="row g-3 mb-4">
+          <div class="col-6">
+            <label class="form-label fw-semibold small">Password <span class="text-danger">*</span></label>
+            {{ form.password1 }}
+            {% if form.password1.errors %}
+              <div class="text-danger small mt-1">{{ form.password1.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold small">Confirm Password <span class="text-danger">*</span></label>
+            {{ form.password2 }}
+            {% if form.password2.errors %}
+              <div class="text-danger small mt-1">{{ form.password2.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Password hint -->
+        <p class="text-muted" style="font-size:.75rem">
+          <i class="fas fa-shield-alt me-1" style="color:var(--ct-orange)"></i>
+          Password must be at least 8 characters and cannot be entirely numeric.
+        </p>
+
+        <!-- Submit -->
+        <button type="submit" class="btn w-100 text-white fw-semibold"
+                style="background:var(--ct-orange); padding:.6rem">
+          <i class="fas fa-user-plus me-2"></i>Create Account
+        </button>
+      </form>
+
+      <!-- Sign in link -->
+      <p class="text-center text-muted small mt-3 mb-0">
+        Already have an account?
+        <a href="{% url 'accounts:login' %}" style="color:var(--ct-orange);font-weight:600">Sign In</a>
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <p class="text-center text-muted small mt-3">
+      &copy; CargoTrack Ltd &mdash; Enterprise Logistics Intelligence
+    </p>
+  </div>
+</div>
+{% endblock %}

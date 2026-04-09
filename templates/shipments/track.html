@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Track Shipment — CargoTrack{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-4">
+  <div class="col-md-6">
+    <div class="card p-4">
+      <h5 class="fw-bold mb-3" style="color:var(--ct-navy)">
+        <i class="fas fa-search-location me-2" style="color:var(--ct-orange)"></i>Track Your Shipment
+      </h5>
+      <form method="post">
+        {% csrf_token %}
+        <div class="input-group">
+          <input type="text" class="form-control" name="tracking_number"
+                 placeholder="Enter tracking number (e.g. CT-AB123456)"
+                 style="text-transform:uppercase">
+          <button type="submit" class="btn text-white" style="background:var(--ct-orange)">Track</button>
+        </div>
+      </form>
+
+      {% if not_found %}
+      <div class="alert alert-warning mt-3"><i class="fas fa-exclamation-triangle me-2"></i>Tracking number not found.</div>
+      {% endif %}
+
+      {% if shipment %}
+      <div class="mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-bold mb-0" style="color:var(--ct-navy)">{{ shipment.tracking_number }}</h6>
+          <span class="badge badge-{{ shipment.status|lower }}">{{ shipment.get_status_display }}</span>
+        </div>
+        <p class="text-muted small mb-2">
+          <i class="fas fa-route me-1"></i>{{ shipment.route.origin }} → {{ shipment.route.destination }}
+        </p>
+        <div class="progress progress-thin mb-3">
+          <div class="progress-bar" style="background:var(--ct-orange);width:{% if shipment.status == 'DELIVERED' %}100%{% elif shipment.status == 'OUT_FOR_DELIVERY' %}85%{% elif shipment.status == 'AT_CUSTOMS' %}60%{% elif shipment.status == 'IN_TRANSIT' %}40%{% else %}10%{% endif %}"></div>
+        </div>
+        {% for event in shipment.events.all|slice:":5" %}
+        <div class="d-flex gap-2 mb-2">
+          <i class="fas fa-circle mt-1" style="color:var(--ct-orange);font-size:.5rem"></i>
+          <div>
+            <span class="fw-semibold" style="font-size:.85rem">{{ event.get_event_type_display }}</span>
+            <span class="text-muted" style="font-size:.8rem"> — {{ event.location }} — {{ event.timestamp|date:"M d H:i" }}</span>
+          </div>
+        </div>
+        {% endfor %}
+        <a href="{% url 'shipments:detail' shipment.tracking_number %}" class="btn btn-sm btn-outline-secondary mt-2">Full Details</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
