@@ -1,66 +1,37 @@
 """
-cargotrack/api_urls.py
-Versioned API router — mounted at /api/<version>/ in cargotrack/urls.py.
+cargotrack/api_urls.py — Versioned API Router
+==============================================
 
-All endpoints require JWT (or session) authentication unless noted.
-Use the Authorization header:
-    Authorization: Bearer <access_token>
+Mounted at ``/api/<version>/`` by cargotrack/urls.py.
+All endpoints require ``Authorization: Bearer <access_token>`` unless
+explicitly overridden with ``permission_classes = [AllowAny]``.
 
-Obtain tokens:
-    POST /api/auth/token/          {"username": "...", "password": "..."}
-    POST /api/auth/token/refresh/  {"refresh": "<refresh_token>"}
+Resolved URL table (prefix = /api/v1/)
+---------------------------------------
+Prefix          Module                  Description
+-----------     --------------------    ----------------------------------------
+accounts/       accounts.api_urls       User profile (GET/PATCH /api/v1/accounts/me/)
+routes/         shipments.api_views     Read-only route catalogue (RouteListAPIView)
+shipments/      shipments.api_urls      Shipment CRUD + delay-prediction trigger
+tracking/       tracking.api_urls       TrackingEvent list + create
+alerts/         alerts.api_urls         Alert list + notification stream
+dashboard/      dashboard.api_urls      KPI aggregates (read-only, manager+ access)
+
+Note: ``routes/`` is mounted here (not under ``shipments/``) to keep the public
+API path as ``/api/v1/routes/`` — matching the README contract and the frontend
+API client. Moving it into ``shipments.api_urls`` would produce the breaking path
+``/api/v1/shipments/routes/``.
 """
 from django.urls import path, include
-
-from shipments.api_views import (
-    ShipmentListCreateAPIView,
-    ShipmentDetailAPIView,
-    PredictDelayAPIView as ShipmentPredictAPIView,
-)
-from tracking.api_views import (
-    TrackingEventListCreateView,
-    ShipmentTrackingEventsAPIView,
-)
-from alerts.api_urls import urlpatterns as alerts_patterns
-from accounts.api_urls import urlpatterns as accounts_patterns
-from dashboard.api_urls import urlpatterns as dashboard_patterns
+from shipments.api_views import RouteListAPIView
 
 urlpatterns = [
-    # ── Shipments ─────────────────────────────────────────────────────────────
-    path(
-        'shipments/',
-        ShipmentListCreateAPIView.as_view(),
-        name='v1-shipment-list',
-    ),
-    path(
-        'shipments/<int:pk>/',
-        ShipmentDetailAPIView.as_view(),
-        name='v1-shipment-detail',
-    ),
-    path(
-        'shipments/<int:pk>/tracking-events/',
-        ShipmentTrackingEventsAPIView.as_view(),
-        name='v1-shipment-tracking-events',
-    ),
-    path(
-        'shipments/<int:pk>/predict/',
-        ShipmentPredictAPIView.as_view(),
-        name='v1-shipment-predict',
-    ),
-
-    # ── Tracking ──────────────────────────────────────────────────────────────
-    path(
-        'tracking/',
-        TrackingEventListCreateView.as_view(),
-        name='v1-tracking-list',
-    ),
-
-    # ── Alerts ────────────────────────────────────────────────────────────────
-    path('alerts/', include(alerts_patterns)),
-
-    # ── Dashboard ─────────────────────────────────────────────────────────────
-    path('dashboard/', include(dashboard_patterns)),
-
-    # ── Accounts ──────────────────────────────────────────────────────────────
-    path('accounts/', include(accounts_patterns)),
+    path('accounts/',  include('accounts.api_urls')),
+    # RouteListAPIView lives in shipments but is mounted at the top-level routes/
+    # prefix to keep the public API path at /api/v1/routes/ (see module docstring).
+    path('routes/',    RouteListAPIView.as_view(), name='v1-routes'),
+    path('shipments/', include('shipments.api_urls')),
+    path('tracking/',  include('tracking.api_urls')),
+    path('alerts/',    include('alerts.api_urls')),
+    path('dashboard/', include('dashboard.api_urls')),
 ]

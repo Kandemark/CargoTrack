@@ -1,5 +1,9 @@
+import { useEffect } from 'react'
+import { View, Text } from 'react-native'
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { useAlertStore } from '@/lib/store'
+import { apiClient } from '@/lib/api'
 
 function TabIcon({
   name,
@@ -13,7 +17,47 @@ function TabIcon({
   return <Ionicons name={focused ? name : (`${name}-outline` as any)} size={24} color={color} />
 }
 
+function AlertsIcon({ color, focused }: { color: string; focused: boolean }) {
+  const unread = useAlertStore((s) => s.unreadCount)
+  return (
+    <View>
+      <Ionicons
+        name={focused ? 'notifications' : 'notifications-outline'}
+        size={24}
+        color={color}
+      />
+      {unread > 0 && (
+        <View
+          style={{
+            position: 'absolute',
+            top: -3,
+            right: -6,
+            minWidth: 16,
+            height: 16,
+            borderRadius: 8,
+            backgroundColor: '#f5801e',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 3,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>
+            {unread > 99 ? '99+' : unread}
+          </Text>
+        </View>
+      )}
+    </View>
+  )
+}
+
 export default function TabLayout() {
+  const fetchAlerts = useAlertStore((s) => s.fetchAlerts)
+
+  // Seed the unread count on mount so the badge is visible immediately
+  useEffect(() => {
+    fetchAlerts(apiClient)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Tabs
       screenOptions={{
@@ -53,7 +97,7 @@ export default function TabLayout() {
         options={{
           title: 'Alerts',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="notifications" color={color} focused={focused} />
+            <AlertsIcon color={color} focused={focused} />
           ),
         }}
       />

@@ -1,6 +1,17 @@
 import type { AxiosInstance } from 'axios'
 import type { TokenPair, User } from './types'
 
+export interface RegisterPayload {
+  first_name: string
+  last_name:  string
+  email:      string
+  company:    string
+  phone:      string
+  role:       'CLIENT' | 'CARRIER'
+  password:   string
+  password2:  string
+}
+
 export function createAuthApi(client: AxiosInstance) {
   return {
     /**
@@ -9,6 +20,14 @@ export function createAuthApi(client: AxiosInstance) {
      */
     login: (credentials: { username: string; password: string }) =>
       client.post<TokenPair>('/api/auth/token/', credentials),
+
+    /**
+     * Create a new user account and return a JWT token pair.
+     * POST /api/auth/register/
+     * On mobile: navigate to Login after success (don't auto-login).
+     */
+    register: (payload: RegisterPayload) =>
+      client.post<TokenPair>('/api/auth/register/', payload),
 
     /**
      * Obtain a fresh access token using the stored refresh token.

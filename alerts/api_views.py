@@ -1,4 +1,19 @@
-"""alerts/api_views.py"""
+"""
+alerts/api_views.py — DRF API views for the alerts app
+=======================================================
+
+Views
+-----
+AlertListAPIView
+    ``GET /api/v1/alerts/`` — returns unacknowledged alerts by default.
+    Managers and admins can pass ``?all=1`` to include acknowledged alerts.
+    Requires IsClientUser (any authenticated user).
+
+AlertAcknowledgeAPIView
+    ``POST /api/v1/alerts/<pk>/acknowledge/`` — marks an alert as acknowledged
+    and records the acknowledging user.  Requires IsManagerUser (LOGISTICS_MGR
+    or ADMIN).
+"""
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView

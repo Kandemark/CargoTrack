@@ -1,3 +1,21 @@
+/**
+ * shared/api/types.ts — Canonical domain types for CargoTrack
+ * =============================================================
+ *
+ * This is the **single source of truth** for all TypeScript types shared
+ * between the React web frontend (`frontend/`) and the Expo mobile app
+ * (`mobile/`).  Both platforms import from `@shared/api/types` via the
+ * path alias configured in their respective tsconfig.json files.
+ *
+ * Design rules:
+ *   - All string enums (status, role, severity, event_type) use the same
+ *     uppercase values stored in the Django database — no mapping needed.
+ *   - Nullable fields use `T | null` (not `T | undefined`) to match JSON.
+ *   - Timestamps are ISO-8601 strings (UTC) as returned by DRF.
+ *
+ * @module shared/api/types
+ */
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export interface User {
@@ -128,12 +146,22 @@ export interface DashboardSummary {
 }
 
 export interface CarrierPerformance {
-  carrier: string
-  total: number
+  carrier_name: string
+  shipment_count: number
+  avg_risk: number
   on_time: number
-  delayed: number
-  on_time_pct: number
 }
+
+// ─── Role constants ───────────────────────────────────────────────────────────
+
+export const UserRole = {
+  ADMIN:         'ADMIN',
+  LOGISTICS_MGR: 'LOGISTICS_MGR',
+  CLIENT:        'CLIENT',
+  CARRIER:       'CARRIER',
+} as const
+
+export type UserRoleType = typeof UserRole[keyof typeof UserRole]
 
 export interface DashboardResponse {
   summary: DashboardSummary

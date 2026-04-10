@@ -7,6 +7,7 @@ OOP Concepts demonstrated:
     - Composition:   Shipment HAS-A Route (FK relationship).
     - Association:   status choices define the shipment lifecycle state machine.
 """
+from django.conf import settings
 from django.db import models
 
 
@@ -62,6 +63,13 @@ class Shipment(models.Model):
     scheduled_arrival    = models.DateTimeField()
     actual_departure     = models.DateTimeField(null=True, blank=True)
     actual_arrival       = models.DateTimeField(null=True, blank=True)
+    client               = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='client_shipments',
+    )
     delay_risk_score     = models.FloatField(default=0.0)
     created_at           = models.DateTimeField(auto_now_add=True)
     updated_at           = models.DateTimeField(auto_now=True)

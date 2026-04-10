@@ -60,3 +60,38 @@ class Alert(models.Model):
             models.Index(fields=["shipment", "sent_at"]),
             models.Index(fields=["acknowledged"]),
         ]
+
+
+class Notification(models.Model):
+    """
+    In-app notification created by InAppAlertHandler.send().
+
+    Decoupled from the Alert model so the handler can persist lightweight
+    notification records without requiring a full Shipment FK lookup.
+    Used by InAppAlertHandler in alerts/handlers.py.
+    """
+
+    SEVERITY = [
+        ('LOW',      'Low'),
+        ('MEDIUM',   'Medium'),
+        ('HIGH',     'High'),
+        ('CRITICAL', 'Critical'),
+    ]
+
+    alert_type      = models.CharField(max_length=50)
+    shipment_id     = models.PositiveIntegerField()
+    tracking_number = models.CharField(max_length=20)
+    message         = models.TextField()
+    severity        = models.CharField(max_length=10, choices=SEVERITY, default='HIGH')
+    created_at      = models.DateTimeField(auto_now_add=True)
+    read            = models.BooleanField(default=False)
+
+    def __str__(self) -> str:
+        return f"[{self.severity}] {self.alert_type} — shipment #{self.shipment_id}"
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["shipment_id"]),
+            models.Index(fields=["read"]),
+        ]

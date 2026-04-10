@@ -1,6 +1,8 @@
-weekly_reports/
 venv/
+weekly_reports/
+node_modules/
 staticfiles/
 media/
 *.pyc
 db.sqlite3
+.env

@@ -9,7 +9,7 @@ User = get_user_model()
 def admin_user(db):
     return User.objects.create_superuser(
         username="admin", email="admin@cargotrack.local", password="testpass123",
-        role="ADMIN"
+        role=User.Role.ADMIN,
     )
 
 
@@ -17,7 +17,7 @@ def admin_user(db):
 def manager_user(db):
     return User.objects.create_user(
         username="manager", email="manager@cargotrack.local", password="testpass123",
-        role="LOGISTICS_MGR"
+        role=User.Role.LOGISTICS_MGR,
     )
 
 
@@ -25,5 +25,5 @@ def manager_user(db):
 def client_user(db):
     return User.objects.create_user(
         username="client1", email="client@cargotrack.local", password="testpass123",
-        role="CLIENT"
+        role=User.Role.CLIENT,
     )

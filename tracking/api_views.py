@@ -1,11 +1,35 @@
-"""tracking/api_views.py — DRF API views."""
+"""
+tracking/api_views.py — DRF API views for tracking events
+==========================================================
+
+Views
+-----
+TrackingEventListCreateView
+    ``GET  /api/v1/tracking/events/``    — paginated list; supports
+    ``?tracking_number=CT-…`` query param for shipment-scoped filtering.
+    ``POST /api/v1/tracking/events/``    — create a new tracking event;
+    ``recorded_by`` is set from ``request.user`` automatically.
+
+TrackingEventDetailView
+    ``GET  /api/v1/tracking/events/<pk>/`` — retrieve a single event.
+
+ShipmentEventsView
+    ``GET  /api/v1/tracking/<tracking_number>/events/``
+    Legacy endpoint retained for backwards compatibility with older clients.
+    Returns events as plain dicts via ``TrackingEvent.to_dict()``.
+
+ShipmentTrackingEventsAPIView
+    ``GET  /api/v1/shipments/<pk>/tracking-events/`` — list events for a shipment.
+    ``POST /api/v1/shipments/<pk>/tracking-events/`` — log a new event.
+    Preferred over ShipmentEventsView; mounted under shipments/ URL namespace.
+"""
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from shipments.models import Shipment
 from .models import TrackingEvent
-from .serializers import TrackingEventSerializer
+from .serializers import ShipmentEventCreateSerializer, TrackingEventSerializer
 
 
 class TrackingEventListCreateView(generics.ListCreateAPIView):
@@ -46,10 +70,16 @@ class ShipmentTrackingEventsAPIView(generics.ListCreateAPIView):
 
     GET  — Returns all tracking events for a shipment identified by PK.
     POST — Logs a new event against the shipment; sets recorded_by to
-           the authenticated user.
+           the authenticated user. Request body: event_type, location, notes.
+           The shipment FK is injected from the URL — do not include it in
+           the request body.
     """
-    serializer_class = TrackingEventSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return ShipmentEventCreateSerializer
+        return TrackingEventSerializer
 
     def _get_shipment(self):
         return get_object_or_404(

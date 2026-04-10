@@ -12,10 +12,13 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // In Docker, API_PROXY_TARGET is set to http://backend:8000 by docker-compose.
+        // For local (non-Docker) dev it falls back to http://localhost:8000.
+        target: process.env.API_PROXY_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
       },
     },

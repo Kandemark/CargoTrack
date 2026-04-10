@@ -1,23 +1,49 @@
-asgiref==3.11.1
-colorama==0.4.6
-Django==4.2.29
-django-cors-headers==4.9.0
-djangorestframework==3.17.1
-djangorestframework-simplejwt==5.3.1
-iniconfig==2.3.0
-joblib==1.5.3
-numpy==2.4.4
-packaging==26.0
-python-decouple==3.8
-pandas==3.0.2
-pluggy==1.6.0
-Pygments==2.20.0
-pytest==9.0.2
-pytest-django==4.12.0
-python-dateutil==2.9.0.post0
-scikit-learn==1.8.0
-scipy==1.17.1
-six==1.17.0
-sqlparse==0.5.5
-threadpoolctl==3.6.0
-tzdata==2026.1
+# CargoTrack Python dependencies
+# ================================
+# Pin all versions to ensure reproducible builds.
+# Update with: pip-compile requirements.in  (if using pip-tools)
+
+# ── Core Django ───────────────────────────────────────────────────────────────
+Django==4.2.29                  # LTS release — supported until April 2026
+asgiref==3.11.1                 # ASGI utilities required by Django
+sqlparse==0.5.5                 # SQL formatter used by Django debug output
+
+# ── Production WSGI server ────────────────────────────────────────────────────
+gunicorn==21.2.0                # WSGI server for production (Dockerfile.backend CMD)
+
+# ── REST framework + JWT auth ─────────────────────────────────────────────────
+djangorestframework==3.17.1     # DRF — API framework (views, serializers, auth)
+djangorestframework-simplejwt==5.3.1  # JWT token generation and refresh rotation
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+django-cors-headers==4.9.0      # Cross-Origin Resource Sharing (Vite dev server)
+
+# ── Database ──────────────────────────────────────────────────────────────────
+psycopg2-binary==2.9.10         # PostgreSQL 16 adapter (binary; no libpq needed)
+
+# ── Configuration / environment ───────────────────────────────────────────────
+python-decouple==3.8            # Reads .env without exposing secrets in source
+
+# ── ML / Data science ─────────────────────────────────────────────────────────
+scikit-learn==1.8.0             # RandomForestClassifier, GridSearchCV, metrics
+numpy==2.4.4                    # Numeric arrays (scikit-learn dependency)
+pandas==3.0.2                   # DataFrame used by FeatureEngineer.transform()
+scipy==1.17.1                   # Scientific computing (scikit-learn dependency)
+joblib==1.5.3                   # Parallel processing for scikit-learn estimators
+threadpoolctl==3.6.0            # Thread pool control (scikit-learn dependency)
+
+# ── Date / time utilities ─────────────────────────────────────────────────────
+python-dateutil==2.9.0.post0    # Flexible date parsing used by pandas
+six==1.17.0                     # Python 2/3 compatibility (dateutil dependency)
+tzdata==2026.1                  # IANA timezone database for USE_TZ=True
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest==9.0.2                   # Test runner
+pytest-django==4.12.0           # Django integration for pytest (conftest.py)
+iniconfig==2.3.0                # pytest configuration file parser
+pluggy==1.6.0                   # pytest plugin system
+
+# ── Output formatting ─────────────────────────────────────────────────────────
+colorama==0.4.6                 # ANSI colour codes on Windows terminals
+Pygments==2.20.0                # Syntax highlighting (pytest/DRF output)
+packaging==26.0                 # Version parsing utility

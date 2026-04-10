@@ -15,8 +15,14 @@ import { createAuthApi } from '@shared/api/auth'
 import { createShipmentsApi } from '@shared/api/shipments'
 import { createDashboardApi } from '@shared/api/dashboard'
 
-// Point to the local Django dev server.
-// In production, override with EXPO_PUBLIC_API_URL from .env
+// Default to Android emulator localhost; override with EXPO_PUBLIC_API_URL in .env
+if (!process.env.EXPO_PUBLIC_API_URL) {
+  console.warn(
+    '[CargoTrack] EXPO_PUBLIC_API_URL is not set. ' +
+    'Falling back to Android emulator address (http://10.0.2.2:8000). ' +
+    'Set EXPO_PUBLIC_API_URL in mobile/.env for physical devices or iOS.',
+  )
+}
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000'
 
 export const apiClient = createApiClient({

@@ -1,6 +1,19 @@
+/**
+ * @file Navbar.tsx
+ * @description Top navigation bar for authenticated pages.  Displays the
+ * current user's name and role, an unread alert count badge, and a user
+ * dropdown with a logout action.
+ *
+ * Reads from:
+ *   - `useAuthStore` — current user and `logout` action
+ *   - `useAlertStore` — `unreadCount` for the bell badge
+ *
+ * @returns The sticky top navigation bar element.
+ */
 import { Bell, ChevronDown } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useAlertStore } from '@/store/alertStore'
 
 function formatDate(d: Date) {
   return d.toLocaleDateString('en-GB', {
@@ -11,8 +24,9 @@ function formatDate(d: Date) {
   })
 }
 
-export default function Navbar({ unreadAlerts = 0 }: { unreadAlerts?: number }) {
+export default function Navbar() {
   const user = useAuthStore((s) => s.user)
+  const unreadAlerts = useAlertStore((s) => s.unreadCount)
 
   const initials = user
     ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase()
@@ -29,7 +43,7 @@ export default function Navbar({ unreadAlerts = 0 }: { unreadAlerts?: number }) 
       <div className="flex items-center gap-2">
         {/* Bell */}
         <Link
-          to="/alerts"
+          to="/shared/alerts"
           className="relative p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
         >
           <Bell className="w-4 h-4" />

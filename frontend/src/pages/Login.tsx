@@ -1,26 +1,40 @@
+/**
+ * @file Login.tsx
+ * @description Login page — unauthenticated entry point for the React SPA.
+ *
+ * Submits credentials via `useAuthStore.login()` which calls
+ * `POST /api/auth/token/` and then `GET /api/v1/accounts/me/`.
+ * On success, redirects to `/dashboard`.  On failure, displays an
+ * inline error message without revealing which field was wrong.
+ *
+ * @route /login
+ * @auth Public (AllowAny)
+ */
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import client from '@/api/client'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { getRoleDashboard } from '@/lib/roleUtils'
 
 export default function Login() {
   const navigate = useNavigate()
-  const setUser = useAuthStore((s) => s.setUser)
-  const [email, setEmail] = useState('')
+  const [searchParams] = useSearchParams()
+  const login = useAuthStore((s) => s.login)
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [loading, setLoading]   = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
-      const res = await client.post('/accounts/login/', { email, password })
-      setUser(res.data.user)
-      navigate('/dashboard')
+      await login({ username, password })
+      const user = useAuthStore.getState().user
+      const next = searchParams.get('next')
+      navigate(next ?? getRoleDashboard(user?.role), { replace: true })
     } catch {
-      setError('Invalid credentials. Please try again.')
+      setError('Invalid username or password. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -29,10 +43,13 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
+        {/* Wordmark */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ background: 'var(--ct-orange)' }}>
+            <div
+              className="w-8 h-8 rounded-md flex items-center justify-center"
+              style={{ background: 'var(--ct-orange)' }}
+            >
               <span className="text-white font-bold text-sm">CT</span>
             </div>
             <span className="text-2xl font-bold" style={{ color: 'var(--ct-navy)' }}>CargoTrack</span>
@@ -43,10 +60,15 @@ export default function Login() {
         {/* Card */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
           <h1 className="text-xl font-semibold text-gray-900 mb-1">Sign in to your account</h1>
-          <p className="text-sm text-gray-500 mb-6">Enter your credentials to access the platform</p>
+          <p className="text-sm text-gray-500 mb-6">
+            Don&rsquo;t have an account?{' '}
+            <Link to="/register" className="text-blue-600 hover:underline font-medium">
+              Create one
+            </Link>
+          </p>
 
           {error && (
-            <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+            <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
               {error}
             </div>
           )}
@@ -59,11 +81,12 @@ export default function Login() {
               <input
                 type="email"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-colors"
                 style={{ ['--tw-ring-color' as string]: 'var(--ct-navy)' }}
-                placeholder="you@company.com"
+                placeholder="your@email.com"
               />
             </div>
 
@@ -74,6 +97,7 @@ export default function Login() {
               <input
                 type="password"
                 required
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-colors"
@@ -84,7 +108,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-60"
+              className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-60 mt-2"
               style={{ background: 'var(--ct-navy)' }}
             >
               {loading ? 'Signing in…' : 'Sign in'}

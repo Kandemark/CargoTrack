@@ -15,8 +15,9 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Shipment
+from .models import Route, Shipment
 from .serializers import (
+    RouteSerializer,
     ShipmentCreateSerializer,
     ShipmentSerializer,
     ShipmentStatusSerializer,
@@ -33,14 +34,27 @@ def _generate_tracking_number() -> str:
             return candidate
 
 
+class RouteListAPIView(generics.ListAPIView):
+    """
+    GET /api/v1/routes/
+
+    Returns all available routes without pagination — used to populate the
+    route dropdown in the shipment creation form.
+    """
+
+    queryset = Route.objects.all()
+    serializer_class = RouteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
+
+
 class ShipmentListCreateAPIView(generics.ListCreateAPIView):
     """
-    GET  /shipments/  — paginated list of all shipments (public read).
+    GET  /shipments/  — paginated list of all shipments.
     POST /shipments/  — create a new shipment; tracking_number auto-generated.
     """
 
-    # Allow unauthenticated reads; require auth for writes
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Shipment.objects.select_related("route").order_by("-created_at")
@@ -111,7 +125,7 @@ class PredictDelayAPIView(APIView):
     Returns 503 if the model file has not been trained yet.
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, pk=None):
         # Accept shipment_id from body OR URL pk

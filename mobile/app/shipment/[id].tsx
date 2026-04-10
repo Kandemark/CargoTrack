@@ -1,3 +1,24 @@
+/**
+ * @file mobile/app/shipment/[id].tsx
+ * @description Shipment detail screen — shows full cargo info, tracking event
+ * timeline, and delay risk score for a specific shipment.
+ *
+ * Data flow:
+ *   - Reads `id` from URL params via `useLocalSearchParams()`.
+ *   - Fetches `GET /api/v1/shipments/<id>/` and
+ *     `GET /api/v1/shipments/<id>/tracking-events/` in parallel on mount.
+ *   - "Run Prediction" button calls `POST /api/v1/shipments/<id>/predict/`
+ *     and updates the risk score display in-place.
+ *   - "Log Event" button navigates to `shipment/log-event` with the
+ *     shipment id and tracking number passed as query params.
+ *
+ * Platform notes:
+ *   - `Alert.alert()` is used for the native confirmation dialog (iOS uses a
+ *     modal sheet; Android uses a bottom dialog).
+ *
+ * @route /shipment/[id]
+ * @auth IsAuthenticated
+ */
 import { useEffect, useState } from 'react'
 import {
   View,
@@ -7,20 +28,20 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { shipmentsApi } from '@/lib/api'
+import { useAuthStore } from '@/lib/store'
+import {
+  SHIPMENT_STATUS_COLORS,
+  SHIPMENT_STATUS_LABELS,
+  riskLevel,
+} from '@shared/utils/statusColors'
+import { formatDate } from '@shared/utils/formatters'
 import type { Shipment, TrackingEvent, ShipmentStatus, EventType } from '@shared/api/types'
 
-// ─── Status helpers ───────────────────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<ShipmentStatus, { label: string; bg: string; text: string }> = {
-  IN_TRANSIT: { label: 'In Transit',  bg: '#f0fdf4', text: '#15803d' },
-  DELAYED:    { label: 'Delayed',     bg: '#fef2f2', text: '#dc2626' },
-  CUSTOMS:    { label: 'At Customs',  bg: '#fffbeb', text: '#d97706' },
-  DELIVERED:  { label: 'Delivered',   bg: '#eef2ff', text: '#4f46e5' },
-  PENDING:    { label: 'Pending',     bg: '#f8fafc', text: '#64748b' },
-}
+// ─── Event icons ──────────────────────────────────────────────────────────────
 
 const EVENT_ICONS: Record<EventType, React.ComponentProps<typeof Ionicons>['name']> = {
   DEPARTURE:     'airplane',
@@ -32,12 +53,12 @@ const EVENT_ICONS: Record<EventType, React.ComponentProps<typeof Ionicons>['name
   NOTE:          'chatbubble-outline',
 }
 
-// ─── Detail row ───────────────────────────────────────────────────────────────
+// ─── Info row ─────────────────────────────────────────────────────────────────
 
 function InfoRow({ label, value }: { label: string; value: string | number }) {
   return (
     <View className="flex-row justify-between items-start py-2.5 border-b border-gray-100">
-      <Text className="text-gray-500 text-sm w-36">{label}</Text>
+      <Text className="text-gray-400 text-sm w-36">{label}</Text>
       <Text className="text-gray-900 text-sm font-medium flex-1 text-right" numberOfLines={2}>
         {value}
       </Text>
@@ -50,13 +71,13 @@ function InfoRow({ label, value }: { label: string; value: string | number }) {
 function TimelineEvent({ event, isLast }: { event: TrackingEvent; isLast: boolean }) {
   const iconName = EVENT_ICONS[event.event_type] ?? 'ellipse'
   const isDelay  = event.event_type === 'DELAY'
-  const date = new Date(event.timestamp).toLocaleString('en-GB', {
+  const date     = new Date(event.timestamp).toLocaleString('en-GB', {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   })
 
   return (
     <View className="flex-row">
-      {/* Timeline column */}
+      {/* Timeline spine */}
       <View className="w-10 items-center">
         <View
           className="w-8 h-8 rounded-full items-center justify-center"
@@ -89,8 +110,11 @@ function TimelineEvent({ event, isLast }: { event: TrackingEvent; isLast: boolea
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
+const CAN_LOG_EVENTS = ['ADMIN', 'LOGISTICS_MGR', 'CARRIER']
+
 export default function ShipmentDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id }   = useLocalSearchParams<{ id: string }>()
+  const userRole = useAuthStore((s) => s.user?.role)
 
   const [shipment, setShipment] = useState<Shipment | null>(null)
   const [events, setEvents]     = useState<TrackingEvent[]>([])
@@ -125,19 +149,19 @@ export default function ShipmentDetailScreen() {
 
   if (!shipment) return null
 
-  const statusCfg = STATUS_CONFIG[shipment.status] ?? STATUS_CONFIG.PENDING
-  const risk      = shipment.delay_risk_score ?? 0
-  const riskColor = risk >= 70 ? '#ef4444' : risk >= 40 ? '#f59e0b' : '#22c55e'
+  const sc       = SHIPMENT_STATUS_COLORS[shipment.status as ShipmentStatus] ?? SHIPMENT_STATUS_COLORS.PENDING
+  const label    = SHIPMENT_STATUS_LABELS[shipment.status as ShipmentStatus] ?? shipment.status
+  const riskPct  = Math.round((shipment.delay_risk_score ?? 0) * 100)
+  const risk     = riskLevel(shipment.delay_risk_score ?? 0)
+  const canLog   = userRole && CAN_LOG_EVENTS.includes(userRole)
 
-  const fmtDate = (d: string | null) =>
-    d
-      ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-      : '—'
+  const fmtDate = (d: string | null) => d ? formatDate(d) : '—'
 
   return (
-    <ScrollView className="flex-1 bg-gray-50" showsVerticalScrollIndicator={false}>
-      {/* Hero card */}
-      <View className="bg-ct-navy px-5 pt-5 pb-8">
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
+    <ScrollView style={{ flex: 1, backgroundColor: '#f9fafb' }} showsVerticalScrollIndicator={false}>
+      {/* Hero */}
+      <View className="bg-ct-navy px-5 pt-3 pb-8">
         <TouchableOpacity
           onPress={() => router.back()}
           className="flex-row items-center gap-1 mb-4 self-start"
@@ -146,49 +170,123 @@ export default function ShipmentDetailScreen() {
           <Text className="text-blue-300 text-sm">Back</Text>
         </TouchableOpacity>
 
-        <Text className="text-white text-xl font-bold">{shipment.tracking_number}</Text>
-        <Text className="text-blue-300 text-sm mt-1">
-          {shipment.route.origin} → {shipment.route.destination}
-        </Text>
-
-        <View className="flex-row items-center gap-3 mt-4">
-          <View
-            style={{ backgroundColor: statusCfg.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}
-          >
-            <Text style={{ color: statusCfg.text, fontWeight: '700', fontSize: 12 }}>
-              {statusCfg.label}
+        <View className="flex-row items-start justify-between">
+          <View className="flex-1 mr-3">
+            <Text className="text-white text-xl font-bold font-mono">
+              {shipment.tracking_number}
+            </Text>
+            <Text className="text-blue-300 text-sm mt-1">
+              {shipment.route.origin} → {shipment.route.destination}
             </Text>
           </View>
-          <View className="flex-row items-center gap-1">
-            <Text className="text-blue-300 text-xs">Risk</Text>
-            <Text className="text-xs font-bold" style={{ color: riskColor }}>{risk}%</Text>
+          {/* Log Event button — CARRIER role only */}
+          {canLog && (
+            <TouchableOpacity
+              onPress={() => router.push(`/shipment/log-event?id=${shipment.id}`)}
+              style={{
+                backgroundColor: '#f5801e',
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={14} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Log Event</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Status + risk */}
+        <View className="flex-row items-center gap-3 mt-4">
+          <View
+            style={{
+              backgroundColor: sc.background,
+              borderRadius: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+            }}
+          >
+            <Text style={{ color: sc.text, fontWeight: '700', fontSize: 12 }}>{label}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View className="flex-row items-center justify-between mb-1">
+              <Text className="text-blue-300 text-xs">Delay Risk</Text>
+              <Text className="text-xs font-bold" style={{ color: risk.color }}>
+                {riskPct}% · {risk.label}
+              </Text>
+            </View>
+            {/* Progress bar */}
+            <View
+              style={{
+                height: 5,
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                borderRadius: 3,
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                style={{
+                  height: 5,
+                  width: `${riskPct}%` as any,
+                  backgroundColor: risk.color,
+                  borderRadius: 3,
+                }}
+              />
+            </View>
           </View>
         </View>
       </View>
 
       {/* Details card */}
-      <View className="bg-white mx-4 -mt-4 rounded-2xl px-4 py-2 mb-4"
-        style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 3 }}
+      <View
+        className="bg-white mx-4 -mt-4 rounded-2xl px-4 py-2 mb-4"
+        style={{
+          shadowColor: '#000',
+          shadowOpacity: 0.06,
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 8,
+          elevation: 3,
+        }}
       >
-        <InfoRow label="Carrier"              value={shipment.carrier_name} />
-        <InfoRow label="Weight"               value={`${shipment.weight_kg.toLocaleString()} kg`} />
-        <InfoRow label="Scheduled Departure"  value={fmtDate(shipment.scheduled_departure)} />
-        <InfoRow label="Scheduled Arrival"    value={fmtDate(shipment.scheduled_arrival)} />
-        <InfoRow label="Actual Departure"     value={fmtDate(shipment.actual_departure)} />
-        <InfoRow label="Actual Arrival"       value={fmtDate(shipment.actual_arrival)} />
-        <InfoRow label="Distance"             value={`${shipment.route.distance_km.toLocaleString()} km`} />
+        <InfoRow label="Carrier"             value={shipment.carrier_name} />
+        <InfoRow label="Weight"              value={`${shipment.weight_kg.toLocaleString()} kg`} />
+        <InfoRow label="Scheduled Dep."      value={fmtDate(shipment.scheduled_departure)} />
+        <InfoRow label="Scheduled Arr."      value={fmtDate(shipment.scheduled_arrival)} />
+        <InfoRow label="Actual Dep."         value={fmtDate(shipment.actual_departure)} />
+        <InfoRow label="Actual Arr."         value={fmtDate(shipment.actual_arrival)} />
+        <InfoRow label="Distance"            value={`${shipment.route.distance_km.toLocaleString()} km`} />
       </View>
 
       {/* Timeline */}
-      <View className="bg-white mx-4 mb-8 rounded-2xl px-4 py-4"
-        style={{ shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8, elevation: 3 }}
+      <View
+        className="bg-white mx-4 mb-8 rounded-2xl px-4 py-4"
+        style={{
+          shadowColor: '#000',
+          shadowOpacity: 0.06,
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 8,
+          elevation: 3,
+        }}
       >
-        <Text className="text-gray-900 text-sm font-bold mb-4">Tracking Timeline</Text>
+        <Text className="text-gray-900 text-sm font-bold mb-4">
+          Tracking Timeline · {events.length} events
+        </Text>
 
         {events.length === 0 ? (
           <View className="items-center py-6">
             <Ionicons name="location-outline" size={32} color="#cbd5e1" />
             <Text className="text-gray-400 text-sm mt-2">No tracking events yet</Text>
+            {canLog && (
+              <TouchableOpacity
+                onPress={() => router.push(`/shipment/log-event?id=${shipment.id}`)}
+                className="mt-4 px-4 py-2 rounded-xl bg-ct-navy active:opacity-80"
+              >
+                <Text className="text-white text-sm font-semibold">Log the first event</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           events.map((ev, idx) => (
@@ -197,5 +295,6 @@ export default function ShipmentDetailScreen() {
         )}
       </View>
     </ScrollView>
+    </SafeAreaView>
   )
 }

@@ -80,13 +80,14 @@ class AlertManager:
         if shipment.client and shipment.client.email:
             recipient = shipment.client.email
 
+        thresholds = getattr(settings, 'ALERT_THRESHOLDS', {'CRITICAL': 0.85, 'HIGH': 0.70})
+        severity = "HIGH" if prediction.delay_probability >= thresholds['CRITICAL'] else "MEDIUM"
+
         message = (
             f"Shipment {shipment.tracking_number} has a {prediction.delay_probability:.0%} "
-            f"probability of delay. Estimated delay: {prediction.predicted_delay_hours:.1f} hours.
-"
-            f"Route: {shipment.route}
-"
-            f"Carrier: {shipment.carrier or 'Unassigned'}"
+            f"probability of delay. Estimated delay: {prediction.predicted_delay_hours:.1f} hours.\n"
+            f"Route: {shipment.route}\n"
+            f"Carrier: {shipment.carrier_name or 'Unassigned'}"
         )
 
         alert = Alert(
@@ -94,7 +95,7 @@ class AlertManager:
             shipment_id=shipment.id,
             tracking_number=shipment.tracking_number,
             message=message,
-            severity="HIGH" if prediction.delay_probability >= 0.85 else "MEDIUM",
+            severity=severity,
             recipient_email=recipient,
         )
         return self.fire_alert(alert)

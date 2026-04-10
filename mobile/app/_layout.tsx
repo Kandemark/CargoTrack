@@ -1,3 +1,21 @@
+/**
+ * @file mobile/app/_layout.tsx
+ * @description Root Expo Router layout — initialises auth state from
+ * SecureStore before the splash screen is hidden, then renders the
+ * Stack navigator with all top-level route segments.
+ *
+ * Startup sequence:
+ *   1. `SplashScreen.preventAutoHideAsync()` keeps the splash visible.
+ *   2. `loadStoredTokens()` reads the access_token from SecureStore.
+ *   3. `SplashScreen.hideAsync()` is called in the `finally` block so
+ *      the splash disappears whether auth succeeds or fails.
+ *
+ * Segments:
+ *   (auth)          — Login screen (unauthenticated)
+ *   (tabs)          — Bottom tab navigator (authenticated)
+ *   shipment/[id]   — Shipment detail screen
+ *   shipment/log-event — Log tracking event form
+ */
 import '../global.css'
 
 import { useEffect } from 'react'
@@ -20,14 +38,11 @@ export default function RootLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen
         name="shipment/[id]"
-        options={{
-          headerShown: true,
-          headerTitle: 'Shipment Detail',
-          headerStyle: { backgroundColor: '#0f2d5e' },
-          headerTintColor: '#ffffff',
-          headerTitleStyle: { fontWeight: '700' },
-          presentation: 'card',
-        }}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="shipment/log-event"
+        options={{ headerShown: false }}
       />
     </Stack>
   )

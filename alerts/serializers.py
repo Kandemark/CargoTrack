@@ -1,4 +1,18 @@
-"""alerts/serializers.py"""
+"""
+alerts/serializers.py — DRF serializers for the alerts app
+===========================================================
+
+Serializers
+-----------
+AlertSerializer
+    Full read serializer for Alert objects; exposes ``acknowledged`` as the
+    only writable field so clients can dismiss alerts.  ``acknowledged_by``
+    is intentionally excluded to avoid leaking user PII through the API.
+
+AlertAcknowledgeSerializer
+    Minimal write-only serializer used by AlertAcknowledgeAPIView; accepts
+    only the ``acknowledged`` boolean field.
+"""
 from rest_framework import serializers
 from .models import Alert
 

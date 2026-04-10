@@ -1,0 +1,98 @@
+services:
+
+  # ── PostgreSQL 16 ─────────────────────────────────────────────────────────────
+  # Sole database for all CargoTrack domain models.  The alpine variant keeps
+  # the image small and has no known CVEs at the pinned minor version.
+  db:
+    image: postgres:16-alpine
+    environment:
+      # Database name created on first startup; matches Django DB_NAME setting.
+      POSTGRES_DB:       ${DB_NAME:-cargotrack}
+      # Superuser account Django connects with; matches Django DB_USER setting.
+      POSTGRES_USER:     ${DB_USER:-postgres}
+      # Must be provided in .env — the :? syntax causes compose to fail fast
+      # with a clear error if DB_PASSWORD is missing or empty.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    volumes:
+      # Named volume persists Postgres data across container restarts and
+      # `docker compose down` calls.  Only `docker compose down -v` removes it.
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Expose Postgres on the host for database GUI tools (e.g. pgAdmin, DBeaver).
+      # Remove this mapping in production to prevent external access.
+      - "5432:5432"
+    healthcheck:
+      # pg_isready exits 0 only when Postgres accepts connections.
+      # The backend service depends_on this check so Django never starts
+      # before the database is ready to accept connections.
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-cargotrack}"]
+      interval: 5s   # check every 5 seconds
+      timeout: 5s    # fail check after 5 seconds of no response
+      retries: 10    # mark unhealthy after 10 consecutive failures
+
+  # ── Django backend ─────────────────────────────────────────────────────────────
+  # Runs Django via Gunicorn (production) or `runserver` (development, current CMD).
+  # The entrypoint applies migrations before starting the server so the schema is
+  # always up-to-date when the container first becomes reachable.
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    depends_on:
+      db:
+        # Wait for the Postgres healthcheck to pass before starting Django.
+        # Without this, Django's migrate command would fail on first boot.
+        condition: service_healthy
+    # Load all environment variables from .env into the container.
+    env_file: .env
+    environment:
+      # Override DB_HOST so Django reaches Postgres by its Docker service name
+      # ('db') rather than 'localhost', which would resolve to the backend
+      # container itself instead of the Postgres container.
+      DB_HOST: db
+    volumes:
+      # Bind-mount the repo root so code changes are reflected without rebuild.
+      # In production, remove this mount and bake the code into the image.
+      - .:/app
+    ports:
+      # Expose Django on the host for direct API testing (e.g. curl, Postman).
+      - "8000:8000"
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # ── React / Vite frontend ──────────────────────────────────────────────────────
+  # Runs the Vite dev server with hot module replacement.  In production,
+  # run `npm run build` and serve the dist/ directory from Nginx or a CDN.
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    depends_on:
+      # Wait for the backend to be up before starting Vite so the proxy target
+      # is ready immediately on first request.
+      - backend
+    environment:
+      # Vite server-side proxy target — used by vite.config.ts to forward
+      # /api/* requests from the browser to Django.  Must use the Docker
+      # service name ('backend'), not 'localhost'.
+      # Note: browser requests use relative /api/... paths; no VITE_API_URL
+      # is needed because baseURL defaults to '' in frontend/src/api/client.ts.
+      API_PROXY_TARGET: http://backend:8000
+    volumes:
+      # Bind-mount frontend source for HMR (changes reflected without rebuild).
+      - ./frontend:/app/frontend
+      # Preserve the node_modules directory installed during `docker build`
+      # so the host bind-mount above doesn't shadow it with an empty directory.
+      - /app/frontend/node_modules
+      # Mount shared/ at /app/shared/ so tsc can resolve the @shared/* path
+      # alias (../shared/* relative to /app/frontend/) during dev and build.
+      - ./shared:/app/shared
+    ports:
+      # Vite dev server port; open http://localhost:5173 in the browser.
+      - "5173:5173"
+
+volumes:
+  # Named volume for Postgres data persistence across container restarts.
+  # Removed only by `docker compose down -v` or explicit `docker volume rm`.
+  postgres_data:

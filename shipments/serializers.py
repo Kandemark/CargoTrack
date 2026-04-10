@@ -1,4 +1,25 @@
-"""shipments/serializers.py — DRF serializers."""
+"""
+shipments/serializers.py — DRF serializers for the shipments app
+=================================================================
+
+Serializers
+-----------
+RouteSerializer
+    Full read/write serializer for Route objects; validates that distance
+    and estimated_hours are positive.
+
+ShipmentSerializer
+    Read-only serializer with nested RouteSerializer; used for GET responses.
+
+ShipmentCreateSerializer
+    Write serializer for POST /shipments/; tracking_number is auto-generated
+    by the view (not accepted from the client).  Validates that scheduled
+    departure is before arrival, and that weight is within the 150 000 kg limit.
+
+ShipmentStatusSerializer
+    Minimal PATCH serializer that accepts only the ``status`` field, preventing
+    accidental overwrite of immutable fields during status transitions.
+"""
 from rest_framework import serializers
 from .models import Route, Shipment
 

@@ -17,6 +17,8 @@ OOP:
 
 import logging
 
+from django.conf import settings
+
 from cargotrack.base_classes import BaseAlertHandler
 
 logger = logging.getLogger(__name__)
@@ -69,12 +71,15 @@ class InAppAlertHandler(BaseAlertHandler):
 
     @staticmethod
     def _score_to_severity(score: float) -> str:
-        """Map a risk score to a SEVERITY choice label."""
-        if score >= 0.85:
+        """Map a risk score to a SEVERITY choice label using settings.ALERT_THRESHOLDS."""
+        thresholds = getattr(settings, 'ALERT_THRESHOLDS', {
+            'CRITICAL': 0.85, 'HIGH': 0.70, 'MEDIUM': 0.50,
+        })
+        if score >= thresholds.get('CRITICAL', 0.85):
             return 'CRITICAL'
-        if score >= 0.70:
+        if score >= thresholds.get('HIGH', 0.70):
             return 'HIGH'
-        if score >= 0.50:
+        if score >= thresholds.get('MEDIUM', 0.50):
             return 'MEDIUM'
         return 'LOW'
 

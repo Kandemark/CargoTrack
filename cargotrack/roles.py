@@ -1,18 +1,43 @@
 """
-cargotrack/roles.py
-Centralised role constants for the CargoTrack RBAC system.
+cargotrack/roles.py — RBAC role constants
+==========================================
 
-Import UserRole anywhere role values are needed instead of scattering
-magic strings across the codebase.
+Provides a plain-Python ``UserRole`` class for use anywhere a role string is
+needed outside of the ORM layer.
+
+Note on authoritative role values
+----------------------------------
+``accounts.models.CustomUser.Role`` (a ``TextChoices`` enum) is the canonical
+source of role values stored in the database::
+
+    ADMIN        = 'ADMIN'
+    LOGISTICS_MGR = 'LOGISTICS_MGR'
+    CLIENT       = 'CLIENT'
+    CARRIER      = 'CARRIER'
+
+``cargotrack.roles.UserRole`` uses different lowercase strings (``'admin'``,
+``'manager'``) and was defined before the TextChoices refactor.  The two are
+**not interchangeable** — never use ``UserRole`` constants to compare against
+``request.user.role``; use ``CustomUser.Role`` for that.  ``UserRole`` is
+preserved for legacy compatibility and potential future admin tooling.
 """
 
 
 class UserRole:
     """
-    Plain Python class holding role constants and their display labels.
+    Plain Python class holding legacy role constants and display labels.
 
-    Used as the source of truth for role values in UserProfile.role,
-    permission checks, and any view-level access guards.
+    .. warning::
+        These constants do **not** match the database values stored in
+        ``CustomUser.role``.  For permission checks, use
+        ``accounts.models.CustomUser.Role`` instead.
+
+    Attributes:
+        ADMIN   (str): Legacy admin role string ``'admin'``.
+        MANAGER (str): Legacy manager role string ``'manager'``.
+        CARRIER (str): Legacy carrier role string ``'carrier'``.
+        CLIENT  (str): Legacy client role string ``'client'``.
+        CHOICES (list[tuple]): ``(value, label)`` pairs for form widgets.
     """
 
     ADMIN   = 'admin'

@@ -1,0 +1,16 @@
+venv/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.env
+db.sqlite3
+frontend/dist/
+mobile/
+staticfiles/
+media/
+*.log
+.pytest_cache/
+htmlcov/
+.coverage
