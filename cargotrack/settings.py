@@ -107,18 +107,26 @@ TEMPLATES = [{
 WSGI_APPLICATION = 'cargotrack.wsgi.application'
 
 # ── Database ──────────────────────────────────────────────────────────────────
-# PostgreSQL 16 is the only supported database.  In Docker, DB_HOST is
-# overridden to 'db' (the Postgres service name) by docker-compose.yml.
+# PostgreSQL 16 is the recommended production database, but SQLite is supported
+# for local development. Default to SQLite if no DB_NAME is provided or if
+# DB_ENGINE is explicitly set to SQLite.
+DB_ENGINE = config('DB_ENGINE', default='django.db.backends.sqlite3')
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='cargotrack'),
+        'ENGINE': DB_ENGINE,
+        'NAME': config('DB_NAME', default=BASE_DIR / 'db.sqlite3'),
+    }
+}
+
+if 'postgresql' in DB_ENGINE:
+    DATABASES['default'].update({
         'USER': config('DB_USER', default='postgres'),
         'PASSWORD': config('DB_PASSWORD', default=''),
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
-    }
-}
+    })
+
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 # Points Django to the custom user model that adds role, phone, and company.

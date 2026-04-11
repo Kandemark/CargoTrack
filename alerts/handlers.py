@@ -7,58 +7,12 @@ OOP:
     - Inheritance:    EmailAlertHandler, InAppAlertHandler extend base.
     - Polymorphism:   AlertManager calls send() on any handler uniformly.
 """
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
+import logging
 from django.core.mail import send_mail
 from django.conf import settings
-import logging
+from cargotrack.base_classes import BaseAlertHandler, Alert
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Alert:
-    """Value object representing an alert to be dispatched."""
-    alert_type:   str          # e.g. "DELAY_RISK", "EXCEPTION", "OVERDUE"
-    shipment_id:  int
-    tracking_number: str
-    message:      str
-    severity:     str = "HIGH"  # HIGH | MEDIUM | LOW
-    recipient_email: str | None = None
-
-
-class BaseAlertHandler(ABC):
-    """
-    Abstract base class for alert notification handlers.
-
-    OOP: Abstraction — defines the contract all handlers must satisfy.
-    """
-
-    @abstractmethod
-    def send(self, alert: Alert) -> bool:
-        """
-        Dispatch the alert through this handler's channel.
-
-        Args:
-            alert: Alert value object with all notification context.
-
-        Returns:
-            bool: True if the alert was sent successfully, False otherwise.
-        """
-        ...
-
-    def can_handle(self, alert: Alert) -> bool:
-        """
-        Determine whether this handler should process the given alert.
-        Override in subclasses to add filtering logic.
-
-        Args:
-            alert: The alert to check.
-
-        Returns:
-            bool: True by default — handles all alert types.
-        """
-        return True
 
 
 class EmailAlertHandler(BaseAlertHandler):
@@ -67,6 +21,9 @@ class EmailAlertHandler(BaseAlertHandler):
 
     OOP: Inherits BaseAlertHandler — concrete implementation of send().
     """
+
+    def get_handler_name(self) -> str:
+        return 'Email'
 
     def send(self, alert: Alert) -> bool:
         """
@@ -102,6 +59,9 @@ class InAppAlertHandler(BaseAlertHandler):
 
     OOP: Inherits BaseAlertHandler — alternative implementation of send().
     """
+
+    def get_handler_name(self) -> str:
+        return 'InApp'
 
     def send(self, alert: Alert) -> bool:
         """
