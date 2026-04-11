@@ -15,8 +15,9 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Route, Shipment
+from .models import Document, Route, Shipment
 from .serializers import (
+    DocumentSerializer,
     RouteSerializer,
     ShipmentCreateSerializer,
     ShipmentSerializer,
@@ -57,7 +58,11 @@ class ShipmentListCreateAPIView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Shipment.objects.select_related("route").order_by("-created_at")
+        qs = Shipment.objects.select_related("route").order_by("-created_at")
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter.upper())
+        return qs
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -166,4 +171,53 @@ class PredictDelayAPIView(APIView):
             "delay_risk_score":  shipment.delay_risk_score,
             "predicted_delayed": bool(label),
             "confidence":        round(prob, 4),
+        })
+
+
+class ShipmentDocumentListCreateAPIView(generics.ListCreateAPIView):
+    """
+    GET  /api/v1/shipments/<pk>/documents/ — list documents for a shipment.
+    POST /api/v1/shipments/<pk>/documents/ — upload a document (multipart/form-data).
+    """
+    serializer_class   = DocumentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes: list  # accept multipart uploads
+
+    def get_queryset(self):
+        return Document.objects.filter(shipment_id=self.kwargs['pk'])
+
+    def perform_create(self, serializer):
+        shipment = get_object_or_404(Shipment, pk=self.kwargs['pk'])
+        serializer.save(shipment=shipment, uploaded_by=self.request.user)
+
+
+class PublicTrackingAPIView(APIView):
+    """
+    GET /api/v1/track/<tracking_number>/
+    Public (AllowAny) — returns shipment status and events for client tracking portal.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, tracking_number=None):
+        shipment = get_object_or_404(
+            Shipment.objects.select_related('route'),
+            tracking_number=tracking_number.upper(),
+        )
+        from tracking.models import TrackingEvent
+        events = list(
+            TrackingEvent.objects.filter(shipment=shipment)
+            .order_by('-timestamp')
+            .values('event_type', 'event_type_display', 'location', 'timestamp', 'notes')
+        )
+        return Response({
+            'tracking_number':    shipment.tracking_number,
+            'status':             shipment.status,
+            'status_display':     shipment.get_status_display(),
+            'carrier_name':       shipment.carrier_name,
+            'origin':             shipment.route.origin,
+            'destination':        shipment.route.destination,
+            'scheduled_departure': shipment.scheduled_departure,
+            'scheduled_arrival':  shipment.scheduled_arrival,
+            'actual_arrival':     shipment.actual_arrival,
+            'events':             events,
         })

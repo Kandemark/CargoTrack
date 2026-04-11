@@ -34,4 +34,5 @@ urlpatterns = [
     path('tracking/',  include('tracking.api_urls')),
     path('alerts/',    include('alerts.api_urls')),
     path('dashboard/', include('dashboard.api_urls')),
+    path('',           include('payments.api_urls')),      # /api/v1/invoices/ + /api/v1/payments/webhook/*
 ]

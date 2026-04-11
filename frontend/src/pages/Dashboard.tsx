@@ -1,259 +1,253 @@
 /**
- * @file Dashboard.tsx
- * @description Main logistics dashboard page — the primary view for ADMIN,
- * LOGISTICS_MGR, and CARRIER users.
- *
- * Fetches three parallel API calls on mount:
- *   - `dashboardApi.getStats()` → KPI summary + carrier performance
- *   - `shipmentsApi.getShipments({ page_size: 50 })` → recent shipments table
- *   - `alertsApi.getAlerts()` → up to 5 unacknowledged alerts for the sidebar
- *
- * Sub-components (defined in this file):
- *   - `StatCard`    — individual KPI metric card with trend indicator
- *   - `KPISkeleton` — animated skeleton shown while KPI data loads
- *   - `StatusBadge` — coloured pill badge for shipment status
- *   - `RiskBadge`   — horizontal progress bar for delay_risk_score
- *   - `SortButton`  — column header with asc/desc chevron indicator
- *
- * @route /dashboard
- * @auth Any authenticated user (IsAuthenticated)
+ * Dashboard.tsx — Analytics-rich operations dashboard.
+ * Charts: RadialBarChart (on-time rate), AreaChart (volume), horizontal risk bars,
+ *         grouped BarChart (carrier perf), vertical timeline (recent events).
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import {
-  Package,
-  Truck,
-  AlertTriangle,
-  CheckCircle,
-  TrendingUp,
-  TrendingDown,
-  Search,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  ArrowUpRight,
-  Clock,
-  Minus,
-  RefreshCw,
+  AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+} from 'recharts'
+import {
+  Package, Truck, AlertTriangle, CheckCircle,
+  TrendingUp, TrendingDown, ArrowUpRight, RefreshCw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dashboardApi } from '@/api/dashboard'
 import { shipmentsApi } from '@/api/shipments'
 import { alertsApi } from '@/api/alerts'
-import type {
-  DashboardSummary,
-  CarrierPerformance,
-  ShipmentListItem,
-  ShipmentStatus,
-  Alert,
-} from '@/types'
+import type { DashboardSummary, CarrierPerformance, ShipmentListItem, Alert, AlertSeverity } from '@/types'
 
-// ── Status display config ─────────────────────────────────────────────────────
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<ShipmentStatus, { label: string; bg: string; text: string; dot: string }> = {
-  IN_TRANSIT: { label: 'In Transit',  bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-400'    },
-  CUSTOMS:    { label: 'At Customs',  bg: 'bg-purple-50',  text: 'text-purple-700',  dot: 'bg-purple-400'  },
-  DELAYED:    { label: 'Delayed',     bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-400'     },
-  DELIVERED:  { label: 'Delivered',   bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-400' },
-  PENDING:    { label: 'Pending',     bg: 'bg-gray-100',   text: 'text-gray-600',    dot: 'bg-gray-400'    },
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60_000)
+  if (m < 1)   return 'just now'
+  if (m < 60)  return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24)  return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
 }
 
-const SEVERITY_DOT: Record<string, string> = {
-  CRITICAL: 'bg-red-500',
-  HIGH:     'bg-red-400',
-  MEDIUM:   'bg-amber-400',
-  LOW:      'bg-blue-400',
+function useCountUp(target: number, active: boolean): number {
+  const [val, setVal] = useState(0)
+  const ref = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => {
+    if (!active) return
+    const start = Date.now()
+    const dur = 900
+    ref.current = setInterval(() => {
+      const elapsed = Date.now() - start
+      if (elapsed >= dur) { setVal(target); clearInterval(ref.current!); return }
+      setVal(Math.round((elapsed / dur) * target))
+    }, 16)
+    return () => { if (ref.current) clearInterval(ref.current) }
+  }, [target, active])
+  return val
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Skeleton blocks ───────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: ShipmentStatus }) {
-  const c = STATUS_CONFIG[status] ?? STATUS_CONFIG.PENDING
+function Sk({ className }: { className?: string }) {
+  return <div className={cn('rounded bg-gray-100 dark:bg-white/8 animate-pulse', className)} />
+}
+
+function KpiSkeleton() {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium', c.bg, c.text)}>
-      <span className={cn('w-1.5 h-1.5 rounded-full', c.dot)} />
-      {c.label}
-    </span>
-  )
-}
-
-function RiskBadge({ risk }: { risk: number }) {
-  const pct = Math.round(risk * 100)
-  const color = pct >= 70 ? 'text-red-600' : pct >= 40 ? 'text-amber-600' : 'text-emerald-600'
-  const bar   = pct >= 70 ? 'bg-red-400'   : pct >= 40 ? 'bg-amber-400'   : 'bg-emerald-400'
-  return (
-    <div className="flex items-center gap-2 min-w-[72px]">
-      <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-        <div className={cn('h-full rounded-full', bar)} style={{ width: `${pct}%` }} />
+    <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-5 space-y-3">
+      <div className="flex justify-between">
+        <Sk className="w-10 h-10 rounded-lg" />
+        <Sk className="w-20 h-5 rounded-full" />
       </div>
-      <span className={cn('text-xs font-semibold tabular-nums', color)}>{pct}%</span>
+      <Sk className="w-16 h-9" />
+      <Sk className="w-28 h-3.5" />
     </div>
   )
 }
 
-type SortKey = 'tracking_number' | 'carrier_name' | 'scheduled_arrival' | 'delay_risk_score' | 'status'
-type SortDir = 'asc' | 'desc'
+// ── KPI card ─────────────────────────────────────────────────────────────────
 
-function SortButton({
-  colKey, sortCol, sortDir, onSort, children,
-}: {
-  colKey: SortKey; sortCol: SortKey; sortDir: SortDir
-  onSort: (k: SortKey) => void; children: React.ReactNode
-}) {
-  const active = sortCol === colKey
-  return (
-    <button
-      onClick={() => onSort(colKey)}
-      className={cn(
-        'flex items-center gap-1 text-xs font-medium uppercase tracking-wide transition-colors',
-        active ? 'text-gray-800' : 'text-gray-400 hover:text-gray-600',
-      )}
-    >
-      {children}
-      <span className="flex flex-col gap-px">
-        <ChevronUp   className={cn('w-2.5 h-2.5 -mb-0.5', active && sortDir === 'asc'  ? 'text-gray-800' : 'text-gray-300')} />
-        <ChevronDown className={cn('w-2.5 h-2.5',          active && sortDir === 'desc' ? 'text-gray-800' : 'text-gray-300')} />
-      </span>
-    </button>
-  )
+interface KpiCardProps {
+  label: string
+  value: number
+  suffix?: string
+  sub: string
+  trend: 'up' | 'down' | 'flat'
+  trendLabel: string
+  iconBg: string
+  icon: React.ElementType
+  delay: number
 }
 
-function StatCard({
-  label, value, sub, trend, icon: Icon, iconBg,
-}: {
-  label: string; value: string | number; sub: string
-  trend: { dir: 'up' | 'down' | 'flat'; label: string }
-  icon: React.ElementType; iconBg: string
-}) {
-  const TrendIcon = trend.dir === 'up' ? TrendingUp : trend.dir === 'down' ? TrendingDown : Minus
-  const trendColor = trend.dir === 'up'
-    ? 'text-emerald-600 bg-emerald-50'
-    : trend.dir === 'down' ? 'text-red-600 bg-red-50' : 'text-gray-500 bg-gray-100'
+function KpiCard({ label, value, suffix, sub, trend, trendLabel, iconBg, icon: Icon, delay }: KpiCardProps) {
+  const [active, setActive] = useState(false)
+  const displayed = useCountUp(value, active)
+  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : null
+  const trendCls = trend === 'up'
+    ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30'
+    : trend === 'down'
+    ? 'text-red-600 bg-red-50 dark:bg-red-900/30'
+    : 'text-gray-500 bg-gray-100 dark:bg-white/8'
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-3 hover:shadow-sm transition-shadow">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.35, ease: 'easeOut' }}
+      onAnimationComplete={() => setActive(true)}
+      className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-5 flex flex-col gap-3 shadow-card hover:shadow-elevated transition-shadow"
+    >
       <div className="flex items-start justify-between">
         <div className={cn('p-2.5 rounded-lg', iconBg)}>
           <Icon className="w-5 h-5 text-white" />
         </div>
-        <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', trendColor)}>
-          <TrendIcon className="w-3 h-3" />
-          {trend.label}
+        <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', trendCls)}>
+          {TrendIcon && <TrendIcon className="w-3 h-3" />}
+          {trendLabel}
         </span>
       </div>
       <div>
-        <p className="text-4xl font-bold text-gray-900 tracking-tight">{value}</p>
-        <p className="text-sm font-medium text-gray-500 mt-1">{label}</p>
+        <p className="text-4xl font-bold text-gray-900 dark:text-white font-heading tabular-nums">
+          {displayed.toLocaleString()}{suffix}
+        </p>
+        <p className="text-sm font-medium text-gray-500 dark:text-white/50 mt-1">{label}</p>
       </div>
-      <p className="text-xs text-gray-400 border-t border-gray-100 pt-3">{sub}</p>
-    </div>
+      <p className="text-xs text-gray-400 dark:text-white/30 border-t border-gray-100 dark:border-white/8 pt-3">{sub}</p>
+    </motion.div>
   )
 }
 
-function KPISkeleton() {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-3 animate-pulse">
-      <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-lg bg-gray-100" />
-        <div className="w-20 h-5 rounded-full bg-gray-100" />
-      </div>
-      <div>
-        <div className="w-16 h-9 rounded bg-gray-100 mb-2" />
-        <div className="w-24 h-4 rounded bg-gray-100" />
-      </div>
-      <div className="w-full h-4 rounded bg-gray-100 border-t border-gray-100 pt-3" />
-    </div>
-  )
+// ── Event type colours ────────────────────────────────────────────────────────
+
+const EVENT_DOT: Record<string, string> = {
+  DEPARTURE:    'bg-blue-400',
+  CHECKPOINT:   'bg-gray-300',
+  CUSTOMS_ENTRY:'bg-amber-400',
+  CUSTOMS_CLEAR:'bg-amber-400',
+  ARRIVAL:      'bg-emerald-400',
+  DELAY:        'bg-red-400',
+  NOTE:         'bg-gray-300',
+}
+const EVENT_BORDER: Record<string, string> = {
+  DEPARTURE:    'border-blue-200',
+  CHECKPOINT:   'border-gray-100',
+  CUSTOMS_ENTRY:'border-amber-200',
+  CUSTOMS_CLEAR:'border-amber-200',
+  ARRIVAL:      'border-emerald-200',
+  DELAY:        'border-red-200',
+  NOTE:         'border-gray-100',
+}
+
+// ── Volume chart data builder ─────────────────────────────────────────────────
+
+type Range = '7D' | '14D' | '30D' | '90D'
+
+function buildVolumeData(shipments: ShipmentListItem[], range: Range) {
+  const days = range === '7D' ? 7 : range === '14D' ? 14 : range === '30D' ? 30 : 90
+  const buckets: Record<string, { delivered: number; delayed: number; other: number }> = {}
+  const now = new Date()
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i)
+    const key = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    buckets[key] = { delivered: 0, delayed: 0, other: 0 }
+  }
+  for (const s of shipments) {
+    const d = new Date(s.scheduled_arrival)
+    if (isNaN(d.getTime())) continue
+    const daysAgo = Math.floor((now.getTime() - d.getTime()) / 86_400_000)
+    if (daysAgo < 0 || daysAgo >= days) continue
+    const key = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    if (key in buckets) {
+      if (s.status === 'DELIVERED') buckets[key].delivered++
+      else if (s.status === 'DELAYED') buckets[key].delayed++
+      else buckets[key].other++
+    }
+  }
+  return Object.entries(buckets).map(([day, v]) => ({ day, ...v }))
+}
+
+// ── Alert severity config ─────────────────────────────────────────────────────
+
+const SEV_CONFIG: Record<AlertSeverity, { label: string; bg: string; text: string }> = {
+  LOW:      { label: 'Low',      bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300'   },
+  MEDIUM:   { label: 'Medium',   bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
+  HIGH:     { label: 'High',     bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-700 dark:text-orange-300' },
+  CRITICAL: { label: 'Critical', bg: 'bg-red-50 dark:bg-red-900/20',     text: 'text-red-700 dark:text-red-300'     },
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 8
+const RANGES: Range[] = ['7D', '14D', '30D', '90D']
 
 export default function Dashboard() {
-  const [summary, setSummary]       = useState<DashboardSummary | null>(null)
-  const [carriers, setCarriers]     = useState<CarrierPerformance[]>([])
-  const [shipments, setShipments]   = useState<ShipmentListItem[]>([])
-  const [alerts, setAlerts]         = useState<Alert[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [error, setError]           = useState<string | null>(null)
-  const [sortCol, setSortCol]       = useState<SortKey>('scheduled_arrival')
-  const [sortDir, setSortDir]       = useState<SortDir>('asc')
-  const [search, setSearch]         = useState('')
-  const [page, setPage]             = useState(1)
+  const [summary,   setSummary]   = useState<DashboardSummary | null>(null)
+  const [carriers,  setCarriers]  = useState<CarrierPerformance[]>([])
+  const [events,    setEvents]    = useState<{ event_type: string; event_type_display: string; location: string; timestamp: string }[]>([])
+  const [shipments, setShipments] = useState<ShipmentListItem[]>([])
+  const [alerts,    setAlerts]    = useState<Alert[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState<string | null>(null)
+  const [range,     setRange]     = useState<Range>('14D')
 
   async function load() {
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
       const [statsRes, shipmentsRes, alertsRes] = await Promise.all([
         dashboardApi.getStats(),
-        shipmentsApi.getShipments({ page_size: 50 }),
-        alertsApi.getAlerts(),
+        shipmentsApi.getShipments({ page_size: 100 }),
+        alertsApi.getAlerts({ all: '1' }),
       ])
       setSummary(statsRes.data.summary)
       setCarriers(statsRes.data.carrier_performance)
+      setEvents(statsRes.data.recent_events ?? [])
       setShipments(shipmentsRes.data.results)
-      setAlerts(alertsRes.data.results.slice(0, 5))
+      setAlerts(alertsRes.data.results)
     } catch {
-      setError('Unable to load dashboard data. Check your connection and try again.')
+      setError('Failed to load dashboard data.')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { void load() }, [])
 
-  function handleSort(col: SortKey) {
-    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortCol(col); setSortDir('asc') }
-    setPage(1)
-  }
+  // ── Derived data ──────────────────────────────────────────────────────────
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return shipments.filter(
-      (s) =>
-        !q ||
-        s.tracking_number.toLowerCase().includes(q) ||
-        s.carrier_name.toLowerCase().includes(q) ||
-        s.route.origin.toLowerCase().includes(q) ||
-        s.route.destination.toLowerCase().includes(q),
-    )
-  }, [shipments, search])
+  const volumeData = useMemo(() => buildVolumeData(shipments, range), [shipments, range])
 
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      let av: string | number
-      let bv: string | number
-      if (sortCol === 'delay_risk_score') {
-        av = a.delay_risk_score
-        bv = b.delay_risk_score
-      } else {
-        av = (a[sortCol] as string) ?? ''
-        bv = (b[sortCol] as string) ?? ''
-      }
-      if (av < bv) return sortDir === 'asc' ? -1 : 1
-      if (av > bv) return sortDir === 'asc' ? 1 : -1
-      return 0
-    })
-  }, [filtered, sortCol, sortDir])
+  const riskTop10 = useMemo(
+    () => [...shipments].sort((a, b) => b.delay_risk_score - a.delay_risk_score).slice(0, 10),
+    [shipments],
+  )
 
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
-  const pageRows   = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const carrierChartData = useMemo(() =>
+    carriers.map((c) => ({
+      name: c.carrier_name.length > 12 ? c.carrier_name.slice(0, 12) + '…' : c.carrier_name,
+      fullName: c.carrier_name,
+      onTime: c.shipment_count > 0 ? Math.round((c.on_time / c.shipment_count) * 100) : 0,
+      risk: Math.round(c.avg_risk * 100),
+    })), [carriers])
 
-  // ── Error state ─────────────────────────────────────────────────────────────
+  const sevCounts = useMemo(() => {
+    const counts = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 } as Record<AlertSeverity, number>
+    for (const a of alerts) counts[a.severity] = (counts[a.severity] ?? 0) + 1
+    return counts
+  }, [alerts])
+
+  const onTimeData = summary
+    ? [{ name: 'On-Time', value: summary.on_time_rate, fill: summary.on_time_rate >= 90 ? '#22c55e' : summary.on_time_rate >= 75 ? '#f59e0b' : '#ef4444' }]
+    : []
+
+  // ── Error state ───────────────────────────────────────────────────────────
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <AlertTriangle className="w-10 h-10 text-red-400" />
-        <p className="text-sm text-gray-600 font-medium">{error}</p>
-        <button
-          onClick={load}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-          style={{ background: 'var(--ct-navy)' }}
-        >
+        <p className="text-sm text-gray-600 dark:text-white/60">{error}</p>
+        <button onClick={load} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: 'var(--ct-navy)' }}>
           <RefreshCw className="w-4 h-4" /> Retry
         </button>
       </div>
@@ -262,356 +256,247 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+
       {/* ── Page header ──────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Logistics Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {summary
-              ? `Northern Corridor — real-time visibility across ${summary.total_shipments.toLocaleString()} shipments`
-              : 'Northern Corridor — loading…'}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-heading">Analytics Dashboard</h1>
+          <p className="text-sm text-gray-500 dark:text-white/50 mt-0.5">
+            {summary ? `${summary.total_shipments.toLocaleString()} shipments · ${summary.carrier_count} carriers` : 'Loading…'}
           </p>
         </div>
-        <Link
-          to="/shipments/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90 transition-opacity"
-          style={{ background: 'var(--ct-orange)' }}
-        >
-          <Package className="w-4 h-4" /> New Shipment
-        </Link>
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="p-2 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <Link
+            to="/ops/shipments/new"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+            style={{ background: 'var(--ct-orange)' }}
+          >
+            <Package className="w-4 h-4" /> New Shipment
+          </Link>
+        </div>
       </div>
 
-      {/* ── KPI cards ────────────────────────────────────────────────────────── */}
+      {/* ── KPI row ──────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {loading || !summary ? (
-          Array.from({ length: 4 }).map((_, i) => <KPISkeleton key={i} />)
+          Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
         ) : (
           <>
-            <StatCard
-              label="Total Shipments"
-              value={summary.total_shipments.toLocaleString()}
-              sub={`${summary.delivered_shipments} delivered · ${summary.carrier_count} carriers`}
-              trend={{ dir: 'up', label: `${summary.active_shipments} active` }}
-              icon={Package} iconBg="bg-blue-500"
-            />
-            <StatCard
-              label="Active"
-              value={summary.active_shipments}
-              sub={`${summary.total_shipments > 0
-                ? ((summary.active_shipments / summary.total_shipments) * 100).toFixed(0)
-                : 0}% of total fleet`}
-              trend={{ dir: 'flat', label: 'In progress' }}
-              icon={Truck} iconBg="bg-amber-500"
-            />
-            <StatCard
-              label="Delayed"
-              value={summary.delayed_shipments}
-              sub={`${summary.exception_count} exceptions requiring action`}
-              trend={{ dir: summary.delayed_shipments > 0 ? 'down' : 'flat', label: `${summary.open_alerts} open alerts` }}
-              icon={AlertTriangle} iconBg="bg-red-500"
-            />
-            <StatCard
-              label="On-Time Rate"
-              value={`${summary.on_time_rate.toFixed(1)}%`}
-              sub="Based on delivered shipments"
-              trend={{ dir: summary.on_time_rate >= 90 ? 'up' : 'down', label: `${summary.delivered_shipments} delivered` }}
-              icon={CheckCircle} iconBg="bg-emerald-500"
-            />
+            <KpiCard label="Total Shipments"  value={summary.total_shipments}   sub={`${summary.carrier_count} active carriers`} trend="up" trendLabel="All time" iconBg="bg-blue-500"    icon={Package}       delay={0}    />
+            <KpiCard label="Active In-Transit" value={summary.active_shipments}  sub={`${((summary.active_shipments / Math.max(summary.total_shipments, 1)) * 100).toFixed(0)}% of fleet`} trend="flat" trendLabel="Live now" iconBg="bg-amber-500" icon={Truck}         delay={0.06} />
+            <KpiCard label="Delayed Shipments" value={summary.delayed_shipments} sub={`${summary.exception_count} exceptions`} trend="down" trendLabel="Need action" iconBg="bg-red-500"    icon={AlertTriangle} delay={0.12} />
+            <KpiCard label="On-Time Rate" value={Math.round(summary.on_time_rate)} suffix="%" sub={`${summary.delivered_shipments} delivered`} trend={summary.on_time_rate >= 90 ? 'up' : 'down'} trendLabel="Last 30d" iconBg="bg-emerald-500" icon={CheckCircle} delay={0.18} />
           </>
         )}
       </div>
 
-      {/* ── Middle row ───────────────────────────────────────────────────────── */}
+      {/* ── Alert severity pills ──────────────────────────────────────────────── */}
+      {!loading && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+          className="flex flex-wrap gap-3">
+          {(Object.keys(SEV_CONFIG) as AlertSeverity[]).map((sev) => {
+            const cfg = SEV_CONFIG[sev]
+            const count = sevCounts[sev] ?? 0
+            return (
+              <Link
+                key={sev}
+                to="/shared/alerts"
+                className={cn('inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80', cfg.bg, cfg.text)}
+              >
+                <Bell className="w-3.5 h-3.5" />
+                {cfg.label}
+                <span className="px-1.5 py-0.5 rounded-full bg-white/50 dark:bg-black/20 text-xs font-bold">{count}</span>
+              </Link>
+            )
+          })}
+        </motion.div>
+      )}
+
+      {/* ── Middle row: volume chart + on-time donut ──────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
-        {/* Shipments table */}
-        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-gray-800">Recent Shipments</h2>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search shipments…"
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                  className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-44 text-gray-700 placeholder:text-gray-400"
-                />
-              </div>
-              <Link
-                to="/shipments"
-                className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
-              >
-                View all <ArrowUpRight className="w-3.5 h-3.5" />
-              </Link>
+        {/* Volume AreaChart */}
+        <div className="xl:col-span-2 bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-5 shadow-card">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">Shipment Volume</h2>
+              <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">Delivered vs delayed by day</p>
+            </div>
+            <div className="flex gap-1">
+              {RANGES.map((r) => (
+                <button key={r} onClick={() => setRange(r)}
+                  className={cn('px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors',
+                    range === r ? 'bg-ct-navy text-white' : 'text-gray-400 dark:text-white/40 hover:bg-gray-100 dark:hover:bg-white/10')}
+                >{r}</button>
+              ))}
             </div>
           </div>
-
-          {loading ? (
-            <div className="flex-1 flex items-center justify-center py-16">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-xs text-gray-400">Loading shipments…</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-sm min-w-[640px]">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="px-5 py-3 text-left">
-                        <SortButton colKey="tracking_number" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Tracking #</SortButton>
-                      </th>
-                      <th className="px-5 py-3 text-left">
-                        <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Route</span>
-                      </th>
-                      <th className="px-5 py-3 text-left">
-                        <SortButton colKey="carrier_name" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Carrier</SortButton>
-                      </th>
-                      <th className="px-5 py-3 text-left">
-                        <SortButton colKey="status" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Status</SortButton>
-                      </th>
-                      <th className="px-5 py-3 text-left">
-                        <SortButton colKey="scheduled_arrival" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>ETA</SortButton>
-                      </th>
-                      <th className="px-5 py-3 text-left">
-                        <SortButton colKey="delay_risk_score" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>Risk</SortButton>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {pageRows.map((s) => (
-                      <tr key={s.id} className="hover:bg-gray-50 transition-colors group">
-                        <td className="px-5 py-3.5">
-                          <Link
-                            to={`/shipments/${s.id}`}
-                            className="font-mono text-xs font-semibold text-blue-600 hover:text-blue-800 group-hover:underline"
-                          >
-                            {s.tracking_number}
-                          </Link>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                            <span className="font-medium truncate max-w-[90px]">{s.route.origin}</span>
-                            <span className="text-gray-300">→</span>
-                            <span className="truncate max-w-[90px]">{s.route.destination}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-xs text-gray-600 max-w-[120px] truncate">
-                          {s.carrier_name}
-                        </td>
-                        <td className="px-5 py-3.5"><StatusBadge status={s.status} /></td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                            <Clock className="w-3 h-3 text-gray-300 shrink-0" />
-                            {new Date(s.scheduled_arrival).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <RiskBadge risk={s.delay_risk_score} />
-                        </td>
-                      </tr>
-                    ))}
-                    {pageRows.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400">
-                          {search ? 'No shipments match your search.' : 'No shipments found.'}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {totalPages > 1 && (
-                <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                  <span>
-                    {filtered.length === 0
-                      ? '0'
-                      : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, filtered.length)}`} of {filtered.length}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setPage((p) => p - 1)} disabled={page === 1} className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                    </button>
-                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map((n) => (
-                      <button
-                        key={n} onClick={() => setPage(n)}
-                        className={cn('w-6 h-6 rounded text-xs font-medium transition-colors', n === page ? 'bg-gray-900 text-white' : 'hover:bg-gray-100 text-gray-600')}
-                      >{n}</button>
-                    ))}
-                    <button onClick={() => setPage((p) => p + 1)} disabled={page === totalPages} className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
+          {loading ? <Sk className="h-48 w-full" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={volumeData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gDeliv" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gDelay" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <Area type="monotone" dataKey="delivered" name="Delivered" stroke="#22c55e" fill="url(#gDeliv)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="delayed"   name="Delayed"   stroke="#ef4444" fill="url(#gDelay)" strokeWidth={2} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
           )}
         </div>
 
-        {/* Right panel */}
-        <div className="flex flex-col gap-4">
-
-          {/* Carrier performance */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-800">Carrier Performance</h2>
-              <p className="text-xs text-gray-400 mt-0.5">On-time delivery rate</p>
+        {/* On-Time RadialBar */}
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-5 shadow-card flex flex-col items-center">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading self-start">On-Time Rate</h2>
+          <p className="text-xs text-gray-400 dark:text-white/30 self-start mt-0.5 mb-4">Last 30 days · delivered shipments</p>
+          {loading || !summary ? <Sk className="w-40 h-40 rounded-full" /> : (
+            <div className="relative">
+              <ResponsiveContainer width={180} height={180}>
+                <RadialBarChart cx="50%" cy="50%" innerRadius="65%" outerRadius="90%"
+                  startAngle={225} endAngle={-45} data={onTimeData}>
+                  <RadialBar dataKey="value" cornerRadius={6} background={{ fill: '#f1f5f9' }} />
+                </RadialBarChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold font-heading text-gray-900 dark:text-white">
+                  {summary.on_time_rate.toFixed(1)}%
+                </span>
+                <span className="text-xs text-gray-400 dark:text-white/40">on time</span>
+              </div>
             </div>
-            {loading ? (
-              <div className="px-5 py-4 space-y-4 animate-pulse">
-                {[1, 2, 3].map((i) => (
-                  <div key={i}>
-                    <div className="flex justify-between mb-1.5">
-                      <div className="w-28 h-3 rounded bg-gray-100" />
-                      <div className="w-8 h-3 rounded bg-gray-100" />
-                    </div>
-                    <div className="h-1.5 rounded-full bg-gray-100" />
-                  </div>
-                ))}
-              </div>
-            ) : carriers.length === 0 ? (
-              <p className="px-5 py-4 text-xs text-gray-400">No carrier data available.</p>
-            ) : (
-              <div className="px-5 py-3 divide-y divide-gray-50">
-                {carriers.map((c) => {
-                  const pct = c.shipment_count > 0
-                    ? (c.on_time / c.shipment_count) * 100
-                    : 100
-                  return (
-                  <div key={c.carrier_name} className="py-3 first:pt-1">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-medium text-gray-700 truncate max-w-[140px]">{c.carrier_name}</span>
-                      <span className={cn('text-xs font-bold tabular-nums',
-                        pct >= 90 ? 'text-emerald-600' : pct >= 80 ? 'text-amber-600' : 'text-red-600',
-                      )}>
-                        {pct.toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className={cn('h-full rounded-full',
-                            pct >= 90 ? 'bg-emerald-400' : pct >= 80 ? 'bg-amber-400' : 'bg-red-400',
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-400 tabular-nums w-16 text-right">
-                        {c.on_time}/{c.shipment_count} trips
-                      </span>
-                    </div>
-                  </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Active alerts */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-800">Active Alerts</h2>
-                {!loading && (
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {alerts.length > 0 ? `${alerts.length} require attention` : 'No active alerts'}
-                  </p>
-                )}
-              </div>
-              <Link to="/alerts" className="text-xs font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-0.5">
-                All alerts <ArrowUpRight className="w-3 h-3" />
-              </Link>
-            </div>
-
-            {loading ? (
-              <div className="divide-y divide-gray-50 animate-pulse">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="px-5 py-3.5 flex gap-3">
-                    <div className="mt-0.5 w-2 h-2 rounded-full bg-gray-100 shrink-0" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-3 rounded bg-gray-100 w-3/4" />
-                      <div className="h-3 rounded bg-gray-100 w-1/2" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : alerts.length === 0 ? (
-              <div className="px-5 py-8 text-center text-xs text-gray-400">
-                No unacknowledged alerts
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {alerts.map((alert) => (
-                  <div key={alert.id} className="px-5 py-3.5 flex gap-3">
-                    <div className={cn(
-                      'mt-0.5 w-2 h-2 rounded-full shrink-0',
-                      SEVERITY_DOT[alert.severity] ?? 'bg-gray-400',
-                    )} />
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-gray-800 leading-snug">{alert.message}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="font-mono text-xs text-gray-400">{alert.shipment_tracking}</span>
-                        <span className="text-gray-200">·</span>
-                        <span className="text-xs text-gray-400">
-                          {new Date(alert.sent_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* ── Map placeholder ───────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-800">Live Shipment Map</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Northern Corridor — Mombasa to Kigali</p>
+      {/* ── Bottom row: risk heatmap + carrier chart + events ─────────────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+        {/* Delay risk heatmap */}
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 overflow-hidden shadow-card">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-white/8">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">Delay Risk Heatmap</h2>
+            <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">Top 10 highest-risk shipments</p>
           </div>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
-            <Clock className="w-3 h-3" /> Leaflet.js — coming soon
-          </span>
+          {loading ? (
+            <div className="px-5 py-4 space-y-3">{[...Array(5)].map((_, i) => <Sk key={i} className="h-8 w-full" />)}</div>
+          ) : (
+            <div className="divide-y divide-gray-50 dark:divide-white/5">
+              {riskTop10.map((s, idx) => {
+                const pct = Math.round(s.delay_risk_score * 100)
+                const color = pct >= 70 ? '#ef4444' : pct >= 40 ? '#f59e0b' : '#22c55e'
+                return (
+                  <motion.div
+                    key={s.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    className="flex items-center gap-3 px-5 py-3 group"
+                  >
+                    <Link
+                      to={`/ops/shipments/${s.id}`}
+                      className="font-mono text-xs text-blue-600 hover:underline truncate w-28 shrink-0"
+                    >
+                      {s.tracking_number}
+                    </Link>
+                    <div className="flex-1 h-2 bg-gray-100 dark:bg-white/8 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: color }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ delay: 0.3 + idx * 0.04, duration: 0.6, ease: 'easeOut' }}
+                      />
+                    </div>
+                    <span className="text-xs font-bold tabular-nums w-10 text-right" style={{ color }}>
+                      {pct}%
+                    </span>
+                    <Link to={`/ops/shipments/${s.id}`} className="text-xs text-gray-400 hover:text-blue-600 transition-colors">
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </motion.div>
+                )
+              })}
+              {riskTop10.length === 0 && (
+                <p className="px-5 py-8 text-center text-sm text-gray-400 dark:text-white/30">No shipments loaded.</p>
+              )}
+            </div>
+          )}
         </div>
-        <div
-          className="relative h-48 flex items-center justify-center"
-          style={{ background: 'linear-gradient(135deg, #f0f4ff 0%, #f8fafb 50%, #f0f7f4 100%)' }}
-        >
-          <div
-            className="absolute inset-0 opacity-60"
-            style={{ backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)', backgroundSize: '28px 28px' }}
-          />
-          <svg className="absolute inset-0 w-full h-full opacity-20" preserveAspectRatio="none">
-            <line x1="15%" y1="75%" x2="55%" y2="40%" stroke="#64748b" strokeWidth="1.5" strokeDasharray="6 4" />
-            <line x1="55%" y1="40%" x2="72%" y2="28%" stroke="#64748b" strokeWidth="1.5" strokeDasharray="6 4" />
-            <line x1="55%" y1="40%" x2="80%" y2="45%" stroke="#64748b" strokeWidth="1.5" strokeDasharray="6 4" />
-            <circle cx="15%" cy="75%" r="4" fill="#f5801e" />
-            <circle cx="55%" cy="40%" r="4" fill="#0f2d5e" />
-            <circle cx="72%" cy="28%" r="3" fill="#64748b" />
-            <circle cx="80%" cy="45%" r="3" fill="#64748b" />
-          </svg>
-          <div className="absolute bottom-5 left-[13%] text-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-orange-400 mx-auto mb-1 shadow-sm" />
-            <span className="text-xs font-medium text-gray-500">Mombasa</span>
+
+        {/* Carrier performance BarChart */}
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-5 shadow-card">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading mb-1">Carrier Performance</h2>
+          <p className="text-xs text-gray-400 dark:text-white/30 mb-4">On-time % vs avg risk score</p>
+          {loading ? <Sk className="h-48 w-full" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={carrierChartData} barCategoryGap="30%" margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v, n) => [`${v}%`, n === 'onTime' ? 'On-Time Rate' : 'Avg Risk']} />
+                <Bar dataKey="onTime" name="onTime" fill="#22c55e" radius={[3, 3, 0, 0]}>
+                  {carrierChartData.map((_, i) => <Cell key={i} fill="#22c55e" />)}
+                </Bar>
+                <Bar dataKey="risk" name="risk" fill="#f59e0b" radius={[3, 3, 0, 0]}>
+                  {carrierChartData.map((_, i) => <Cell key={i} fill="#f59e0b" />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Recent events timeline */}
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 overflow-hidden shadow-card">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-white/8 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">Recent Events</h2>
+            <Link to="/shared/tracking" className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-0.5">
+              All <ArrowUpRight className="w-3 h-3" />
+            </Link>
           </div>
-          <div className="absolute top-[32%] left-[52%] text-center">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-900 mx-auto mb-1 shadow-sm" />
-            <span className="text-xs font-medium text-gray-500">Nairobi</span>
-          </div>
-          <div className="relative z-10 text-center px-4 py-3 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200 shadow-sm">
-            <MapPin className="w-5 h-5 text-gray-400 mx-auto mb-1.5" />
-            <p className="text-sm font-semibold text-gray-700">Leaflet.js integration</p>
-            <p className="text-xs text-gray-400 mt-0.5">Live GPS positions, route overlays, and geofence alerts</p>
-          </div>
+          {loading ? (
+            <div className="px-5 py-4 space-y-4">{[...Array(4)].map((_, i) => <Sk key={i} className="h-12 w-full" />)}</div>
+          ) : events.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-gray-400 dark:text-white/30">No recent events.</p>
+          ) : (
+            <div className="divide-y divide-gray-50 dark:divide-white/5 max-h-64 overflow-y-auto">
+              {events.slice(0, 12).map((ev, i) => {
+                const dot = EVENT_DOT[ev.event_type] ?? 'bg-gray-300'
+                const border = EVENT_BORDER[ev.event_type] ?? 'border-gray-100'
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.03 }}
+                    className={cn('flex gap-3 px-5 py-3 border-l-2', border)}
+                  >
+                    <div className={cn('mt-1.5 w-2 h-2 rounded-full shrink-0', dot)} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-800 dark:text-white/80 leading-snug">{ev.event_type_display}</p>
+                      <p className="text-xs text-gray-400 dark:text-white/30 truncate">{ev.location}</p>
+                    </div>
+                    <span className="text-xs text-gray-300 dark:text-white/20 shrink-0">{timeAgo(ev.timestamp)}</span>
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
+
     </div>
   )
 }

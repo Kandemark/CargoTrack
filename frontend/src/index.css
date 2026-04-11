@@ -3,6 +3,16 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* ── Brand colours ─────────────────────────────────────────────────────── */
+  --color-ct-navy:      #0f2d5e;
+  --color-ct-orange:    #f97316;
+  --color-ct-steel:     #1e3a5f;
+  --color-ct-mist:      #f0f4f8;
+  --color-ct-risk-low:  #22c55e;
+  --color-ct-risk-mid:  #f59e0b;
+  --color-ct-risk-high: #ef4444;
+
+  /* ── Semantic tokens ───────────────────────────────────────────────────── */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -21,10 +31,21 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* ── Border radii ──────────────────────────────────────────────────────── */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* ── Shadows ───────────────────────────────────────────────────────────── */
+  --shadow-card:     0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-elevated: 0 4px 16px -2px rgb(0 0 0 / 0.10), 0 2px 6px -2px rgb(0 0 0 / 0.06);
+
+  /* ── Transitions ───────────────────────────────────────────────────────── */
+  --duration-fast:   150ms;
+  --duration-base:   250ms;
+  --duration-slow:   350ms;
 }
 
 :root {
@@ -48,25 +69,25 @@
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.705 0.015 286.067);
 
-  /* CargoTrack brand tokens */
+  /* Legacy CSS var for existing components */
   --ct-navy: #0f2d5e;
-  --ct-orange: #f5801e;
+  --ct-orange: #f97316;
 }
 
 .dark {
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0.002 247.839);
-  --card: oklch(0.21 0.034 264.665);
+  --card: oklch(0.175 0.010 264);
   --card-foreground: oklch(0.985 0.002 247.839);
-  --popover: oklch(0.21 0.034 264.665);
+  --popover: oklch(0.175 0.010 264);
   --popover-foreground: oklch(0.985 0.002 247.839);
   --primary: oklch(0.985 0.002 247.839);
   --primary-foreground: oklch(0.21 0.034 264.665);
-  --secondary: oklch(0.274 0.006 286.033);
+  --secondary: oklch(0.220 0.014 264);
   --secondary-foreground: oklch(0.985 0.002 247.839);
-  --muted: oklch(0.274 0.006 286.033);
+  --muted: oklch(0.220 0.014 264);
   --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
+  --accent: oklch(0.220 0.014 264);
   --accent-foreground: oklch(0.985 0.002 247.839);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
@@ -76,10 +97,37 @@
 
 * {
   border-color: var(--border);
+  transition-property: color, background-color, border-color;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: ease;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
 }
+
+h1, h2, h3, h4, h5, h6,
+.font-heading {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+/* Leaflet overrides for dark mode */
+.dark .leaflet-tile {
+  filter: brightness(0.7) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}
+
+/* Animated route dash for live map */
+@keyframes dash-move {
+  to { stroke-dashoffset: -24; }
+}
+.animated-dash {
+  animation: dash-move 1s linear infinite;
+}
+
+/* Scrollbar polish */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(0.75 0 0 / 40%); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.6 0 0 / 60%); }

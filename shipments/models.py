@@ -83,3 +83,36 @@ class Shipment(models.Model):
             models.Index(fields=["tracking_number"]),
             models.Index(fields=["status"]),
         ]
+
+
+class Document(models.Model):
+    """Shipment-linked document (bill of lading, customs declaration, etc.)."""
+
+    DOC_TYPES = [
+        ('BOL',         'Bill of Lading'),
+        ('CUSTOMS',     'Customs Declaration'),
+        ('PACKING',     'Packing List'),
+        ('INSURANCE',   'Insurance Certificate'),
+        ('OTHER',       'Other'),
+    ]
+
+    shipment    = models.ForeignKey(Shipment, on_delete=models.CASCADE, related_name='documents')
+    file        = models.FileField(upload_to='shipment_docs/%Y/%m/')
+    doc_type    = models.CharField(max_length=20, choices=DOC_TYPES, default='OTHER')
+    filename    = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        related_name='uploaded_documents',
+    )
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.filename and self.file:
+            self.filename = self.file.name.split('/')[-1]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.get_doc_type_display()} — {self.shipment.tracking_number}'

@@ -1,69 +1,167 @@
 /**
- * @file Sidebar.tsx
- * @description Left navigation sidebar for authenticated pages.  Renders
- * role-aware nav links — some items are only visible to ADMIN or LOGISTICS_MGR
- * users (e.g. Predictions).
- *
- * Reads from:
- *   - `useAuthStore` — current user role for conditional nav visibility
- *
- * Active link detection uses React Router's `NavLink` with an `isActive`
- * callback so the highlight follows the current route automatically.
- *
- * @returns The fixed-width left sidebar element.
+ * Sidebar.tsx — Collapsible left navigation with role-aware sections.
+ * Collapses to icon-only (w-16); expands to full labels (w-60).
+ * State persisted via sidebarStore (localStorage).
  */
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   Package,
-  MapPin,
-  Brain,
+  Map,
+  BarChart3,
+  CreditCard,
+  FileText,
+  Users,
+  Settings,
   Bell,
+  Brain,
   LogOut,
   ChevronRight,
-  UserCog,
-  Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/authStore'
+import { useSidebarStore } from '@/store/sidebarStore'
 
-interface NavItem { to: string; label: string; icon: React.ElementType }
+interface NavItem {
+  to: string
+  label: string
+  icon: React.ElementType
+}
 
-/** Nav items visible to each role. Keys match CustomUser.Role values. */
-const ROLE_NAV: Record<string, NavItem[]> = {
+interface NavSection {
+  title?: string
+  items: NavItem[]
+}
+
+const ROLE_SECTIONS: Record<string, NavSection[]> = {
   ADMIN: [
-    { to: '/admin/dashboard', label: 'Admin Home',    icon: Settings        },
-    { to: '/ops/dashboard',   label: 'Operations',    icon: LayoutDashboard },
-    { to: '/ops/shipments',   label: 'Shipments',     icon: Package         },
-    { to: '/shared/tracking', label: 'Live Tracking', icon: MapPin          },
-    { to: '/shared/alerts',   label: 'Alerts',        icon: Bell            },
-    { to: '/ops/predictions', label: 'Predictions',   icon: Brain           },
-    { to: '/admin/dashboard', label: 'User Mgmt',     icon: UserCog         },
+    {
+      items: [
+        { to: '/admin/dashboard', label: 'Admin Home',   icon: LayoutDashboard },
+        { to: '/ops/dashboard',   label: 'Operations',   icon: BarChart3        },
+      ],
+    },
+    {
+      title: 'Logistics',
+      items: [
+        { to: '/ops/shipments',   label: 'Shipments',    icon: Package  },
+        { to: '/live-map',        label: 'Live Map',     icon: Map      },
+        { to: '/ops/predictions', label: 'AI Predictions', icon: Brain  },
+        { to: '/shared/alerts',   label: 'Alerts',       icon: Bell     },
+      ],
+    },
+    {
+      title: 'Finance',
+      items: [
+        { to: '/payments',        label: 'Payments',     icon: CreditCard },
+        { to: '/documents',       label: 'Documents',    icon: FileText   },
+      ],
+    },
+    {
+      title: 'Admin',
+      items: [
+        { to: '/team',            label: 'Team',         icon: Users    },
+        { to: '/settings',        label: 'Settings',     icon: Settings },
+      ],
+    },
   ],
+
   LOGISTICS_MGR: [
-    { to: '/ops/dashboard',   label: 'Dashboard',     icon: LayoutDashboard },
-    { to: '/ops/shipments',   label: 'Shipments',     icon: Package         },
-    { to: '/shared/tracking', label: 'Live Tracking', icon: MapPin          },
-    { to: '/shared/alerts',   label: 'Alerts',        icon: Bell            },
-    { to: '/ops/predictions', label: 'Predictions',   icon: Brain           },
+    {
+      items: [
+        { to: '/ops/dashboard',   label: 'Dashboard',    icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Logistics',
+      items: [
+        { to: '/ops/shipments',   label: 'Shipments',    icon: Package   },
+        { to: '/live-map',        label: 'Live Map',     icon: Map       },
+        { to: '/ops/predictions', label: 'AI Predictions', icon: Brain   },
+        { to: '/shared/alerts',   label: 'Alerts',       icon: Bell      },
+        { to: '/documents',       label: 'Documents',    icon: FileText  },
+      ],
+    },
+    {
+      title: 'Finance',
+      items: [
+        { to: '/payments',        label: 'Payments',     icon: CreditCard },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        { to: '/settings',        label: 'Settings',     icon: Settings },
+      ],
+    },
   ],
+
   CARRIER: [
-    { to: '/driver/dashboard',  label: 'Dashboard',     icon: LayoutDashboard },
-    { to: '/driver/shipments',  label: 'My Shipments',  icon: Package         },
-    { to: '/shared/tracking',   label: 'Live Tracking', icon: MapPin          },
-    { to: '/shared/alerts',     label: 'Alerts',        icon: Bell            },
+    {
+      items: [
+        { to: '/driver/dashboard', label: 'Dashboard',   icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Shipments',
+      items: [
+        { to: '/driver/shipments', label: 'My Shipments', icon: Package },
+        { to: '/live-map',         label: 'Live Map',      icon: Map    },
+        { to: '/shared/alerts',    label: 'Alerts',        icon: Bell   },
+        { to: '/documents',        label: 'Documents',     icon: FileText },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        { to: '/settings',         label: 'Settings',     icon: Settings },
+      ],
+    },
   ],
+
   CLIENT: [
-    { to: '/portal/dashboard',  label: 'Dashboard',     icon: LayoutDashboard },
-    { to: '/portal/shipments',  label: 'My Shipments',  icon: Package         },
-    { to: '/shared/tracking',   label: 'Live Tracking', icon: MapPin          },
-    { to: '/shared/alerts',     label: 'Alerts',        icon: Bell            },
+    {
+      items: [
+        { to: '/portal/dashboard', label: 'Dashboard',   icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'My Cargo',
+      items: [
+        { to: '/portal/shipments', label: 'Shipments',   icon: Package     },
+        { to: '/live-map',         label: 'Live Map',    icon: Map         },
+        { to: '/shared/alerts',    label: 'Alerts',      icon: Bell        },
+        { to: '/documents',        label: 'Documents',   icon: FileText    },
+      ],
+    },
+    {
+      title: 'Finance',
+      items: [
+        { to: '/payments',         label: 'Payments',    icon: CreditCard },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        { to: '/settings',         label: 'Settings',    icon: Settings },
+      ],
+    },
   ],
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN:         'Administrator',
+  LOGISTICS_MGR: 'Logistics Manager',
+  CARRIER:       'Carrier / Driver',
+  CLIENT:        'Client',
 }
 
 export default function Sidebar() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+  const { collapsed, toggle } = useSidebarStore()
 
   async function handleLogout() {
     await logout()
@@ -74,81 +172,135 @@ export default function Sidebar() {
     ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase()
     : '?'
 
-  const navItems: NavItem[] = user ? (ROLE_NAV[user.role] ?? []) : []
+  const sections: NavSection[] = user ? (ROLE_SECTIONS[user.role] ?? []) : []
 
   return (
-    <aside className="w-60 shrink-0 h-screen sticky top-0 bg-gray-900 flex flex-col">
-      {/* Wordmark */}
-      <div className="px-5 pt-5 pb-4 border-b border-gray-800">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'var(--ct-orange)' }}
-          >
-            <span className="text-white font-bold text-sm leading-none">CT</span>
-          </div>
-          <div className="leading-tight">
-            <p className="text-white font-bold text-sm">CargoTrack</p>
-            <p className="text-gray-500 text-xs">Logistics Intelligence</p>
-          </div>
+    <aside
+      className={cn(
+        'shrink-0 h-screen sticky top-0 flex flex-col overflow-hidden',
+        'transition-[width] duration-[var(--duration-base)] ease-in-out',
+        'bg-ct-navy dark:bg-[#0a1e3d]',
+        collapsed ? 'w-16' : 'w-60',
+      )}
+    >
+      {/* ── Wordmark ──────────────────────────────────────────────────────── */}
+      <div className={cn(
+        'flex items-center border-b border-white/10',
+        collapsed ? 'px-3 pt-4 pb-3 justify-center' : 'px-4 pt-4 pb-3 gap-2.5',
+      )}>
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: 'var(--ct-orange)' }}
+        >
+          <span className="text-white font-bold text-sm leading-none">CT</span>
         </div>
+        {!collapsed && (
+          <div className="leading-tight overflow-hidden">
+            <p className="text-white font-bold text-sm font-heading truncate">CargoTrack</p>
+            <p className="text-white/50 text-xs truncate">Logistics Intelligence</p>
+          </div>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              cn(
-                'group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-gray-800 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100',
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <span className="flex items-center gap-3">
-                  <Icon
-                    className={cn('w-4 h-4 shrink-0 transition-colors', isActive ? '' : 'group-hover:text-gray-200')}
-                    style={isActive ? { color: 'var(--ct-orange)' } : undefined}
-                  />
-                  {label}
-                </span>
-                {isActive && <ChevronRight className="w-3.5 h-3.5 text-gray-600" />}
-              </>
+      {/* ── Navigation ────────────────────────────────────────────────────── */}
+      <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
+        {sections.map((section, si) => (
+          <div key={si} className={cn('mb-1', si > 0 && !collapsed && 'mt-4')}>
+            {section.title && !collapsed && (
+              <p className="px-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white/30">
+                {section.title}
+              </p>
             )}
-          </NavLink>
+            {section.items.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                title={collapsed ? label : undefined}
+                className={({ isActive }) =>
+                  cn(
+                    'group flex items-center gap-3 mx-2 rounded-lg text-sm font-medium',
+                    'transition-colors duration-[var(--duration-fast)]',
+                    collapsed ? 'px-2 py-2.5 justify-center' : 'px-3 py-2.5',
+                    isActive
+                      ? 'bg-white/15 text-white border-l-2 border-ct-orange'
+                      : 'text-white/60 hover:bg-white/10 hover:text-white border-l-2 border-transparent',
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon
+                      className={cn(
+                        'shrink-0 transition-colors',
+                        collapsed ? 'w-5 h-5' : 'w-4 h-4',
+                        isActive ? 'text-ct-orange' : 'group-hover:text-white/90',
+                      )}
+                    />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 truncate">{label}</span>
+                        {isActive && (
+                          <ChevronRight className="w-3 h-3 text-white/40 shrink-0" />
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
 
-      {/* User footer */}
-      <div className="px-3 py-4 border-t border-gray-800">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-800 transition-colors">
+      {/* ── Collapse toggle ────────────────────────────────────────────────── */}
+      <div className="px-2 pb-2">
+        <button
+          onClick={toggle}
+          className={cn(
+            'w-full flex items-center gap-2 px-3 py-2 rounded-lg',
+            'text-white/40 hover:text-white/80 hover:bg-white/10',
+            'transition-colors text-xs font-medium',
+            collapsed && 'justify-center',
+          )}
+        >
+          {collapsed
+            ? <PanelLeftOpen className="w-4 h-4" />
+            : <><PanelLeftClose className="w-4 h-4" /><span>Collapse</span></>
+          }
+        </button>
+      </div>
+
+      {/* ── User footer ───────────────────────────────────────────────────── */}
+      <div className="border-t border-white/10 p-2">
+        <div className={cn(
+          'flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/10 transition-colors',
+          collapsed && 'justify-center px-1',
+        )}>
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-            style={{ background: 'var(--ct-navy)' }}
+            style={{ background: 'rgba(249,115,22,0.7)' }}
           >
             {initials}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-gray-200 text-sm font-medium truncate">
-              {user ? `${user.first_name} ${user.last_name}` : 'User'}
-            </p>
-            <p className="text-gray-500 text-xs truncate">
-              {user?.role?.replace('_', ' ').toLowerCase() ?? ''}
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            title="Sign out"
-            className="text-gray-500 hover:text-gray-200 transition-colors shrink-0"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          {!collapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <p className="text-white/90 text-xs font-semibold truncate">
+                  {user ? `${user.first_name} ${user.last_name}` : 'User'}
+                </p>
+                <span className="inline-block mt-0.5 px-1.5 py-px rounded text-[9px] font-bold bg-white/10 text-white/60 uppercase tracking-wide truncate">
+                  {ROLE_LABELS[user?.role ?? ''] ?? user?.role ?? ''}
+                </span>
+              </div>
+              <button
+                onClick={handleLogout}
+                title="Sign out"
+                className="text-white/30 hover:text-white/80 transition-colors shrink-0"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </aside>

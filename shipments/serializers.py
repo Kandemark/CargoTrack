@@ -21,7 +21,7 @@ ShipmentStatusSerializer
     accidental overwrite of immutable fields during status transitions.
 """
 from rest_framework import serializers
-from .models import Route, Shipment
+from .models import Document, Route, Shipment
 
 VALID_STATUSES = {s for s, _ in Shipment.STATUS_CHOICES}
 
@@ -134,3 +134,28 @@ class ShipmentStatusSerializer(serializers.ModelSerializer):
                 f"Invalid status '{value}'. Must be one of: {', '.join(VALID_STATUSES)}."
             )
         return value
+
+
+class DocumentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.SerializerMethodField()
+    doc_type_display = serializers.CharField(source='get_doc_type_display', read_only=True)
+    file_url         = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Document
+        fields = [
+            'id', 'shipment', 'file', 'file_url', 'doc_type', 'doc_type_display',
+            'filename', 'uploaded_by', 'uploaded_by_name', 'created_at',
+        ]
+        read_only_fields = ['id', 'filename', 'uploaded_by', 'created_at']
+
+    def get_uploaded_by_name(self, obj):
+        if obj.uploaded_by:
+            return f'{obj.uploaded_by.first_name} {obj.uploaded_by.last_name}'.strip()
+        return None
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None

@@ -29,6 +29,14 @@ export type {
   CarrierPerformance,
   DashboardResponse,
   PaginatedResponse,
+  InvoiceStatus,
+  PaymentProvider,
+  PaymentStatus,
+  Currency,
+  Payment,
+  Invoice,
+  DocType,
+  Document,
 } from '@shared/api/types'
 
 // Defined locally to keep this as a pure type-only re-export file and avoid

@@ -169,6 +169,57 @@ export interface DashboardResponse {
   carrier_performance: CarrierPerformance[]
 }
 
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+export type InvoiceStatus   = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED'
+export type PaymentProvider = 'MPESA' | 'AIRTEL' | 'MTN' | 'FLUTTERWAVE' | 'STRIPE' | 'PESAPAL'
+export type PaymentStatus   = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
+export type Currency        = 'KES' | 'USD' | 'UGX' | 'RWF' | 'TZS'
+
+export interface Payment {
+  id:                 number
+  provider:           PaymentProvider
+  provider_reference: string
+  amount:             string
+  currency:           Currency
+  status:             PaymentStatus
+  phone_number:       string
+  created_at:         string
+  updated_at:         string
+}
+
+export interface Invoice {
+  id:                number
+  invoice_number:    string
+  shipment:          number
+  shipment_tracking: string
+  amount_kes:        string
+  currency:          Currency
+  status:            InvoiceStatus
+  status_display:    string
+  description:       string
+  created_at:        string
+  paid_at:           string | null
+  payments:          Payment[]
+}
+
+// ─── Documents ────────────────────────────────────────────────────────────────
+
+export type DocType = 'BOL' | 'CUSTOMS' | 'PACKING' | 'INSURANCE' | 'OTHER'
+
+export interface Document {
+  id:               number
+  shipment:         number
+  file:             string
+  file_url:         string | null
+  doc_type:         DocType
+  doc_type_display: string
+  filename:         string
+  uploaded_by:      number | null
+  uploaded_by_name: string | null
+  created_at:       string
+}
+
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 export interface PaginatedResponse<T> {

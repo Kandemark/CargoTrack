@@ -21,6 +21,9 @@ django-cors-headers==4.9.0      # Cross-Origin Resource Sharing (Vite dev server
 # ── Database ──────────────────────────────────────────────────────────────────
 psycopg2-binary==2.9.10         # PostgreSQL 16 adapter (binary; no libpq needed)
 
+# ── HTTP client (used by payment providers: M-Pesa, Airtel, MTN, etc.) ───────
+requests==2.32.3                # HTTP library for payment provider API calls
+
 # ── Configuration / environment ───────────────────────────────────────────────
 python-decouple==3.8            # Reads .env without exposing secrets in source
 

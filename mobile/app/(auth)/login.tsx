@@ -30,8 +30,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import axios from 'axios'
-import { authApi } from '@/lib/api'
+import { authApi, apiClient } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
+import { registerPushToken } from '@/lib/notifications'
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('')
@@ -54,6 +55,7 @@ export default function LoginScreen() {
       await setTokens(tokenRes.data.access, tokenRes.data.refresh)
       const meRes = await authApi.me()
       setUser(meRes.data)
+      void registerPushToken(apiClient)
       router.replace('/')
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 401) {

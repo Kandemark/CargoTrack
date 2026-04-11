@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'alerts.apps.AlertsConfig',            # delay alerts and notification pipeline
     'dashboard.apps.DashboardConfig',      # aggregated KPI views (no models)
     'predictions.apps.PredictionsConfig',  # ML prediction domain types
+    'payments',                            # Invoice & payment gateway integrations
 ]
 
 # ── Middleware ────────────────────────────────────────────────────────────────
