@@ -165,6 +165,22 @@ class PredictDelayAPIView(APIView):
         shipment.delay_risk_score = round(prob, 4)
         shipment.save(update_fields=["delay_risk_score", "updated_at"])
 
+        # ── Integration (Andrew Maina - Systems Integration) ──────────────────
+        # Fire alerts if the risk score crosses the configured threshold.
+        # This ties together the ML prediction and the notification system.
+        from predictions.base import DelayPrediction
+        from alerts.manager import AlertManager
+
+        prediction = DelayPrediction(
+            delay_risk_score=prob,
+            # If label=1, we assume at least 24h delay as per the model contract.
+            predicted_delay_hours=24.0 if label else 0.0,
+            shipment_id=shipment.pk
+        )
+
+        am = AlertManager()
+        am.check_shipment(shipment, prediction)
+
         return Response({
             "shipment_id":       shipment.pk,
             "tracking_number":   shipment.tracking_number,
