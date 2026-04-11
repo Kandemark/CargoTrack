@@ -9,7 +9,8 @@ OOP:
 """
 import logging
 from django.conf import settings
-from .handlers import Alert, BaseAlertHandler, EmailAlertHandler, InAppAlertHandler
+from cargotrack.base_classes import Alert, BaseAlertHandler
+from .handlers import EmailAlertHandler, InAppAlertHandler
 from predictions.base import DelayPrediction
 
 logger = logging.getLogger(__name__)
@@ -25,13 +26,6 @@ class AlertManager:
     OOP:
         - Composition: holds a list of handler objects (not inheritance).
         - Strategy Pattern: handlers are interchangeable at runtime.
-
-    Usage::
-
-        manager = AlertManager()
-        manager.register_handler(EmailAlertHandler())
-        manager.register_handler(InAppAlertHandler())
-        manager.check_shipment(shipment, prediction)
     """
 
     def __init__(self):
@@ -47,14 +41,11 @@ class AlertManager:
     def register_handler(self, handler: BaseAlertHandler) -> None:
         """
         Add a handler to the alert pipeline.
-
-        Args:
-            handler: Any object that inherits from BaseAlertHandler.
         """
         if not isinstance(handler, BaseAlertHandler):
             raise TypeError(f"Handler must be a BaseAlertHandler subclass, got {type(handler)}")
         self._handlers.append(handler)
-        logger.debug("Registered alert handler: %s", handler.__class__.__name__)
+        logger.debug("Registered alert handler: %s", handler.get_handler_name())
 
     def remove_handler(self, handler_class: type) -> None:
         """Remove all handlers of a given class."""
@@ -77,11 +68,13 @@ class AlertManager:
             return False
 
         recipient = None
-        if shipment.client and shipment.client.email:
+        if hasattr(shipment, 'client') and shipment.client and shipment.client.email:
             recipient = shipment.client.email
 
         thresholds = getattr(settings, 'ALERT_THRESHOLDS', {'CRITICAL': 0.85, 'HIGH': 0.70})
-        severity = "HIGH" if prediction.delay_probability >= thresholds['CRITICAL'] else "MEDIUM"
+        severity = "HIGH"
+        if prediction.delay_probability >= thresholds.get('CRITICAL', 0.85):
+            severity = "CRITICAL"
 
         message = (
             f"Shipment {shipment.tracking_number} has a {prediction.delay_probability:.0%} "
@@ -96,6 +89,7 @@ class AlertManager:
             tracking_number=shipment.tracking_number,
             message=message,
             severity=severity,
+            risk_score=prediction.delay_probability,
             recipient_email=recipient,
         )
         return self.fire_alert(alert)
@@ -113,10 +107,12 @@ class AlertManager:
         if not self._handlers:
             logger.warning("AlertManager: no handlers registered.")
             return False
+        
         results = []
         for handler in self._handlers:
-            if handler.can_handle(alert):
-                success = handler.send(alert)
-                results.append(success)
-                logger.debug("%s → %s", handler.__class__.__name__, "OK" if success else "FAIL")
+            success = handler.send(alert)
+            results.append(success)
+            logger.info("AlertManager: %s dispatched to %s (success=%s)", 
+                        alert.alert_type, handler.get_handler_name(), success)
+        
         return any(results)

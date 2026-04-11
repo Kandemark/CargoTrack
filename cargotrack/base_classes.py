@@ -1,13 +1,24 @@
-"""
-cargotrack/base_classes.py
-
-Abstract base classes that define the OOP contracts for the CargoTrack system.
-All concrete implementations in shipments, predictions, and alerts must inherit
-from these classes and implement every abstract method.
-"""
-
 from abc import ABC, abstractmethod
 from datetime import datetime
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class Alert:
+    """
+    Value object representing a notification to be dispatched.
+
+    OOP: Encapsulates all context required for a notification channel to
+    process an alert without needing to query the database itself.
+    """
+    alert_type:      str           # e.g. "DELAY_RISK", "EXCEPTION", "OVERDUE"
+    shipment_id:     int
+    tracking_number: str
+    message:         str
+    severity:        str = "HIGH"   # HIGH | MEDIUM | LOW | CRITICAL
+    risk_score:      float = 0.0
+    recipient_email: Optional[str] = None
 
 
 class ShipmentEvent(ABC):
@@ -116,16 +127,12 @@ class BaseAlertHandler(ABC):
     """
 
     @abstractmethod
-    def send(self, shipment_id: int, message: str, risk_score: float) -> bool:
+    def send(self, alert: Alert) -> bool:
         """
-        Dispatch an alert for the given shipment.
+        Dispatch an alert through this handler's channel.
 
         Args:
-            shipment_id (int): Primary key of the Shipment model instance that
-                               triggered the alert.
-            message (str):     Human-readable description of the alert condition.
-            risk_score (float): Predicted delay probability in the range [0.0, 1.0]
-                                as produced by the active BasePredictor.
+            alert: Alert value object containing all notification context.
 
         Returns:
             bool: True if the alert was delivered successfully, False otherwise.

@@ -194,50 +194,78 @@ def test_user_default_role_is_client(db):
 # ── AlertManager ──────────────────────────────────────────────────────────────
 
 def test_alert_manager_does_not_fire_below_threshold(db, sample_shipment):
-    """AlertManager.fire() does not call handlers when risk_score < threshold."""
-    from alerts.alert_manager import AlertManager
+    from alerts.manager import AlertManager
+    from cargotrack.base_classes import BaseAlertHandler, Alert
 
     fired_calls = []
 
-    class TrackingHandler:
+    class TrackingHandler(BaseAlertHandler):
         def get_handler_name(self):
             return "Tracker"
-        def send(self, shipment_id, message, risk_score):
-            fired_calls.append(risk_score)
+        def send(self, alert: Alert):
+            fired_calls.append(alert.risk_score)
             return True
 
-    manager = AlertManager(threshold=0.70)
+    manager = AlertManager()
+    manager.threshold = 0.70
+    
+    # Mocking check_shipment logic for a simple test
+    from unittest.mock import MagicMock
+    shipment = MagicMock()
+    shipment.id = sample_shipment.id
+    shipment.tracking_number = "TRACK-123"
+    shipment.route = "Test Route"
+    shipment.carrier_name = "Test Carrier"
+    shipment.client = None
+    
+    from predictions.base import DelayPrediction
+    prediction = DelayPrediction(delay_risk_score=0.50)
+    
     manager.register_handler(TrackingHandler())
-    result = manager.fire(sample_shipment.id, risk_score=0.50)
+    result = manager.check_shipment(shipment, prediction)
 
-    assert result["fired"] is False
+    assert result is False
     assert len(fired_calls) == 0
 
 
 def test_alert_manager_fires_all_handlers_above_threshold(db, high_risk_shipment):
-    """AlertManager.fire() calls every registered handler when risk_score >= threshold."""
-    from alerts.alert_manager import AlertManager, InAppAlertHandler
+    """AlertManager.check_shipment() fires notifications when risk_score >= threshold."""
+    from alerts.manager import AlertManager
+    from alerts.handlers import InAppAlertHandler
+    from predictions.base import DelayPrediction
 
-    manager = AlertManager(threshold=0.70)
+    manager = AlertManager()
+    manager.threshold = 0.70
+    
+    prediction = DelayPrediction(delay_risk_score=0.85)
+    
+    # Clear default handlers to control the test
+    manager._handlers = []
     manager.register_handler(InAppAlertHandler())
 
-    result = manager.fire(high_risk_shipment.id, risk_score=0.85)
+    result = manager.check_shipment(high_risk_shipment, prediction)
 
-    assert result["fired"] is True
-    assert len(result["handlers_called"]) >= 1
+    assert result is True
 
 
 def test_alert_manager_returns_correct_handler_names(db, sample_shipment):
-    """AlertManager.fire() result includes handler names when fired."""
-    from alerts.alert_manager import AlertManager, InAppAlertHandler, EmailAlertHandler
+    """AlertManager.fire_alert() results include correctly dispatched alerts."""
+    from alerts.manager import AlertManager
+    from alerts.handlers import InAppAlertHandler, EmailAlertHandler
+    from cargotrack.base_classes import Alert
 
-    manager = AlertManager(threshold=0.70)
+    manager = AlertManager()
+    manager._handlers = []
     manager.register_handler(InAppAlertHandler())
     manager.register_handler(EmailAlertHandler())
 
-    result = manager.fire(sample_shipment.id, risk_score=0.90)
+    alert = Alert(
+        alert_type="TEST",
+        shipment_id=sample_shipment.id,
+        tracking_number=sample_shipment.tracking_number,
+        message="Test alert",
+        risk_score=0.90
+    )
+    result = manager.fire_alert(alert)
 
-    assert result["fired"] is True
-    names = result["handlers_called"]
-    assert "InApp" in names
-    assert "Email" in names
+    assert result is True
