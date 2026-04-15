@@ -51,6 +51,15 @@ class FeatureEngineer:
         self._origin_encoder: dict[str, int] = {}
         self._dest_encoder:   dict[str, int] = {}
 
+    @staticmethod
+    def _prepare_shipments(shipments_qs):
+        """
+        Return a concrete shipment list from a QuerySet or iterable input.
+        """
+        if hasattr(shipments_qs, 'select_related'):
+            return list(shipments_qs.select_related('route'))
+        return list(shipments_qs)
+
     # ── public interface ──────────────────────────────────────────────────────
 
     def fit(self, shipments_qs) -> 'FeatureEngineer':
@@ -72,7 +81,7 @@ class FeatureEngineer:
         origins      = set()
         destinations = set()
 
-        for shipment in shipments_qs.select_related('route'):
+        for shipment in self._prepare_shipments(shipments_qs):
             origins.add(shipment.route.origin)
             destinations.add(shipment.route.destination)
 
@@ -119,7 +128,7 @@ class FeatureEngineer:
         from tracking.models import TrackingEvent
 
         # Prefetch tracking events in two bulk queries instead of N+1
-        shipment_list = list(shipments_qs.select_related('route'))
+        shipment_list = self._prepare_shipments(shipments_qs)
         if not shipment_list:
             return pd.DataFrame(columns=self.FEATURE_COLUMNS)
 
