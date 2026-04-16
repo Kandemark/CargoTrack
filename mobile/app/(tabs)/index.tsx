@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
+  StyleSheet,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
@@ -283,7 +284,7 @@ interface PageData {
 }
 
 export default function DashboardScreen() {
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
   const [data, setData]         = useState<PageData | null>(null)
   const [loading, setLoading]   = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -331,6 +332,9 @@ export default function DashboardScreen() {
 
   const firstName = user?.first_name || user?.username || 'there'
 
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+
   // Alert severity counts
   const severityCounts = data
     ? SEVERITY_ORDER.reduce<Record<AlertSeverity, number>>((acc, s) => {
@@ -346,19 +350,41 @@ export default function DashboardScreen() {
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <View style={{ backgroundColor: '#0f2d5e', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 20 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View>
-              <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '600' }}>Northern Corridor</Text>
-              <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 }}>
-                Hello, {firstName}
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#93b4d8', fontSize: 12, fontWeight: '600' }}>{greeting}</Text>
+              <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 1, letterSpacing: -0.3 }}>
+                {firstName} 👋
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={async () => { await logout(); router.replace('/') }}
-              style={{ width: 38, height: 38, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Ionicons name="log-out-outline" size={22} color="#93b4d8" />
-            </TouchableOpacity>
+            {/* Logo mark */}
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#f5801e', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="cube" size={20} color="#fff" />
+            </View>
           </View>
+
+          {/* Status strip — only shown once data is loaded */}
+          {!!data && (
+            <View style={{ flexDirection: 'row', marginTop: 14, gap: 8 }}>
+              <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 10 }}>
+                <Text style={{ color: '#93b4d8', fontSize: 10, fontWeight: '600' }}>IN TRANSIT</Text>
+                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 }}>
+                  {data.summary.active_shipments}
+                </Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: 'rgba(239,68,68,0.18)', borderRadius: 10, padding: 10 }}>
+                <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '600' }}>DELAYED</Text>
+                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 }}>
+                  {data.summary.delayed_shipments}
+                </Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: 'rgba(245,128,30,0.18)', borderRadius: 10, padding: 10 }}>
+                <Text style={{ color: '#fdba74', fontSize: 10, fontWeight: '600' }}>ALERTS</Text>
+                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 }}>
+                  {data.summary.open_alerts}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         <ScrollView
@@ -396,6 +422,62 @@ export default function DashboardScreen() {
           {/* ── Data ─────────────────────────────────────────────────────── */}
           {!loading && data && (
             <>
+              {/* 0. Hero map preview card */}
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/track')}
+                activeOpacity={0.88}
+                style={{
+                  backgroundColor: '#0f2d5e',
+                  borderRadius: 18,
+                  marginBottom: 16,
+                  overflow: 'hidden',
+                  height: 120,
+                  justifyContent: 'flex-end',
+                }}
+              >
+                {/* Simulated map bg */}
+                <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: '#1a3a6b' }}>
+                  {/* Grid lines for map feel */}
+                  {[0.25, 0.5, 0.75].map((f) => (
+                    <View key={f} style={{
+                      position: 'absolute', left: 0, right: 0,
+                      top: `${f * 100}%`, height: 1, backgroundColor: 'rgba(255,255,255,0.04)',
+                    }} />
+                  ))}
+                  {[0.25, 0.5, 0.75].map((f) => (
+                    <View key={f} style={{
+                      position: 'absolute', top: 0, bottom: 0,
+                      left: `${f * 100}%`, width: 1, backgroundColor: 'rgba(255,255,255,0.04)',
+                    }} />
+                  ))}
+                  {/* Route line decoration */}
+                  <View style={{ position: 'absolute', top: 40, left: 40, right: 40, height: 2, backgroundColor: 'rgba(37,99,235,0.6)', borderRadius: 1 }} />
+                  {/* Dots */}
+                  {[0, 0.5, 1].map((f) => (
+                    <View key={f} style={{
+                      position: 'absolute',
+                      left: 40 + f * (SCREEN_W - 112),
+                      top: 33,
+                      width: 16, height: 16, borderRadius: 8,
+                      backgroundColor: f === 0 ? '#2563EB' : f === 1 ? '#16A34A' : '#f5801e',
+                      borderWidth: 2, borderColor: '#fff',
+                    }} />
+                  ))}
+                </View>
+                <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>Live Corridor Map</Text>
+                    <Text style={{ color: '#93b4d8', fontSize: 11, marginTop: 1 }}>
+                      {data.summary.active_shipments} shipments in motion
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5801e', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+                    <Ionicons name="navigate" size={13} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', marginLeft: 5 }}>Open</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
               {/* 1. KPI cards — horizontal scroll */}
               <View style={{ marginBottom: 16 }}>
                 <SectionHeader title="Overview" />
