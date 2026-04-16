@@ -9,7 +9,7 @@ import {
   Dimensions,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps'
+import MapLibreGL from '@maplibre/maplibre-react-native'
 import Svg, { Path } from 'react-native-svg'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -137,7 +137,11 @@ function RiskGauge({ score }: { score: number }) {
   )
 }
 
-// ─── Mini map ─────────────────────────────────────────────────────────────────
+// MapLibre token not needed for open tile sources
+MapLibreGL.setAccessToken(null)
+const MAP_STYLE = require('@/assets/cargotrack-map-style.json')
+
+// ─── Mini map (MapLibre) ──────────────────────────────────────────────────────
 
 function MiniMap({
   shipment,
@@ -149,48 +153,77 @@ function MiniMap({
   const originCoords = lookupCoords(shipment.route.origin)
   const destCoords   = lookupCoords(shipment.route.destination)
 
-  // Latest event location as marker
-  let markerCoords = originCoords
+  // Convert to [lng, lat] (GeoJSON order) for MapLibre
+  const origin = originCoords ? [originCoords.longitude, originCoords.latitude] as [number,number] : null
+  const dest   = destCoords   ? [destCoords.longitude,   destCoords.latitude  ] as [number,number] : null
+
+  let markerLL: [number, number] = origin ?? [36.8219, -1.2921]
   if (events.length > 0) {
     const latest = lookupCoords(events[0].location)
-    if (latest) markerCoords = latest
-    else if (originCoords && destCoords) markerCoords = midCoords(originCoords, destCoords)
+    if (latest) markerLL = [latest.longitude, latest.latitude]
+    else if (origin && dest) markerLL = [(origin[0]+dest[0])/2, (origin[1]+dest[1])/2]
+  } else if (origin && dest) {
+    markerLL = [(origin[0]+dest[0])/2, (origin[1]+dest[1])/2]
   }
 
-  if (!originCoords && !destCoords && !markerCoords) return null
-
-  const region = markerCoords
-    ? { latitude: markerCoords.latitude, longitude: markerCoords.longitude, latitudeDelta: 3, longitudeDelta: 3 }
-    : { latitude: -1.5, longitude: 35, latitudeDelta: 12, longitudeDelta: 14 }
+  const routeGeoJSON: GeoJSON.FeatureCollection | null = origin && dest ? {
+    type: 'FeatureCollection',
+    features: [{
+      type: 'Feature',
+      geometry: { type: 'LineString', coordinates: [origin, dest] },
+      properties: {},
+    }],
+  } : null
 
   return (
-    <MapView
-      provider={PROVIDER_DEFAULT}
-      style={{ height: 180, borderRadius: 16, overflow: 'hidden' }}
-      initialRegion={region}
-      scrollEnabled={false}
-      zoomEnabled={false}
-      rotateEnabled={false}
-      pitchEnabled={false}
-    >
-      {markerCoords && (
-        <Marker coordinate={markerCoords} pinColor="#f5801e" />
-      )}
-      {originCoords && destCoords && (
-        <Polyline
-          coordinates={[originCoords, destCoords]}
-          strokeColor="#3b82f666"
-          strokeWidth={2}
-          lineDashPattern={[8, 6]}
+    <View style={{ height: 180, borderRadius: 16, overflow: 'hidden' }}>
+      <MapLibreGL.MapView
+        style={{ flex: 1 }}
+        styleJSON={JSON.stringify(MAP_STYLE)}
+        scrollEnabled={false}
+        zoomEnabled={false}
+        rotateEnabled={false}
+        pitchEnabled={false}
+        logoEnabled={false}
+        attributionEnabled={false}
+      >
+        <MapLibreGL.Camera
+          zoomLevel={6}
+          centerCoordinate={markerLL}
+          animationDuration={0}
         />
-      )}
-      {originCoords && (
-        <Marker coordinate={originCoords} pinColor="#3b82f6" />
-      )}
-      {destCoords && (
-        <Marker coordinate={destCoords} pinColor="#10b981" />
-      )}
-    </MapView>
+
+        {routeGeoJSON && (
+          <MapLibreGL.ShapeSource id="route" shape={routeGeoJSON}>
+            <MapLibreGL.LineLayer
+              id="route-line"
+              style={{ lineColor: '#2563EB', lineWidth: 2, lineOpacity: 0.55, lineDasharray: [5, 3] }}
+            />
+          </MapLibreGL.ShapeSource>
+        )}
+
+        {/* Current position marker */}
+        <MapLibreGL.PointAnnotation id="current" coordinate={markerLL}>
+          <View style={{
+            width: 16, height: 16, borderRadius: 8,
+            backgroundColor: '#f5801e', borderWidth: 2.5, borderColor: '#fff',
+            shadowColor: '#000', shadowOpacity: 0.2,
+            shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 3,
+          }} />
+        </MapLibreGL.PointAnnotation>
+
+        {origin && (
+          <MapLibreGL.PointAnnotation id="origin" coordinate={origin}>
+            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#2563EB', borderWidth: 2, borderColor: '#fff' }} />
+          </MapLibreGL.PointAnnotation>
+        )}
+        {dest && (
+          <MapLibreGL.PointAnnotation id="dest" coordinate={dest}>
+            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#16A34A', borderWidth: 2, borderColor: '#fff' }} />
+          </MapLibreGL.PointAnnotation>
+        )}
+      </MapLibreGL.MapView>
+    </View>
   )
 }
 
