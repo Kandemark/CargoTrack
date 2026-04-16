@@ -6,24 +6,33 @@
  *   - Web passes getAccessToken from localStorage / cookie
  *   - Mobile passes getAccessToken from SecureStore
  *
- * Neither platform-specific global (document, window, SecureStore) is
- * referenced here.
+ * Token refresh flow:
+ *   On 401, the interceptor attempts a silent token refresh via the
+ *   configured refreshEndpoint. If refresh succeeds, it retries the
+ *   original request. If refresh also fails, onUnauthorized is called.
  */
-import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import axios, {
+  type AxiosInstance,
+  type AxiosResponse,
+  type InternalAxiosRequestConfig,
+} from 'axios'
 
 export interface ApiClientConfig {
   /** Base URL of the Django API, e.g. "http://localhost:8000" */
   baseURL: string
-  /**
-   * Called before every request to obtain a JWT access token.
-   * Return null if no token is available (unauthenticated state).
-   */
+  /** Called before every request to obtain a JWT access token. */
   getAccessToken?: () => Promise<string | null> | string | null
+  /** Called to obtain the stored refresh token. */
+  getRefreshToken?: () => Promise<string | null> | string | null
+  /** Called when refresh succeeds, to persist the new access token. */
+  saveAccessToken?: (token: string) => Promise<void> | void
   /**
-   * Called when the server returns 401. Use to redirect to login
-   * or clear stored credentials.
+   * Called when the server returns 401 AND the refresh attempt also fails.
+   * Use to redirect to login or clear stored credentials.
    */
   onUnauthorized?: () => void
+  /** Endpoint for token refresh. Defaults to /api/auth/token/refresh/ */
+  refreshEndpoint?: string
   /** Request timeout in milliseconds. Defaults to 15 000. */
   timeout?: number
 }
@@ -39,21 +48,86 @@ export function createApiClient(config: ApiClientConfig): AxiosInstance {
   instance.interceptors.request.use(async (req: InternalAxiosRequestConfig) => {
     if (config.getAccessToken) {
       const token = await config.getAccessToken()
-      if (token) {
-        req.headers.set('Authorization', `Bearer ${token}`)
-      }
+      if (token) req.headers.set('Authorization', `Bearer ${token}`)
     }
     return req
   })
 
-  // Centralised 401 handling
+  let isRefreshing = false
+  let pendingQueue: Array<{
+    resolve: (token: string) => void
+    reject: (err: unknown) => void
+  }> = []
+
+  function drainQueue(token: string) {
+    pendingQueue.forEach((p) => p.resolve(token))
+    pendingQueue = []
+  }
+
+  function rejectQueue(err: unknown) {
+    pendingQueue.forEach((p) => p.reject(err))
+    pendingQueue = []
+  }
+
   instance.interceptors.response.use(
     (res: AxiosResponse) => res,
-    (error: { response?: { status: number } }) => {
-      if (error.response?.status === 401 && config.onUnauthorized) {
-        config.onUnauthorized()
+    async (error: { response?: { status: number }; config?: InternalAxiosRequestConfig & { _retry?: boolean } }) => {
+      const originalRequest = error.config
+
+      if (error.response?.status !== 401 || !originalRequest || originalRequest._retry) {
+        if (error.response?.status === 401 && config.onUnauthorized) {
+          config.onUnauthorized()
+        }
+        return Promise.reject(error)
       }
-      return Promise.reject(error)
+
+      // Try to refresh
+      if (!config.getRefreshToken || !config.saveAccessToken) {
+        config.onUnauthorized?.()
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        // Queue subsequent 401s until refresh completes
+        return new Promise((resolve, reject) => {
+          pendingQueue.push({
+            resolve: (token) => {
+              if (originalRequest) {
+                originalRequest.headers.set('Authorization', `Bearer ${token}`)
+                resolve(instance(originalRequest))
+              }
+            },
+            reject,
+          })
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      try {
+        const refreshToken = await config.getRefreshToken()
+        if (!refreshToken) throw new Error('No refresh token')
+
+        const refreshUrl = config.refreshEndpoint ?? '/api/auth/token/refresh/'
+        const { data } = await axios.post<{ access: string }>(
+          `${config.baseURL}${refreshUrl}`,
+          { refresh: refreshToken },
+          { timeout: config.timeout ?? 15_000 },
+        )
+
+        const newToken = data.access
+        await config.saveAccessToken(newToken)
+        originalRequest.headers.set('Authorization', `Bearer ${newToken}`)
+        drainQueue(newToken)
+        return instance(originalRequest)
+      } catch (refreshError) {
+        rejectQueue(refreshError)
+        config.onUnauthorized?.()
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     },
   )
 

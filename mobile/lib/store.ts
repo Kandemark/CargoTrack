@@ -5,24 +5,12 @@
  * Stores
  * ------
  * `useAuthStore` — Authentication state backed by `expo-secure-store`.
- *   Tokens are stored under the keys `access_token` and `refresh_token`.
- *   On app launch, `loadStoredTokens()` is called by `_layout.tsx` to
- *   restore session state before the splash screen hides.
- *   iOS/Android difference: SecureStore uses the device Keychain (iOS) and
- *   Android Keystore; values survive app restarts but not device wipes.
- *
  * `useAlertStore` — Alert list and unread badge count.
- *   `fetchAlerts(client)` accepts the Axios instance as an argument so the
- *   store remains decoupled from the singleton in `lib/api.ts` and can be
- *   tested with a mock client.  Alerts are held in memory only — not persisted
- *   to SecureStore — so they refresh on every app foreground event.
- *
- * Dependency: `EXPO_PUBLIC_API_URL` must be set in `mobile/.env` for physical
- * device testing; Android emulator falls back to `http://10.0.2.2:8000` and
- * iOS simulator to `http://localhost:8000` (via `lib/api.ts`).
+ * `useOnboardingStore` — First-run onboarding state via AsyncStorage.
  */
 import { create } from 'zustand'
 import * as SecureStore from 'expo-secure-store'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import type { AxiosInstance } from 'axios'
 import type { User, Alert } from '@shared/api/types'
 
@@ -50,8 +38,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
   setUser: (user) => set({ user }),
 
   logout: async () => {
-    await SecureStore.deleteItemAsync('access_token')
-    await SecureStore.deleteItemAsync('refresh_token')
+    await SecureStore.deleteItemAsync('access_token').catch(() => null)
+    await SecureStore.deleteItemAsync('refresh_token').catch(() => null)
     set({ user: null, isAuthenticated: false })
   },
 
@@ -95,17 +83,37 @@ export const useAlertStore = create<AlertState>()((set) => ({
   fetchAlerts: async (client) => {
     set({ isLoading: true })
     try {
-      const res = await client.get<{ count: number; results: Alert[] }>(
-        '/api/v1/alerts/',
-      )
+      const res = await client.get<{ count: number; results: Alert[] }>('/api/v1/alerts/')
       const alerts: Alert[] = res.data.results ?? []
-      set({
-        alerts,
-        unreadCount: alerts.filter((a) => !a.acknowledged).length,
-        isLoading: false,
-      })
+      set({ alerts, unreadCount: alerts.filter((a) => !a.acknowledged).length, isLoading: false })
     } catch {
       set({ isLoading: false })
     }
+  },
+}))
+
+// ── Onboarding store ──────────────────────────────────────────────────────────
+
+const ONBOARD_KEY = 'cargotrack_onboarded_v1'
+
+interface OnboardingState {
+  hasOnboarded: boolean | null  // null = not yet loaded from storage
+  checkOnboarded: () => Promise<boolean>
+  markOnboarded: () => Promise<void>
+}
+
+export const useOnboardingStore = create<OnboardingState>()((set) => ({
+  hasOnboarded: null,
+
+  checkOnboarded: async () => {
+    const val = await AsyncStorage.getItem(ONBOARD_KEY)
+    const done = val === 'true'
+    set({ hasOnboarded: done })
+    return done
+  },
+
+  markOnboarded: async () => {
+    await AsyncStorage.setItem(ONBOARD_KEY, 'true')
+    set({ hasOnboarded: true })
   },
 }))
