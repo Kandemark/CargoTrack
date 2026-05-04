@@ -17,11 +17,12 @@ from __future__ import annotations
 
 import os
 import pickle
+from collections import Counter
 
+from sklearn.base import clone
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
-from sklearn.model_selection import GridSearchCV, cross_val_score
+from sklearn.model_selection import cross_val_score
 
 from cargotrack.base_classes import BasePredictor
 from cargotrack.ml.feature_engineer import FeatureEngineer
@@ -79,7 +80,7 @@ class DelayPredictor(BasePredictor):
             )
         self.feature_engineer: FeatureEngineer = FeatureEngineer()  # composition
         self.model_key:   str  = model_key
-        self.model             = self.MODELS[model_key]
+        self.model             = clone(self.MODELS[model_key])
         self._is_trained: bool = False
         self._last_report: dict = {}
 
@@ -96,14 +97,45 @@ class DelayPredictor(BasePredictor):
         Returns:
             None  (state stored in _last_report; _is_trained set to True).
         """
-        self.model.fit(X, y)
-        scores = cross_val_score(self.model, X, y, cv=5, scoring='f1')
+        y_list = list(y)
+        if len(y_list) < 2:
+            raise ValueError('Need at least 2 labelled shipments to train the model.')
+
+        class_counts = Counter(y_list)
+        if len(class_counts) < 2:
+            raise ValueError(
+                'Training requires both delayed and on-time shipments.'
+            )
+
+        self.model.fit(X, y_list)
+
+        min_class_size = min(class_counts.values())
+        cv_folds = min(5, len(y_list), min_class_size)
+
         self._last_report = {
-            'cv_f1_mean': round(float(scores.mean()), 4),
-            'cv_f1_std':  round(float(scores.std()),  4),
-            'model':      self.model_key,
-            'n_samples':  len(y),
+            'model': self.model_key,
+            'n_samples': len(y_list),
+            'class_balance': dict(class_counts),
         }
+
+        if cv_folds >= 2:
+            scores = cross_val_score(self.model, X, y_list, cv=cv_folds, scoring='f1')
+            self._last_report.update({
+                'cv_f1_mean': round(float(scores.mean()), 4),
+                'cv_f1_std': round(float(scores.std()), 4),
+                'cv_folds': cv_folds,
+            })
+        else:
+            self._last_report.update({
+                'cv_f1_mean': None,
+                'cv_f1_std': None,
+                'cv_folds': 1,
+                'cv_skipped': True,
+                'cv_skip_reason': (
+                    'Cross-validation requires at least 2 samples in every class.'
+                ),
+            })
+
         self._is_trained = True
 
     def predict(self, X) -> list:
