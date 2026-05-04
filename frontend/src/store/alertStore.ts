@@ -7,9 +7,12 @@ interface AlertState {
   unreadCount: number
   isLoading: boolean
   error: string | null
+  wsConnected: boolean
 
   fetchAlerts: () => Promise<void>
   acknowledgeAlert: (id: number) => Promise<void>
+  addRealtimeAlert: (alert: Alert) => void
+  setWsConnected: (v: boolean) => void
 }
 
 export const useAlertStore = create<AlertState>()((set, get) => ({
@@ -17,6 +20,7 @@ export const useAlertStore = create<AlertState>()((set, get) => ({
   unreadCount: 0,
   isLoading: false,
   error: null,
+  wsConnected: false,
 
   fetchAlerts: async () => {
     set({ isLoading: true, error: null })
@@ -46,4 +50,14 @@ export const useAlertStore = create<AlertState>()((set, get) => ({
       set({ error: 'Failed to acknowledge alert.' })
     }
   },
+
+  addRealtimeAlert: (alert: Alert) => {
+    const alerts = [alert, ...get().alerts]
+    set({
+      alerts,
+      unreadCount: alerts.filter((a) => !a.acknowledged).length,
+    })
+  },
+
+  setWsConnected: (v: boolean) => set({ wsConnected: v }),
 }))

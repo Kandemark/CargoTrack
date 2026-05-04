@@ -14,7 +14,7 @@
  * @route /shipments/:id
  * @auth IsAuthenticated (read / predict); IsAuthenticatedOrReadOnly (PATCH status)
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, MapPin, Clock, Truck, AlertTriangle, RefreshCw, CheckCircle, PlusCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -98,7 +98,12 @@ export default function ShipmentDetail() {
     }
   }
 
-  useEffect(() => { load() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const loadedIdRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (loadedIdRef.current === id) return
+    loadedIdRef.current = id
+    void load()
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (

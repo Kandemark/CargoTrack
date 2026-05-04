@@ -1,26 +1,17 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  RefreshControl,
-  TextInput,
-  ActivityIndicator,
-  ScrollView,
-} from 'react-native'
+import { View, Text, FlatList, RefreshControl, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { shipmentsApi } from '@/lib/api'
-import { SHIPMENT_STATUS_COLORS, SHIPMENT_STATUS_LABELS, riskLevel } from '@shared/utils/statusColors'
-import { formatDate } from '@shared/utils/formatters'
+import { SHIPMENT_STATUS_COLORS } from '@shared/utils/statusColors'
+import ShipmentCard from '@/components/ShipmentCard'
+import { FilterPills, Input, EmptyState, Skeleton, GlassCard } from '@/components/ui'
+import { cn } from '@/lib/utils'
 import type { ShipmentListItem, ShipmentStatus } from '@shared/api/types'
 
-// ─── Status filter config ─────────────────────────────────────────────────────
-
 type FilterKey = 'ALL' | ShipmentStatus
-const STATUS_FILTERS: { key: FilterKey; label: string }[] = [
+
+const STATUS_PILLS = [
   { key: 'ALL',        label: 'All'        },
   { key: 'PENDING',    label: 'Pending'    },
   { key: 'IN_TRANSIT', label: 'In Transit' },
@@ -34,85 +25,6 @@ const SORT_OPTIONS: { key: SortKey; label: string; icon: React.ComponentProps<ty
   { key: 'arrival', label: 'Soonest ETA', icon: 'calendar-outline' },
   { key: 'risk',    label: 'Highest Risk', icon: 'warning-outline'  },
 ]
-
-// ─── Status badge ─────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: ShipmentStatus }) {
-  const c = SHIPMENT_STATUS_COLORS[status] ?? SHIPMENT_STATUS_COLORS.PENDING
-  return (
-    <View style={{ backgroundColor: c.background, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-      <Text style={{ color: c.text, fontSize: 11, fontWeight: '700' }}>
-        {SHIPMENT_STATUS_LABELS[status] ?? status}
-      </Text>
-    </View>
-  )
-}
-
-// ─── Shipment card ────────────────────────────────────────────────────────────
-
-function ShipmentCard({ item }: { item: ShipmentListItem }) {
-  const origin  = item.route?.origin ?? '—'
-  const dest    = item.route?.destination ?? '—'
-  const risk    = riskLevel(item.delay_risk_score ?? 0)
-  const riskPct = Math.round((item.delay_risk_score ?? 0) * 100)
-  const eta     = item.scheduled_arrival ? formatDate(item.scheduled_arrival) : '—'
-
-  return (
-    <TouchableOpacity
-      onPress={() => router.push(`/shipment/${item.id}`)}
-      style={{
-        backgroundColor: '#fff',
-        marginHorizontal: 16,
-        marginBottom: 10,
-        borderRadius: 16,
-        padding: 14,
-        shadowColor: '#000',
-        shadowOpacity: 0.04,
-        shadowOffset: { width: 0, height: 1 },
-        shadowRadius: 4,
-        elevation: 2,
-      }}
-      activeOpacity={0.8}
-    >
-      {/* Row 1: tracking + status */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <Text style={{ fontSize: 13, fontWeight: '800', color: '#111827', flex: 1, marginRight: 8 }} numberOfLines={1}>
-          {item.tracking_number}
-        </Text>
-        <StatusBadge status={item.status} />
-      </View>
-
-      {/* Row 2: route */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-        <Ionicons name="location-outline" size={11} color="#94a3b8" />
-        <Text style={{ fontSize: 11, color: '#6b7280', marginLeft: 3 }} numberOfLines={1}>{origin}</Text>
-        <Ionicons name="arrow-forward" size={10} color="#94a3b8" style={{ marginHorizontal: 4 }} />
-        <Text style={{ fontSize: 11, color: '#6b7280', flex: 1 }} numberOfLines={1}>{dest}</Text>
-      </View>
-
-      {/* Row 3: carrier + ETA */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <Text style={{ fontSize: 11, color: '#9ca3af' }} numberOfLines={1}>{item.carrier_name}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Ionicons name="time-outline" size={11} color="#9ca3af" />
-          <Text style={{ fontSize: 11, color: '#9ca3af', marginLeft: 3 }}>ETA {eta}</Text>
-        </View>
-      </View>
-
-      {/* Row 4: risk bar */}
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <View style={{ flex: 1, height: 5, backgroundColor: '#f1f5f9', borderRadius: 3, marginRight: 8 }}>
-          <View style={{ width: `${riskPct}%`, height: 5, backgroundColor: risk.color, borderRadius: 3 }} />
-        </View>
-        <Text style={{ fontSize: 11, fontWeight: '700', color: risk.color, width: 40, textAlign: 'right' }}>
-          {riskPct}% {risk.label}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  )
-}
-
-// ─── Screen ───────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 15
 
@@ -152,7 +64,7 @@ export default function ShipmentsScreen() {
         setShipments((prev) => (pageNum === 1 ? results : [...prev, ...results]))
         setPage(pageNum)
       } catch {
-        // silent — user sees stale data
+        // silent
       } finally {
         setLoading(false)
         setRefreshing(false)
@@ -162,7 +74,6 @@ export default function ShipmentsScreen() {
     [statusFilter],
   )
 
-  // Refetch when status filter changes
   useEffect(() => { fetchPage(1, true) }, [fetchPage, statusFilter])
 
   // Client-side search and sort
@@ -178,10 +89,7 @@ export default function ShipmentsScreen() {
       )
     })
     .sort((a, b) => {
-      if (sort === 'risk') {
-        return (b.delay_risk_score ?? 0) - (a.delay_risk_score ?? 0)
-      }
-      // arrival — soonest first (nulls last)
+      if (sort === 'risk') return (b.delay_risk_score ?? 0) - (a.delay_risk_score ?? 0)
       const aTime = a.scheduled_arrival ? new Date(a.scheduled_arrival).getTime() : Infinity
       const bTime = b.scheduled_arrival ? new Date(b.scheduled_arrival).getTime() : Infinity
       return aTime - bTime
@@ -190,114 +98,95 @@ export default function ShipmentsScreen() {
   const canLoadMore = !search && hasNext && !loadingMore
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
-      <View style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
+    <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-bg dark:bg-ct-dark-bg">
+      <View className="flex-1">
+        {/* Glass header */}
+        <GlassCard variant="elevated" accentColor="#3b82f6" accentPosition="left" className="mx-4 mt-ct-lg mb-2">
+          <View className="p-ct-lg">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-ct-xl font-extrabold text-ct-text-primary dark:text-white">Shipments</Text>
+              <Text className="text-ct-sm text-ct-text-muted dark:text-slate-300">{totalCount} total</Text>
+            </View>
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <View style={{ backgroundColor: '#0f2d5e', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>Shipments</Text>
-            <Text style={{ color: '#93b4d8', fontSize: 12 }}>{totalCount} total</Text>
+            {/* Search */}
+            <View className="mb-2.5">
+              <Input
+                icon="search"
+                placeholder="Search tracking, carrier, route…"
+                value={search}
+                onChangeText={setSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+                rightSlot={
+                  search.length > 0 ? (
+                    <TouchableOpacity onPress={() => setSearch('')}>
+                      <Ionicons name="close-circle" size={16} color="#94a3b8" />
+                    </TouchableOpacity>
+                  ) : undefined
+                }
+              />
+            </View>
+
+            {/* Sort */}
+            <View className="flex-row">
+              {SORT_OPTIONS.map((opt) => {
+                const active = sort === opt.key
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    onPress={() => setSort(opt.key)}
+                    activeOpacity={0.75}
+                    className={cn(
+                      'flex-row items-center mr-2.5 px-2.5 py-1.5 rounded-full',
+                      active ? 'bg-ct-orange' : 'bg-white/10',
+                    )}
+                  >
+                    <Ionicons name={opt.icon} size={11} color={active ? '#fff' : '#94a3b8'} />
+                    <Text className={cn('text-ct-xs font-bold ml-1', active ? 'text-white' : 'text-slate-300')}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
           </View>
+        </GlassCard>
 
-          {/* Search */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10 }}>
-            <Ionicons name="search" size={15} color="#93b4d8" />
-            <TextInput
-              style={{ flex: 1, color: '#fff', fontSize: 13, marginLeft: 8 }}
-              placeholder="Search tracking, carrier, route…"
-              placeholderTextColor="#5d87b5"
-              value={search}
-              onChangeText={setSearch}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Ionicons name="close-circle" size={16} color="#93b4d8" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Sort buttons */}
-          <View style={{ flexDirection: 'row' }}>
-            {SORT_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.key}
-                onPress={() => setSort(opt.key)}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginRight: 10,
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  borderRadius: 20,
-                  backgroundColor: sort === opt.key ? '#f5801e' : 'rgba(255,255,255,0.12)',
-                }}
-                activeOpacity={0.75}
-              >
-                <Ionicons name={opt.icon} size={11} color={sort === opt.key ? '#fff' : '#93b4d8'} />
-                <Text style={{ fontSize: 11, fontWeight: '700', color: sort === opt.key ? '#fff' : '#93b4d8', marginLeft: 4 }}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* ── Status filter pills ──────────────────────────────────────────── */}
-        <View style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10 }}
-          >
-            {STATUS_FILTERS.map((f) => {
-              const active = statusFilter === f.key
-              const colors = f.key !== 'ALL'
-                ? SHIPMENT_STATUS_COLORS[f.key as ShipmentStatus]
-                : null
-              return (
-                <TouchableOpacity
-                  key={f.key}
-                  onPress={() => setStatus(f.key)}
-                  style={{
-                    marginRight: 8,
-                    paddingHorizontal: 14,
-                    paddingVertical: 6,
-                    borderRadius: 20,
-                    backgroundColor: active
-                      ? (colors?.background ?? '#0f2d5e')
-                      : '#f1f5f9',
-                    borderWidth: 1.5,
-                    borderColor: active ? (colors?.border ?? '#0f2d5e') : 'transparent',
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <Text style={{
-                    fontSize: 12,
-                    fontWeight: '700',
-                    color: active ? (colors?.text ?? '#fff') : '#6b7280',
-                  }}>
-                    {f.label}
-                  </Text>
-                </TouchableOpacity>
-              )
+        {/* Status filter pills */}
+        <View className="mx-4 bg-black/20 rounded-ct-lg px-3 py-2 mb-2">
+          <FilterPills
+            options={STATUS_PILLS.map((p) => {
+              const c = p.key !== 'ALL' ? SHIPMENT_STATUS_COLORS[p.key as ShipmentStatus] : null
+              return {
+                key: p.key,
+                label: p.label,
+                dotColor: c?.dot,
+                activeBg: c?.background,
+                activeText: c?.text,
+                activeBorder: c?.border,
+              }
             })}
-          </ScrollView>
+            selected={statusFilter}
+            onSelect={(key) => setStatus((key as FilterKey) ?? 'ALL')}
+            allowDeselect={false}
+          />
         </View>
 
-        {/* ── List ──────────────────────────────────────────────────────────── */}
+        {/* List */}
         {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator size="large" color="#f5801e" />
+          <View className="flex-1 px-4 pt-4">
+            <Skeleton variant="card" />
+            <Skeleton variant="card" />
+            <Skeleton variant="card" />
+            <Skeleton variant="card" />
+            <Skeleton variant="card" />
           </View>
         ) : (
           <FlatList
             data={processed}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => <ShipmentCard item={item} />}
-            contentContainerStyle={{ paddingTop: 14, paddingBottom: 24 }}
+            contentContainerStyle={{ paddingTop: 14, paddingBottom: 32 }}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -306,15 +195,21 @@ export default function ShipmentsScreen() {
               />
             }
             ListEmptyComponent={
-              <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-                <Ionicons name="cube-outline" size={40} color="#cbd5e1" />
-                <Text style={{ color: '#9ca3af', marginTop: 10, fontSize: 14 }}>No shipments found</Text>
-              </View>
+              <EmptyState
+                icon="cube-outline"
+                title="No shipments found"
+                description={search ? 'Try a different search term' : 'Shipments will appear here once created'}
+                size="lg"
+              />
             }
             onEndReached={() => { if (canLoadMore) fetchPage(page + 1) }}
             onEndReachedThreshold={0.3}
             ListFooterComponent={
-              loadingMore ? <ActivityIndicator color="#f5801e" style={{ paddingVertical: 16 }} /> : null
+              loadingMore ? (
+                <View className="py-4 items-center">
+                  <Skeleton variant="rect" />
+                </View>
+              ) : null
             }
           />
         )}

@@ -14,7 +14,7 @@ CargoTrack is a B2B SaaS platform connecting freight forwarders, 3PLs, carriers,
 | Auth | JWT (simplejwt) with refresh rotation |
 | Database | PostgreSQL 16 |
 | Frontend | React 18 + Vite + Tailwind CSS v4 |
-| Mobile | Expo (React Native) |
+| Mobile | Expo (React Native) — development builds, not Expo Go |
 | ML | scikit-learn RandomForestClassifier |
 | Containerisation | Docker Compose |
 
@@ -88,14 +88,30 @@ make frontend-install # npm install inside the frontend container
 
 ## Local Development (without Docker)
 
-### Backend
+### Backend (Windows)
+
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Start the server — opens firewall, binds to 0.0.0.0:8000, prints LAN IPs
+.\scripts\run-dev.ps1
+```
+
+The script automatically:
+- Opens Windows Firewall for inbound TCP port 8000
+- Applies pending database migrations
+- Detects and prints your LAN IP addresses (use these in the mobile app)
+- Starts Daphne ASGI on `0.0.0.0:8000`
+
+### Backend (macOS / Linux)
 
 ```bash
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-# Ensure DB_HOST=localhost in .env and PostgreSQL is running locally
 python manage.py migrate
-python manage.py runserver
+daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application
 ```
 
 ### Frontend
@@ -106,15 +122,70 @@ npm install
 npm run dev
 ```
 
-### Mobile (Expo — always runs natively, not in Docker)
+---
+
+## Mobile App (Android)
+
+> **The mobile app requires a development build, not Expo Go.** It uses native modules (biometrics, maps, notifications) that are not available in Expo Go.
+
+### Prerequisites
+
+- Android device (physical or emulator) with USB debugging enabled, OR
+- An EAS account for cloud builds (`npx eas login`)
+
+### Run on Android (USB-connected device or emulator)
 
 ```bash
 cd mobile
 npm install
-npx expo start
+npx expo run:android
 ```
 
-Set `EXPO_PUBLIC_API_URL=http://<your-local-ip>:8000` in `mobile/.env` so the device can reach the Django API.
+This compiles a debug APK, installs it, and starts Metro. First build takes 2-5 minutes; subsequent builds use incremental compilation (~30 seconds).
+
+### EAS Development Build (no USB required)
+
+```bash
+cd mobile
+npx eas build --platform android --profile development
+```
+
+When the build completes, scan the QR code or download the APK from the provided link. Install it on your device, then run:
+
+```bash
+npx expo start --dev-client
+```
+
+The app will connect to the Metro dev server over your WiFi network.
+
+### Connect the app to the Django server
+
+The app needs to reach the Django API running on your computer:
+
+| Device type | Server address |
+|---|---|
+| **Android emulator** (same PC) | `http://10.0.2.2:8000` |
+| **Physical device** (same WiFi) | `http://<lan-ip>:8000` (e.g. `http://192.168.1.25:8000`) |
+
+If the app cannot connect, tap the **gear icon** (⚙) on the login screen to open Server Settings and configure the address manually.
+
+### Network troubleshooting
+
+1. **Confirm Django is reachable:** open `http://<lan-ip>:8000/api/health/` in your phone's browser
+2. **Same WiFi:** your computer and phone must be on the same network
+3. **Windows Firewall:** run `.\scripts\run-dev.ps1` which opens port 8000 automatically
+4. **Corporate VPN:** VPNs often block local network traffic — disconnect and try again
+5. **Android emulator:** use `http://10.0.2.2:8000` (this is the special alias for the host machine's `127.0.0.1`)
+
+### Biometric authentication
+
+The app supports fingerprint/face unlock for sign-in:
+
+1. Sign in with your password once
+2. When prompted, tap **Enable** to store credentials securely
+3. Next time, tap **Sign in with Fingerprint** (or Face ID)
+
+Credentials are encrypted in the hardware-backed Android Keystore / iOS Keychain. The biometric signature never leaves the device. Disable at any time from the Account tab.
 
 ---
 

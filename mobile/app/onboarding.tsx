@@ -1,36 +1,14 @@
-/**
- * @file mobile/app/onboarding.tsx
- * @description First-run onboarding carousel — shown once, gated by AsyncStorage.
- *
- * Screens:
- *   1. "Know where every shipment is — in real time"
- *   2. "Your whole fleet, one view"
- *   3. "Proof of delivery, instantly"
- *
- * After completion, calls markOnboarded() and navigates to auth flow.
- * Permissions (location, notifications) are requested in sequence after
- * the user explicitly taps "Allow" — never cold-presented.
- */
 import { useState, useRef } from 'react'
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Dimensions,
-  ScrollView,
-  StatusBar,
-  Platform,
-} from 'react-native'
+import { View, Text, TouchableOpacity, Dimensions, ScrollView, StatusBar, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import Animated, { FadeInRight, FadeOutLeft, FadeIn } from 'react-native-reanimated'
 import * as Notifications from 'expo-notifications'
 import { useOnboardingStore, useAuthStore } from '@/lib/store'
+import { Button } from '@/components/ui'
 
 const { width: SW } = Dimensions.get('window')
-
-// ─── Slide data ───────────────────────────────────────────────────────────────
 
 const SLIDES = [
   {
@@ -62,68 +40,17 @@ const SLIDES = [
   },
 ] as const
 
-// ─── Permission request screen ────────────────────────────────────────────────
-
-function PermissionCard({
-  icon,
-  title,
-  description,
-  onAllow,
-  onSkip,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>['name']
-  title: string
-  description: string
-  onAllow: () => void
-  onSkip: () => void
-}) {
-  return (
-    <Animated.View entering={FadeIn.duration(300)} style={{ padding: 32 }}>
-      <View style={{
-        width: 80, height: 80, borderRadius: 24,
-        backgroundColor: 'rgba(255,255,255,0.12)',
-        alignItems: 'center', justifyContent: 'center',
-        marginBottom: 24, alignSelf: 'center',
-      }}>
-        <Ionicons name={icon} size={38} color="#fff" />
-      </View>
-      <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', textAlign: 'center', marginBottom: 12 }}>
-        {title}
-      </Text>
-      <Text style={{ color: '#93b4d8', fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 40 }}>
-        {description}
-      </Text>
-      <TouchableOpacity
-        onPress={onAllow}
-        style={{
-          backgroundColor: '#f5801e', borderRadius: 16, paddingVertical: 16,
-          alignItems: 'center', marginBottom: 12,
-          shadowColor: '#f5801e', shadowOpacity: 0.4,
-          shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 4,
-        }}
-        activeOpacity={0.85}
-      >
-        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800' }}>Allow</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={onSkip} style={{ alignItems: 'center', padding: 12 }} activeOpacity={0.7}>
-        <Text style={{ color: '#5d87b5', fontSize: 14 }}>Skip for now</Text>
-      </TouchableOpacity>
-    </Animated.View>
-  )
-}
-
-// ─── Dot indicator ────────────────────────────────────────────────────────────
+// ── Dot indicator ──────────────────────────────────────────────────────────────
 
 function Dots({ count, active }: { count: number; active: number }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 6 }}>
+    <View className="flex-row gap-1.5">
       {Array.from({ length: count }).map((_, i) => (
         <View
           key={i}
+          className="h-1.5 rounded-full"
           style={{
             width: i === active ? 20 : 6,
-            height: 6,
-            borderRadius: 3,
             backgroundColor: i === active ? '#f5801e' : 'rgba(255,255,255,0.25)',
           }}
         />
@@ -132,7 +59,40 @@ function Dots({ count, active }: { count: number; active: number }) {
   )
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ── Permission card ────────────────────────────────────────────────────────────
+
+function PermissionCard({
+  icon, title, description, onAllow, onSkip,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name']
+  title: string
+  description: string
+  onAllow: () => void
+  onSkip: () => void
+}) {
+  return (
+    <Animated.View entering={FadeIn.duration(300)} className="px-8">
+      <View className="w-20 h-20 rounded-ct-xl bg-white/10 items-center justify-center mb-6 self-center">
+        <Ionicons name={icon} size={38} color="#fff" />
+      </View>
+      <Text className="text-ct-2xl font-extrabold text-white text-center mb-3">{title}</Text>
+      <Text className="text-ct-sm text-ct-text-brand leading-[22px] text-center mb-10">{description}</Text>
+      <TouchableOpacity
+        onPress={onAllow}
+        className="bg-ct-orange rounded-ct-lg py-4 items-center mb-3"
+        style={{ shadowColor: '#f5801e', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 4 }}
+        activeOpacity={0.85}
+      >
+        <Text className="text-ct-base font-extrabold text-white">Allow</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={onSkip} className="items-center p-3" activeOpacity={0.7}>
+        <Text className="text-ct-sm text-[#5d87b5]">Skip for now</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  )
+}
+
+// ── Screen ─────────────────────────────────────────────────────────────────────
 
 type Phase = 'slides' | 'perm-notifications' | 'done'
 
@@ -142,7 +102,7 @@ export default function OnboardingScreen() {
   const scrollRef = useRef<ScrollView>(null)
 
   const { markOnboarded } = useOnboardingStore()
-  const isAuthenticated   = useAuthStore((s) => s.isAuthenticated)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
 
   async function finish() {
     await markOnboarded()
@@ -161,28 +121,22 @@ export default function OnboardingScreen() {
 
   async function requestNotifications() {
     const { status } = await Notifications.requestPermissionsAsync()
-    if (status !== 'granted') {
-      // OS dialog declined — that's okay, user can enable later
-    }
+    // If denied, user can enable later — continue anyway
+    void status
     await finish()
   }
 
   const slide = SLIDES[slideIdx]
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
+    <View className="flex-1 bg-ct-navy">
       <StatusBar barStyle="light-content" />
-      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
-
+      <SafeAreaView edges={['top', 'bottom']} className="flex-1">
         {phase === 'slides' && (
           <>
             {/* Skip */}
-            <TouchableOpacity
-              onPress={finish}
-              style={{ alignSelf: 'flex-end', padding: 16 }}
-              activeOpacity={0.7}
-            >
-              <Text style={{ color: '#5d87b5', fontSize: 14 }}>Skip</Text>
+            <TouchableOpacity onPress={finish} className="self-end p-4" activeOpacity={0.7}>
+              <Text className="text-ct-sm text-[#5d87b5]">Skip</Text>
             </TouchableOpacity>
 
             {/* Carousel */}
@@ -192,35 +146,36 @@ export default function OnboardingScreen() {
               pagingEnabled
               scrollEnabled={false}
               showsHorizontalScrollIndicator={false}
-              style={{ flex: 1 }}
+              className="flex-1"
             >
               {SLIDES.map((s, idx) => (
                 <Animated.View
                   key={s.key}
                   entering={idx === slideIdx ? FadeInRight.duration(350) : undefined}
                   exiting={FadeOutLeft.duration(250)}
-                  style={{ width: SW, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}
+                  style={{ width: SW }}
+                  className="flex-1 items-center justify-center px-8"
                 >
                   {/* Icon */}
-                  <View style={{
-                    width: 120, height: 120, borderRadius: 36,
-                    backgroundColor: s.iconBg,
-                    alignItems: 'center', justifyContent: 'center',
-                    marginBottom: 40,
-                    shadowColor: s.accent,
-                    shadowOpacity: 0.4,
-                    shadowOffset: { width: 0, height: 8 },
-                    shadowRadius: 20,
-                    elevation: 8,
-                  }}>
+                  <View
+                    className="w-[120px] h-[120px] rounded-ct-2xl items-center justify-center mb-10"
+                    style={{
+                      backgroundColor: s.iconBg,
+                      shadowColor: s.accent,
+                      shadowOpacity: 0.4,
+                      shadowOffset: { width: 0, height: 8 },
+                      shadowRadius: 20,
+                      elevation: 8,
+                    }}
+                  >
                     <Ionicons name={s.icon} size={56} color="#fff" />
                   </View>
 
                   {/* Text */}
-                  <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5, marginBottom: 16, lineHeight: 36 }}>
+                  <Text className="text-ct-3xl font-extrabold text-white text-center tracking-tight mb-4 leading-[36px]">
                     {s.title}
                   </Text>
-                  <Text style={{ color: '#93b4d8', fontSize: 15, lineHeight: 24, textAlign: 'center' }}>
+                  <Text className="text-ct-base text-ct-text-brand leading-6 text-center">
                     {s.subtitle}
                   </Text>
                 </Animated.View>
@@ -228,24 +183,16 @@ export default function OnboardingScreen() {
             </ScrollView>
 
             {/* Bottom controls */}
-            <View style={{ paddingHorizontal: 32, paddingBottom: Platform.OS === 'android' ? 24 : 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+            <View className="px-8" style={{ paddingBottom: Platform.OS === 'android' ? 24 : 12 }}>
+              <View className="flex-row items-center justify-between mb-6">
                 <Dots count={SLIDES.length} active={slideIdx} />
                 <TouchableOpacity
                   onPress={nextSlide}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: '#f5801e',
-                    paddingHorizontal: 24, paddingVertical: 14,
-                    borderRadius: 16,
-                    shadowColor: '#f5801e', shadowOpacity: 0.35,
-                    shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 4,
-                  }}
+                  className="flex-row items-center bg-ct-orange px-6 py-3.5 rounded-ct-lg"
+                  style={{ shadowColor: '#f5801e', shadowOpacity: 0.35, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 4 }}
                   activeOpacity={0.85}
                 >
-                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', marginRight: 6 }}>
-                    {slide.cta}
-                  </Text>
+                  <Text className="text-ct-base font-extrabold text-white mr-1.5">{slide.cta}</Text>
                   <Ionicons name="arrow-forward" size={16} color="#fff" />
                 </TouchableOpacity>
               </View>
@@ -254,7 +201,7 @@ export default function OnboardingScreen() {
         )}
 
         {phase === 'perm-notifications' && (
-          <View style={{ flex: 1, justifyContent: 'center' }}>
+          <View className="flex-1 justify-center">
             <PermissionCard
               icon="notifications"
               title="Stay ahead of delays"

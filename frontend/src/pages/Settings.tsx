@@ -1,14 +1,21 @@
 /**
- * Settings.tsx — Profile, Notifications, API Keys, Billing, Payment Providers tabs.
+ * Settings.tsx — Profile, Notifications, API Keys, Billing, Payment Providers,
+ * Sessions, Security, and Preferences tabs.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Bell, Key, CreditCard, Zap, Eye, EyeOff, Copy, Check, Plus, Trash2, RefreshCw } from 'lucide-react'
+import {
+  User, Bell, Key, CreditCard, Zap, Eye, EyeOff, Copy, Check,
+  Plus, Trash2, RefreshCw, Shield, Monitor, Sliders, Activity,
+  Clock, FileText, LogIn, AlertTriangle, Smartphone, Globe,
+  Truck, Package,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import apiClient from '@/api/client'
+import { accountApi, type ActivityItem, type UserStats, type SessionItem, type SecurityLogEntry, type NotifPrefs } from '@/api/account'
 import { useAuthStore } from '@/store/authStore'
 
-type Tab = 'profile' | 'notifications' | 'api-keys' | 'billing' | 'providers'
+type Tab = 'profile' | 'notifications' | 'api-keys' | 'billing' | 'providers' | 'sessions' | 'security' | 'preferences'
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'profile',       label: 'Profile',        icon: <User className="w-4 h-4" /> },
@@ -16,17 +23,47 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: 'api-keys',      label: 'API Keys',       icon: <Key className="w-4 h-4" /> },
   { key: 'billing',       label: 'Billing',        icon: <CreditCard className="w-4 h-4" /> },
   { key: 'providers',     label: 'Pay Providers',  icon: <Zap className="w-4 h-4" /> },
+  { key: 'sessions',      label: 'Sessions',       icon: <Monitor className="w-4 h-4" /> },
+  { key: 'security',      label: 'Security',       icon: <Shield className="w-4 h-4" /> },
+  { key: 'preferences',   label: 'Preferences',    icon: <Sliders className="w-4 h-4" /> },
 ]
 
-// ── Profile Tab ───────────────────────────────────────────────────────────────
+// ── Time ago helper ───────────────────────────────────────────────────────────
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60_000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+const ACTION_ICONS: Record<string, React.ElementType> = {
+  tracking_event: Activity, document_upload: FileText, login: LogIn, logout: LogIn,
+  password_change: Shield, api_key_create: Key, api_key_delete: Trash2,
+}
+
+// ── Profile Tab (with account overview, activity timeline & stats) ──────────
+
+const ROLE_COLOR: Record<string, string> = {
+  ADMIN: '#dc2626', LOGISTICS_MGR: '#0f2d5e', CARRIER: '#2563eb', CLIENT: '#7c3aed',
+  DISPATCHER: '#0891b2', CUSTOMS_BROKER: '#b45309', WAREHOUSE_MGR: '#16a34a',
+  PORT_AGENT: '#0f766e', FINANCE_OFFICER: '#9333ea',
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: 'Administrator', LOGISTICS_MGR: 'Logistics Manager', CARRIER: 'Carrier / Driver',
+  CLIENT: 'Client', DISPATCHER: 'Dispatcher', CUSTOMS_BROKER: 'Customs Broker',
+  WAREHOUSE_MGR: 'Warehouse Manager', PORT_AGENT: 'Port Agent', FINANCE_OFFICER: 'Finance Officer',
+}
 
 function ProfileTab() {
   const { user, setUser } = useAuthStore()
   const [form, setForm] = useState({
     first_name: user?.first_name ?? '',
     last_name:  user?.last_name  ?? '',
-    email:      user?.email      ?? '',
-    company:    user?.company    ?? '',
     phone:      user?.phone      ?? '',
   })
   const [saving,   setSaving]   = useState(false)
@@ -35,6 +72,16 @@ function ProfileTab() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwErr,    setPwErr]    = useState('')
   const [pwOk,     setPwOk]     = useState(false)
+  const [stats, setStats] = useState<UserStats | null>(null)
+  const [activities, setActivities] = useState<ActivityItem[]>([])
+
+  const roleColor = ROLE_COLOR[user?.role ?? ''] ?? '#0f2d5e'
+  const roleLabel = ROLE_LABEL[user?.role ?? ''] ?? user?.role ?? ''
+
+  useEffect(() => {
+    accountApi.stats().then(r => setStats(r.data)).catch(() => {})
+    accountApi.activity({ page_size: 8 }).then(r => setActivities(r.data.activities)).catch(() => {})
+  }, [])
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault()
@@ -70,7 +117,96 @@ function ProfileTab() {
   }
 
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-6">
+      {/* ── Profile header card ────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden"
+      >
+        <div className="h-1.5" style={{ background: roleColor }} />
+        <div className="p-6 lg:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-5">
+            {/* Avatar with status dot */}
+            <div className="relative shrink-0">
+              <div
+                className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center text-[28px] font-bold text-white shadow-lg"
+                style={{ background: roleColor }}
+              >
+                {`${user?.first_name?.charAt(0) ?? ''}${user?.last_name?.charAt(0) ?? ''}`.toUpperCase()}
+              </div>
+              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-400 ring-[3px] ring-white dark:ring-[#1a2235]" />
+            </div>
+
+            {/* Name + meta */}
+            <div className="flex-1 min-w-0 pt-0.5">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white font-heading tracking-tight">
+                  {user?.first_name} {user?.last_name}
+                </h2>
+                <span
+                  className="inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide text-white"
+                  style={{ background: roleColor }}
+                >
+                  {roleLabel}
+                </span>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-white/40 mt-1">{user?.email}</p>
+              {user?.org_name && (
+                <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5 flex items-center gap-1">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  {user.org_name}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Quick stats row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+            {[
+              { label: 'Member Since', value: user?.date_joined ? new Date(user.date_joined).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—' },
+              { label: 'Last Login', value: user?.last_login ? timeAgo(user.last_login) : 'First session' },
+              { label: 'Username', value: `@${user?.username ?? '—'}` },
+              { label: 'Status', value: 'Active' },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
+                <div>
+                  <p className="text-[10px] text-gray-400 dark:text-white/35 uppercase tracking-wide font-semibold">{label}</p>
+                  <p className="text-xs font-semibold text-gray-800 dark:text-white/80 mt-0.5">{value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Stats card row */}
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Shipments', value: stats.total_shipments, sub: `${stats.shipments_mtd} this month`, color: '#3b82f6', bg: 'bg-blue-50 dark:bg-blue-900/15', Icon: Package },
+            { label: 'Events Logged', value: stats.events_logged, sub: `${stats.events_mtd} this month`, color: '#f97316', bg: 'bg-orange-50 dark:bg-orange-900/15', Icon: Activity },
+            { label: 'Docs Uploaded', value: stats.docs_uploaded, sub: 'Total', color: '#22c55e', bg: 'bg-emerald-50 dark:bg-emerald-900/15', Icon: FileText },
+            { label: 'Top Carrier', value: stats.most_used_carrier ?? '—', sub: 'Most used', color: '#a78bfa', bg: 'bg-violet-50 dark:bg-violet-900/15', isText: true, Icon: Truck },
+          ].map(({ label, value, sub, color, bg, isText, Icon }, i) => (
+            <motion.div key={label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
+              className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden"
+            >
+              <div className="flex items-center gap-4 p-4">
+                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', bg)}>
+                  <Icon className="w-4 h-4" style={{ color }} />
+                </div>
+                <div className="min-w-0">
+                  <div className={isText ? 'text-base font-bold text-gray-800 dark:text-white/80 truncate' : 'text-xl font-bold text-gray-900 dark:text-white tabular-nums'}>
+                    {typeof value === 'number' ? value.toLocaleString() : value}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-white/40">{label}</p>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
       {/* Profile form */}
       <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-6">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading mb-4">Personal Info</h2>
@@ -89,20 +225,14 @@ function ProfileTab() {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">Email</label>
-            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            <input type="email" value={user?.email ?? ''} disabled
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-sm text-gray-500 dark:text-white/40 cursor-not-allowed" />
+            <p className="text-[10px] text-gray-400 dark:text-white/25 mt-0.5">Contact support to change your email address.</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">Company</label>
-              <input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">Phone</label>
-              <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">Phone</label>
+            <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+254 712 345 678"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
           </div>
           <div className="flex items-center justify-end gap-3 pt-2">
             {saved && <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Saved</span>}
@@ -140,20 +270,34 @@ function ProfileTab() {
           </div>
         </form>
       </div>
+
+      {/* Activity timeline */}
+      {activities.length > 0 && (
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-6">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading mb-4">Recent Activity</h2>
+          <div className="space-y-0">
+            {activities.map((a, i) => {
+              const Icon = ACTION_ICONS[a.action_type] ?? Activity
+              return (
+                <div key={i} className="flex items-start gap-3 py-2.5 border-b border-gray-50 dark:border-white/5 last:border-0">
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center shrink-0">
+                    <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-white/30" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-700 dark:text-white/70">{a.description}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-white/25 mt-0.5">{timeAgo(a.timestamp)}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Notifications Tab ─────────────────────────────────────────────────────────
-
-interface NotifPrefs {
-  email_on_delay: boolean
-  email_on_customs: boolean
-  email_on_delivery: boolean
-  push_on_delay: boolean
-  push_on_customs: boolean
-  push_on_delivery: boolean
-}
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -164,27 +308,37 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   )
 }
 
-const NOTIF_ROWS: { key: keyof NotifPrefs; label: string; sub: string }[] = [
-  { key: 'email_on_delay',    label: 'Email — Delay alerts',      sub: 'Receive an email when a shipment is delayed' },
-  { key: 'email_on_customs',  label: 'Email — Customs holds',     sub: 'Receive an email when a shipment enters customs' },
-  { key: 'email_on_delivery', label: 'Email — Delivery confirmed', sub: 'Receive an email on successful delivery' },
-  { key: 'push_on_delay',     label: 'Push — Delay alerts',       sub: 'Mobile push notification for delays' },
-  { key: 'push_on_customs',   label: 'Push — Customs holds',      sub: 'Mobile push notification for customs holds' },
-  { key: 'push_on_delivery',  label: 'Push — Delivery confirmed', sub: 'Mobile push notification on delivery' },
+const NOTIF_ROWS: { key: keyof NotifPrefs; label: string; sub: string; channel: 'email' | 'push' }[] = [
+  { key: 'email_on_delay',    label: 'Delay alerts',      sub: 'Receive an email when a shipment is delayed',          channel: 'email' },
+  { key: 'email_on_customs',  label: 'Customs holds',     sub: 'Receive an email when a shipment enters customs',      channel: 'email' },
+  { key: 'email_on_delivery', label: 'Delivery confirmed', sub: 'Receive an email on successful delivery',              channel: 'email' },
+  { key: 'push_on_delay',     label: 'Delay alerts',      sub: 'Mobile push notification for delays',                   channel: 'push' },
+  { key: 'push_on_customs',   label: 'Customs holds',     sub: 'Mobile push notification for customs holds',            channel: 'push' },
+  { key: 'push_on_delivery',  label: 'Delivery confirmed', sub: 'Mobile push notification on delivery',                 channel: 'push' },
 ]
 
+const DEFAULT_NOTIF_PREFS: NotifPrefs = {
+  email_on_delay: true, email_on_customs: true, email_on_delivery: true,
+  push_on_delay:  true, push_on_customs:  false, push_on_delivery: true,
+}
+
 function NotificationsTab() {
-  const [prefs,   setPrefs]   = useState<NotifPrefs>({
-    email_on_delay: true, email_on_customs: true, email_on_delivery: true,
-    push_on_delay:  true, push_on_customs:  false, push_on_delivery: true,
-  })
-  const [saving, setSaving] = useState(false)
-  const [saved,  setSaved]  = useState(false)
+  const [prefs,   setPrefs]   = useState<NotifPrefs>(DEFAULT_NOTIF_PREFS)
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+  const [saved,   setSaved]   = useState(false)
+
+  useEffect(() => {
+    accountApi.notifPrefs()
+      .then(r => { if (r.data) setPrefs({ ...DEFAULT_NOTIF_PREFS, ...r.data }) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
   async function save() {
     setSaving(true)
     try {
-      await apiClient.patch('/api/v1/accounts/notification-prefs/', prefs)
+      await accountApi.updateNotifPrefs(prefs)
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } finally {
@@ -194,16 +348,52 @@ function NotificationsTab() {
 
   return (
     <div className="max-w-xl">
-      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card divide-y divide-gray-50 dark:divide-white/5">
-        {NOTIF_ROWS.map((row) => (
-          <div key={row.key} className="flex items-center justify-between px-5 py-4">
-            <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-white">{row.label}</p>
-              <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">{row.sub}</p>
-            </div>
-            <Toggle value={prefs[row.key]} onChange={(v) => setPrefs((p) => ({ ...p, [row.key]: v }))} />
+      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden">
+        {loading ? (
+          <div className="p-10 flex justify-center">
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ))}
+        ) : (
+          <>
+            {/* Email section */}
+            <div className="px-5 py-3 border-b border-gray-100 dark:border-white/8 bg-gray-50/50 dark:bg-white/[0.02]">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                  <svg className="w-3 h-3 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                </div>
+                <span className="text-xs font-bold text-gray-600 dark:text-white/60 uppercase tracking-wide">Email Notifications</span>
+              </div>
+            </div>
+            {NOTIF_ROWS.filter(r => r.channel === 'email').map((row) => (
+              <div key={row.key} className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50 dark:border-white/5 last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white">{row.label}</p>
+                  <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">{row.sub}</p>
+                </div>
+                <Toggle value={prefs[row.key]} onChange={(v) => setPrefs((p) => ({ ...p, [row.key]: v }))} />
+              </div>
+            ))}
+
+            {/* Push section */}
+            <div className="px-5 py-3 border-b border-t border-gray-100 dark:border-white/8 bg-gray-50/50 dark:bg-white/[0.02]">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
+                  <Smartphone className="w-3 h-3 text-orange-600 dark:text-orange-400" />
+                </div>
+                <span className="text-xs font-bold text-gray-600 dark:text-white/60 uppercase tracking-wide">Push Notifications</span>
+              </div>
+            </div>
+            {NOTIF_ROWS.filter(r => r.channel === 'push').map((row) => (
+              <div key={row.key} className="flex items-center justify-between px-5 py-3.5 border-b border-gray-50 dark:border-white/5 last:border-0">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white">{row.label}</p>
+                  <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">{row.sub}</p>
+                </div>
+                <Toggle value={prefs[row.key]} onChange={(v) => setPrefs((p) => ({ ...p, [row.key]: v }))} />
+              </div>
+            ))}
+          </>
+        )}
       </div>
       <div className="flex justify-end mt-4 gap-3 items-center">
         {saved && <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Saved</span>}
@@ -354,45 +544,51 @@ function ApiKeysTab() {
 function BillingTab() {
   return (
     <div className="max-w-xl space-y-4">
-      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">Current Plan</h2>
-            <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">Manage your subscription and billing</p>
+      {/* Plan card with gradient accent */}
+      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden">
+        <div className="h-1.5 bg-gradient-to-r from-ct-navy via-blue-500 to-ct-navy" />
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">Current Plan</h2>
+              <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">Manage your subscription and billing</p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-blue-500 to-ct-navy text-white shadow-md shadow-blue-500/20">
+              <Zap className="w-3 h-3" /> Pro
+            </span>
           </div>
-          <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">Pro</span>
-        </div>
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between py-2 border-b border-gray-50 dark:border-white/5">
-            <span className="text-gray-500 dark:text-white/40">Plan</span>
-            <span className="font-medium text-gray-800 dark:text-white">CargoTrack Pro</span>
+          <div className="space-y-0">
+            {[
+              { label: 'Plan', value: 'CargoTrack Pro' },
+              { label: 'Billing cycle', value: 'Monthly' },
+              { label: 'Amount', value: '$99 / month' },
+              { label: 'Next renewal', value: 'May 1, 2026' },
+            ].map(({ label, value }, i) => (
+              <div key={label} className={cn('flex justify-between items-center py-3', i < 3 && 'border-b border-gray-50 dark:border-white/5')}>
+                <span className="text-sm text-gray-500 dark:text-white/40">{label}</span>
+                <span className="text-sm font-semibold text-gray-800 dark:text-white">{value}</span>
+              </div>
+            ))}
           </div>
-          <div className="flex justify-between py-2 border-b border-gray-50 dark:border-white/5">
-            <span className="text-gray-500 dark:text-white/40">Billing cycle</span>
-            <span className="font-medium text-gray-800 dark:text-white">Monthly</span>
+          <div className="mt-5 flex gap-3">
+            <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90 transition-opacity" style={{ background: 'var(--ct-navy)' }}>
+              Manage Subscription
+            </button>
+            <button className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-white/60 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+              Download Invoices
+            </button>
           </div>
-          <div className="flex justify-between py-2 border-b border-gray-50 dark:border-white/5">
-            <span className="text-gray-500 dark:text-white/40">Amount</span>
-            <span className="font-medium text-gray-800 dark:text-white">$99 / month</span>
-          </div>
-          <div className="flex justify-between py-2">
-            <span className="text-gray-500 dark:text-white/40">Next renewal</span>
-            <span className="font-medium text-gray-800 dark:text-white">May 1, 2026</span>
-          </div>
-        </div>
-        <div className="mt-5 flex gap-3">
-          <button className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90 transition-opacity" style={{ background: 'var(--ct-navy)' }}>
-            Manage Subscription
-          </button>
-          <button className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-white/60 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-            Download Invoices
-          </button>
         </div>
       </div>
 
-      <div className="bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-700/30 p-4">
-        <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">Need to upgrade?</p>
-        <p className="text-xs text-amber-700 dark:text-amber-400">Contact your account manager or email <span className="font-mono">billing@cargotrack.io</span> for enterprise pricing.</p>
+      <div className="bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-700/30 p-4 flex items-start gap-3">
+        <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0 mt-0.5">
+          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">Need to upgrade?</p>
+          <p className="text-xs text-amber-700 dark:text-amber-400">Contact your account manager or email <span className="font-mono">billing@cargotrack.io</span> for enterprise pricing.</p>
+        </div>
       </div>
     </div>
   )
@@ -527,41 +723,371 @@ function ProvidersTab() {
   )
 }
 
+// ── Sessions Tab ───────────────────────────────────────────────────────────────
+
+function SessionsTab() {
+  const [sessions, setSessions] = useState<SessionItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [msg, setMsg] = useState('')
+  const [revoking, setRevoking] = useState<number | null>(null)
+
+  useEffect(() => {
+    accountApi.sessions()
+      .then(r => setSessions(r.data.sessions))
+      .catch(() => setMsg('Could not load sessions from server.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function revoke(id: number) {
+    setRevoking(id)
+    try {
+      await accountApi.revokeSession(id)
+      setSessions(prev => prev.filter(s => s.id !== id))
+      setMsg('Session revoked.')
+      setTimeout(() => setMsg(''), 3000)
+    } catch {
+      setMsg('Failed to revoke session.')
+    } finally {
+      setRevoking(null)
+    }
+  }
+
+  const deviceIcon = (device: string) => {
+    switch (device) {
+      case 'mobile': return <Smartphone className="w-4 h-4" />
+      case 'tablet': return <Smartphone className="w-4 h-4 rotate-90" />
+      default: return <Monitor className="w-4 h-4" />
+    }
+  }
+
+  const deviceLabel = (device: string) => {
+    switch (device) {
+      case 'mobile': return 'Mobile'
+      case 'tablet': return 'Tablet'
+      default: return 'Desktop'
+    }
+  }
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      {msg && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-2.5 rounded-lg flex items-center gap-1.5">
+          <Check className="w-3.5 h-3.5" /> {msg}
+        </motion.div>
+      )}
+
+      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-white/8">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">Active Sessions</h2>
+          <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">
+            {sessions.length} session{sessions.length !== 1 ? 's' : ''} — revoke any you don't recognise
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="p-10 flex justify-center">
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="py-12 text-center">
+            <Monitor className="w-8 h-8 text-gray-300 dark:text-white/15 mx-auto mb-2" />
+            <p className="text-sm text-gray-400 dark:text-white/30">No active sessions found</p>
+            <p className="text-xs text-gray-400 dark:text-white/20 mt-0.5">Sessions appear here when you log in from any device.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50 dark:divide-white/5">
+            {sessions.map(s => (
+              <div key={s.id} className={cn(
+                'px-5 py-4 transition-colors',
+                s.is_current && 'bg-blue-50/50 dark:bg-blue-900/10',
+              )}>
+                <div className="flex items-start gap-3">
+                  {/* Device icon */}
+                  <div className={cn(
+                    'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5',
+                    s.is_current
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-white/30',
+                  )}>
+                    {deviceIcon(s.device)}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                        {s.browser || 'Unknown'} on {deviceLabel(s.device)}
+                      </p>
+                      {s.is_current && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                          Current
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-white/40 mt-0.5">
+                      {s.ip_address && <span className="font-mono text-[11px]">{s.ip_address} · </span>}
+                      Started {s.created_at ? timeAgo(s.created_at) : '—'}
+                      {s.expires_at && <span> · Expires {new Date(s.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}
+                    </p>
+                    {s.user_agent && (
+                      <p className="text-[10px] text-gray-400 dark:text-white/20 mt-1 truncate max-w-md" title={s.user_agent}>
+                        {s.user_agent}
+                      </p>
+                    )}
+                  </div>
+
+                  {!s.is_current && (
+                    <button
+                      onClick={() => revoke(s.id)}
+                      disabled={revoking === s.id}
+                      className="shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                    >
+                      {revoking === s.id ? 'Revoking…' : 'Revoke'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Security Tab ──────────────────────────────────────────────────────────────
+
+function SecurityTab() {
+  const [entries, setEntries] = useState<SecurityLogEntry[]>([])
+  const [lastLogin, setLastLogin] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    accountApi.securityLog()
+      .then(r => { setEntries(r.data.entries); setLastLogin(r.data.last_login) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  return (
+    <div className="max-w-xl space-y-4">
+      {/* Summary card */}
+      {lastLogin && (
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-5 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+            <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-800 dark:text-white">Last login</p>
+            <p className="text-xs text-gray-500 dark:text-white/40">
+              {new Date(lastLogin).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Security events */}
+      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-white/8">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">Security Events</h2>
+        </div>
+        {loading ? (
+          <div className="p-8 flex justify-center"><div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+        ) : entries.length === 0 ? (
+          <div className="py-10 text-center text-sm text-gray-400 dark:text-white/30">No security events</div>
+        ) : (
+          <div className="divide-y divide-gray-50 dark:divide-white/5">
+            {entries.map((e, i) => {
+              const Icon = ACTION_ICONS[e.action.toLowerCase()] ?? Shield
+              return (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center shrink-0">
+                    <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-white/30" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-gray-800 dark:text-white/80">{e.description}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-white/25">{timeAgo(e.timestamp)}{e.ip_address ? ` · IP ${e.ip_address}` : ''}</p>
+                  </div>
+                  <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded', e.result === 'SUCCESS' ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-red-500 bg-red-50 dark:bg-red-900/20')}>
+                    {e.result}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Preferences Tab ───────────────────────────────────────────────────────────
+
+const PREF_STORAGE_KEY = 'ct-preferences'
+
+interface UserPreferences {
+  date_format: string
+  distance_unit: string
+  timezone: string
+  language: string
+  auto_refresh: string
+  map_zoom: string
+}
+
+const DEFAULT_PREFS: UserPreferences = {
+  date_format: 'DD/MM/YYYY',
+  distance_unit: 'km',
+  timezone: 'Africa/Nairobi',
+  language: 'en',
+  auto_refresh: '60',
+  map_zoom: '6',
+}
+
+function loadPrefs(): UserPreferences {
+  try {
+    const raw = localStorage.getItem(PREF_STORAGE_KEY)
+    if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) }
+  } catch { /* ignore */ }
+  return { ...DEFAULT_PREFS }
+}
+
+function savePrefs(prefs: UserPreferences) {
+  localStorage.setItem(PREF_STORAGE_KEY, JSON.stringify(prefs))
+}
+
+function PreferencesTab() {
+  const [prefs, setPrefs] = useState<UserPreferences>(loadPrefs)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  function handleSave() {
+    setSaving(true)
+    savePrefs(prefs)
+    // Apply language if changed
+    if (prefs.language) {
+      document.documentElement.lang = prefs.language
+    }
+    setTimeout(() => {
+      setSaving(false)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }, 200)
+  }
+
+  return (
+    <div className="max-w-xl space-y-4">
+      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-6">
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading mb-4">Display & Locale</h2>
+        <div className="space-y-4">
+          {[
+            { label: 'Date Format', field: 'date_format', type: 'select', options: ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'] },
+            { label: 'Distance Unit', field: 'distance_unit', type: 'select', options: ['km', 'mi'] },
+            { label: 'Timezone', field: 'timezone', type: 'select', options: ['Africa/Nairobi', 'Africa/Kampala', 'Africa/Kigali', 'Africa/Dar_es_Salaam', 'Africa/Juba'] },
+            { label: 'Language', field: 'language', type: 'select', options: ['en', 'sw', 'fr'] },
+          ].map(({ label, field, options }) => (
+            <div key={field}>
+              <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">{label}</label>
+              <select value={prefs[field as keyof UserPreferences]}
+                onChange={e => setPrefs(p => ({ ...p, [field]: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-6">
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading mb-4">Dashboard Defaults</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">Auto-refresh Interval (seconds)</label>
+            <select value={prefs.auto_refresh}
+              onChange={e => setPrefs(p => ({ ...p, auto_refresh: e.target.value }))}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+              {['30', '60', '120', '300', 'off'].map(o => <option key={o} value={o}>{o === 'off' ? 'Disabled' : `${o}s`}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">Default Map Zoom</label>
+            <select value={prefs.map_zoom}
+              onChange={e => setPrefs(p => ({ ...p, map_zoom: e.target.value }))}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+              {['4', '5', '6', '7', '8', '9', '10'].map(o => <option key={o} value={o}>Level {o}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 items-center">
+        {saved && <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1"><Check className="w-3.5 h-3.5" /> Preferences saved</span>}
+        <button onClick={handleSave} disabled={saving}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60 hover:opacity-90 transition-opacity"
+          style={{ background: 'var(--ct-navy)' }}>
+          {saving ? 'Saving…' : 'Save Preferences'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Settings ─────────────────────────────────────────────────────────────
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>('profile')
+  const { user } = useAuthStore()
+  const roleColor = ROLE_COLOR[user?.role ?? ''] ?? '#0f2d5e'
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-heading">Settings</h1>
-        <p className="text-sm text-gray-500 dark:text-white/50 mt-0.5">Manage your account and preferences</p>
+    <div className="space-y-5 pb-10">
+      {/* ── Page header ──────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-heading tracking-tight">Settings</h1>
+          <p className="text-sm text-gray-500 dark:text-white/40 mt-0.5">Manage your account, security, and preferences</p>
+        </div>
+        {tab === 'profile' && user && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-xs text-gray-500 dark:text-white/40">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Account active
+          </div>
+        )}
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 flex-wrap">
+      {/* ── Tab bar ──────────────────────────────────────────────────────── */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors',
+              'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold whitespace-nowrap transition-all duration-200',
               tab === t.key
-                ? 'bg-ct-navy text-white'
-                : 'bg-white dark:bg-white/5 text-gray-600 dark:text-white/60 border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10',
+                ? 'bg-ct-navy text-white shadow-lg shadow-ct-navy/25 scale-[1.02]'
+                : 'bg-white dark:bg-white/5 text-gray-500 dark:text-white/45 border border-gray-200/60 dark:border-white/8 hover:text-gray-700 dark:hover:text-white/70 hover:border-gray-300 dark:hover:border-white/20 hover:bg-gray-50 dark:hover:bg-white/8',
             )}>
-            {t.icon}
+            <span className={cn('transition-transform duration-200', tab === t.key && 'scale-110')}>{t.icon}</span>
             {t.label}
           </button>
         ))}
       </div>
 
+      {/* ── Tab content ──────────────────────────────────────────────────── */}
       <AnimatePresence mode="wait">
-        <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 8, filter: 'blur(2px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, y: -4, filter: 'blur(2px)' }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+        >
           {tab === 'profile'       && <ProfileTab />}
           {tab === 'notifications' && <NotificationsTab />}
           {tab === 'api-keys'      && <ApiKeysTab />}
           {tab === 'billing'       && <BillingTab />}
           {tab === 'providers'     && <ProvidersTab />}
+          {tab === 'sessions'      && <SessionsTab />}
+          {tab === 'security'      && <SecurityTab />}
+          {tab === 'preferences'   && <PreferencesTab />}
         </motion.div>
       </AnimatePresence>
     </div>

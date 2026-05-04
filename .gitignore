@@ -1,55 +1,189 @@
-# Python
+# ── Python ──────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-env/
-venv/
-.venv/
-build/
-dist/
 *.egg-info/
+dist/
+build/
+eggs/
 .eggs/
+*.manifest
+*.spec
 
-# Django
+# ── Virtual environments ────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env/
+.venv-*/
+
+# ── Django ───────────────────────────────────────────────────────────────────────
 *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
 media/
 staticfiles/
+collected-static/
 
-# ML models
-*.joblib
-*.pkl
-*.pickle
+# Django migrations — regenerated per-environment via `makemigrations`
+**/migrations/0*.py
 
-# Environment
+# ── Environment & secrets ───────────────────────────────────────────────────────
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+.env.production
+.env.staging
+.envrc
+*.token
+secrets/
+*.secret
 
-# IDE
+# ── Certificates & private keys ─────────────────────────────────────────────────
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+*.p12
+*.pfx
+*.pkcs12
+*.pkcs8
+*.mobileprovision
+*.p8
+*.ppk
+id_rsa
+id_ed25519
+id_ecdsa
+id_dsa
+
+# ── Database dumps & backups ────────────────────────────────────────────────────
+*.dump
+*.pgdump
+*.sql.gz
+*.sql.bz2
+dump.*
+*.backup.sql
+backup/
+
+# ── IDE & editor ─────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
-.DS_Store
+*.swn
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 
-# Testing
+# ── OS files ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+
+# ── Backup & temp files ─────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.temp
+*.orig
+*.old
+*.backup
+*.orig.*
+
+# ── Node / Frontend ─────────────────────────────────────────────────────────────
+node_modules/
+*.tsbuildinfo
+
+# Frontend env files
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# ── Testing & coverage ──────────────────────────────────────────────────────────
 .coverage
+coverage/
 htmlcov/
 .pytest_cache/
 .tox/
+.nox/
+*.cover
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+coverage.xml
+junit.xml
+test-results/
+.pytest_cache/
 
-.env
+# ── ML models & datasets ────────────────────────────────────────────────────────
+*.joblib
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pb
+*.onnx
+*.pt
+*.pth
+ml_datasets/
 
-# Node
-node_modules/
+# ── Docker ───────────────────────────────────────────────────────────────────────
+docker-compose.override.yml
+docker/secrets/
+*.docker-secret
+data/
 
+# ── Mobile / Expo ───────────────────────────────────────────────────────────────
+mobile/.env
+mobile/.env*.local
+mobile/dist-test/
+mobile/dist-test-verify/
+mobile/dist/
+mobile/android/
+mobile/ios/
+mobile/.expo/
+mobile/web-build/
+mobile/.kotlin/
+mobile/*.jks
+mobile/*.keystore
+mobile/*.p8
+mobile/*.p12
+mobile/*.key
+mobile/*.mobileprovision
+mobile/credentials.json
+mobile/google-services.json
+mobile/GoogleService-Info.plist
+mobile/.metro-health-check*
 
-# .claudeignore
+# ── Claude / internal tooling ───────────────────────────────────────────────────
 weekly_reports/
-*.md  # if you don't want progress reports influencing context
 .claude/
+.claudeignore
+
+# ── Monorepo root stubs (Metro bundler workarounds) ───────────────────────────
+/index.js
+/babel.config.js
+/app.json
+/package.json
+/package-lock.json
+
+# ── Test / debug scratch ────────────────────────────────────────────────────────
+test_users.md
+scratch/
+debug/
+tmp/
+temp/

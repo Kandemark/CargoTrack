@@ -1,0 +1,91 @@
+{
+  "version": 8,
+  "name": "CargoTrack Dark",
+  "sources": {
+    "ofm": {
+      "type": "vector",
+      "url": "https://tiles.openfreemap.org/planet",
+      "attribution": "© OpenStreetMap contributors"
+    }
+  },
+  "layers": [
+    { "id": "bg", "type": "background", "paint": { "background-color": "#0a1929" } },
+
+    { "id": "landuse-residential", "type": "fill", "source": "ofm", "source-layer": "landuse",
+      "filter": ["in", "class", "residential", "commercial", "industrial", "retail"],
+      "paint": { "fill-color": "#152238", "fill-opacity": 0.6 } },
+
+    { "id": "landcover-grass", "type": "fill", "source": "ofm", "source-layer": "landcover",
+      "filter": ["in", "class", "grass", "meadow", "farmland"],
+      "paint": { "fill-color": "#0f2d1a", "fill-opacity": 0.45 } },
+
+    { "id": "landcover-wood", "type": "fill", "source": "ofm", "source-layer": "landcover",
+      "filter": ["in", "class", "wood", "forest", "scrub"],
+      "paint": { "fill-color": "#0d2818", "fill-opacity": 0.5 } },
+
+    { "id": "park", "type": "fill", "source": "ofm", "source-layer": "park",
+      "paint": { "fill-color": "#132d1a", "fill-opacity": 0.55 } },
+
+    { "id": "water", "type": "fill", "source": "ofm", "source-layer": "water",
+      "paint": { "fill-color": "#0a1628" } },
+
+    { "id": "waterway", "type": "line", "source": "ofm", "source-layer": "waterway",
+      "paint": { "line-color": "#0d1f3c",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 14, 2.5] } },
+
+    { "id": "building", "type": "fill", "source": "ofm", "source-layer": "building",
+      "minzoom": 14,
+      "paint": { "fill-color": "#162d4a", "fill-outline-color": "#1a3355", "fill-opacity": 0.7 } },
+
+    { "id": "road-path", "type": "line", "source": "ofm", "source-layer": "transportation",
+      "filter": ["in", "class", "path", "track"],
+      "paint": { "line-color": "#1a2d45", "line-width": 0.8 } },
+
+    { "id": "road-service", "type": "line", "source": "ofm", "source-layer": "transportation",
+      "filter": ["==", "class", "service"],
+      "layout": { "line-join": "round", "line-cap": "round" },
+      "paint": { "line-color": "#1e3350", "line-width": 1 } },
+
+    { "id": "road-minor", "type": "line", "source": "ofm", "source-layer": "transportation",
+      "filter": ["in", "class", "minor", "residential"],
+      "layout": { "line-join": "round", "line-cap": "round" },
+      "paint": { "line-color": "#233855",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1, 16, 4] } },
+
+    { "id": "road-tertiary", "type": "line", "source": "ofm", "source-layer": "transportation",
+      "filter": ["==", "class", "tertiary"],
+      "layout": { "line-join": "round", "line-cap": "round" },
+      "paint": { "line-color": "#2a4060",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.5, 16, 5] } },
+
+    { "id": "road-secondary", "type": "line", "source": "ofm", "source-layer": "transportation",
+      "filter": ["==", "class", "secondary"],
+      "layout": { "line-join": "round", "line-cap": "round" },
+      "paint": { "line-color": "#334d70",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2, 16, 6] } },
+
+    { "id": "road-primary", "type": "line", "source": "ofm", "source-layer": "transportation",
+      "filter": ["in", "class", "primary", "trunk"],
+      "layout": { "line-join": "round", "line-cap": "round" },
+      "paint": { "line-color": "#3d5a80",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 9, 2.5, 16, 8] } },
+
+    { "id": "road-motorway", "type": "line", "source": "ofm", "source-layer": "transportation",
+      "filter": ["==", "class", "motorway"],
+      "layout": { "line-join": "round", "line-cap": "round" },
+      "paint": { "line-color": "#4a6a94",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 3, 16, 10] } },
+
+    { "id": "ferry", "type": "line", "source": "ofm", "source-layer": "transportation",
+      "filter": ["==", "class", "ferry"],
+      "paint": { "line-color": "#162d4a", "line-width": 1.5, "line-dasharray": [5, 4] } },
+
+    { "id": "boundary-country", "type": "line", "source": "ofm", "source-layer": "boundary",
+      "filter": ["all", ["==", "admin_level", 2], ["!has", "maritime"]],
+      "paint": { "line-color": "#3d5068", "line-width": 1.2, "line-dasharray": [3, 2] } },
+
+    { "id": "boundary-state", "type": "line", "source": "ofm", "source-layer": "boundary",
+      "filter": ["==", "admin_level", 4],
+      "paint": { "line-color": "#34455a", "line-width": 0.7, "line-dasharray": [4, 3] } }
+  ]
+}

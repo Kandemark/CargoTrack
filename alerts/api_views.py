@@ -44,11 +44,11 @@ class AlertListAPIView(generics.ListAPIView):
 class AlertAcknowledgeAPIView(APIView):
     """
     POST /api/v1/alerts/<pk>/acknowledge/
-    Marks an alert as acknowledged. Requires Manager or Admin role.
+    Marks an alert as acknowledged. Any authenticated user can acknowledge.
     """
-    permission_classes = [IsManagerUser]
+    permission_classes = [IsClientUser]
 
-    def post(self, request, pk):
+    def post(self, request, pk, **kwargs):
         try:
             alert = Alert.objects.get(pk=pk)
         except Alert.DoesNotExist:

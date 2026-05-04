@@ -166,7 +166,7 @@ def _process_webhook(provider_name: str, data: dict) -> None:
 class MpesaWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def post(self, request):
+    def post(self, request, **kwargs):
         _process_webhook('MPESA', request.data)
         return Response({'ResultCode': 0, 'ResultDesc': 'Accepted'})
 
@@ -174,7 +174,7 @@ class MpesaWebhookView(APIView):
 class AirtelWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def post(self, request):
+    def post(self, request, **kwargs):
         _process_webhook('AIRTEL', request.data)
         return Response({'status': 'ok'})
 
@@ -182,7 +182,7 @@ class AirtelWebhookView(APIView):
 class MTNWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def post(self, request):
+    def post(self, request, **kwargs):
         _process_webhook('MTN', request.data)
         return Response({'status': 'ok'})
 
@@ -190,7 +190,7 @@ class MTNWebhookView(APIView):
 class FlutterwaveWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def post(self, request):
+    def post(self, request, **kwargs):
         # Verify signature
         provider = get_provider('FLUTTERWAVE')
         sig = request.headers.get('verif-hash', '')
@@ -203,7 +203,7 @@ class FlutterwaveWebhookView(APIView):
 class StripeWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    def post(self, request):
+    def post(self, request, **kwargs):
         provider = get_provider('STRIPE')
         sig = request.headers.get('Stripe-Signature', '')
         if not provider.verify_webhook_signature(request.body, sig):

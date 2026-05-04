@@ -1,25 +1,17 @@
-/**
- * @file mobile/app/_layout.tsx
- * @description Root Expo Router layout — init sequence:
- *   1. Keep splash visible (preventAutoHideAsync)
- *   2. Check onboarding flag from AsyncStorage
- *   3. Load stored auth tokens from SecureStore
- *   4. If authenticated, restore user profile via /api/auth/me
- *   5. Set isReady, hide splash → index.tsx redirects based on state
- *
- * Wraps the entire app in QueryClientProvider for React Query caching.
- */
 import '../global.css'
 
 import { useEffect, useState } from 'react'
+import { View } from 'react-native'
 import { Stack } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import * as SplashScreen from 'expo-splash-screen'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useAuthStore } from '@/lib/store'
-import { useOnboardingStore } from '@/lib/store'
-import { authApi } from '@/lib/api'
+import { useAuthStore, useOnboardingStore } from '@/lib/store'
+import { useThemeStore, useInitTheme } from '@/lib/themeStore'
+import { loadFonts } from '@/lib/fonts'
+import { authApi, initializeApiBaseUrl } from '@/lib/api'
 
-SplashScreen.preventAutoHideAsync()
+void SplashScreen.preventAutoHideAsync().catch(() => null)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,49 +22,86 @@ const queryClient = new QueryClient({
   },
 })
 
+function ThemeWrapper({ children }: { children: React.ReactNode }) {
+  const resolved = useThemeStore((s) => s.resolved)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    setReady(true)
+  }, [])
+
+  return (
+    <View className={`flex-1 ${resolved === 'dark' ? 'dark' : ''}`}>
+      <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
+      {ready ? children : null}
+    </View>
+  )
+}
+
 export default function RootLayout() {
   const { loadStoredTokens, setUser, logout } = useAuthStore()
   const { checkOnboarded } = useOnboardingStore()
   const [isReady, setIsReady] = useState(false)
 
+  useInitTheme()
+
   useEffect(() => {
+    let isMounted = true
+
     async function init() {
-      // Check onboarding and auth in parallel
-      const [hasToken] = await Promise.all([
+      const [, hasTokenResult] = await Promise.allSettled([
+        Promise.all([loadFonts(), initializeApiBaseUrl(), checkOnboarded()]),
         loadStoredTokens(),
-        checkOnboarded(),
       ])
 
+      const hasToken =
+        hasTokenResult.status === 'fulfilled' ? hasTokenResult.value : false
+
       if (hasToken) {
-        // Restore user profile. On failure (expired token), logout clears
-        // state so index.tsx redirects naturally to login.
         try {
-          const res = await authApi.me()
+          const res = await Promise.race<{ data: Parameters<typeof setUser>[0] }>([
+            authApi.me(),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('profile timeout')), 2000),
+            ),
+          ])
           setUser(res.data)
         } catch {
           await logout()
         }
       }
+
+      if (isMounted) setIsReady(true)
     }
 
-    init().finally(() => {
-      setIsReady(true)
-      SplashScreen.hideAsync()
+    init().catch(() => {
+      if (isMounted) setIsReady(true)
     })
-  }, [])
+
+    return () => {
+      isMounted = false
+    }
+  }, [checkOnboarded, loadStoredTokens, logout, setUser])
+
+  useEffect(() => {
+    if (!isReady) return
+    void SplashScreen.hideAsync().catch(() => null)
+  }, [isReady])
 
   if (!isReady) return null
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="shipment/[id]" />
-        <Stack.Screen name="shipment/log-event" />
-      </Stack>
-    </QueryClientProvider>
+    <ThemeWrapper>
+      <QueryClientProvider client={queryClient}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="onboarding" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="shipment/[id]" />
+          <Stack.Screen name="shipment/log-event" />
+        </Stack>
+      </QueryClientProvider>
+    </ThemeWrapper>
   )
 }

@@ -1,21 +1,12 @@
-import { useState, useRef } from 'react'
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  ScrollView,
-} from 'react-native'
+import { useRef, useState } from 'react'
+import { View, Text, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import axios from 'axios'
 import { authApi } from '@/lib/api'
+import { Button, Input } from '@/components/ui'
 import type { RegisterPayload } from '@shared/api/auth'
-
-// ── Field error map ───────────────────────────────────────────────────────────
 
 type FieldErrors = Partial<Record<keyof RegisterPayload | 'non_field_errors', string>>
 
@@ -26,335 +17,188 @@ function parseApiErrors(err: unknown): { fields: FieldErrors; general: string | 
     let general: string | null = null
     for (const [key, val] of Object.entries(raw)) {
       const msg = Array.isArray(val) ? val[0] : val
-      if (key === 'non_field_errors' || key === 'detail') {
-        general = msg
-      } else {
-        fields[key as keyof FieldErrors] = msg
-      }
+      if (key === 'non_field_errors' || key === 'detail') general = msg
+      else fields[key as keyof FieldErrors] = msg
     }
     return { fields, general }
   }
-  if (axios.isAxiosError(err) && !err.response) {
+  if (axios.isAxiosError(err) && !err.response)
     return { fields: {}, general: 'Cannot reach the server. Check your network connection.' }
-  }
   return { fields: {}, general: 'Registration failed. Please try again.' }
 }
 
-// ── Role selector ─────────────────────────────────────────────────────────────
-
-const ROLES: { value: RegisterPayload['role']; label: string; sub: string }[] = [
-  { value: 'CLIENT',  label: 'Client',  sub: 'Track shipments & view data' },
-  { value: 'CARRIER', label: 'Carrier', sub: 'Log tracking events for cargo' },
+const ROLES: { value: RegisterPayload['role']; label: string; sub: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+  { value: 'CLIENT',          label: 'Client',           sub: 'Track shipments & view data',       icon: 'business-outline' },
+  { value: 'CARRIER',         label: 'Carrier',          sub: 'Log tracking events for cargo',     icon: 'car-outline' },
+  { value: 'DISPATCHER',      label: 'Dispatcher',       sub: 'Assign & coordinate shipments',     icon: 'git-compare-outline' },
+  { value: 'LOGISTICS_MGR',   label: 'Logistics Mgr',    sub: 'Manage operations across corridor', icon: 'stats-chart-outline' },
+  { value: 'CUSTOMS_BROKER',  label: 'Customs Broker',   sub: 'Process border clearance docs',     icon: 'document-text-outline' },
+  { value: 'WAREHOUSE_MGR',   label: 'Warehouse Mgr',    sub: 'Manage storage & inventory',        icon: 'cube-outline' },
+  { value: 'PORT_AGENT',      label: 'Port Agent',       sub: 'Coordinate port operations',        icon: 'boat-outline' },
+  { value: 'FINANCE_OFFICER', label: 'Finance Officer',  sub: 'Invoicing & payment management',    icon: 'card-outline' },
+  { value: 'ADMIN',           label: 'Administrator',    sub: 'Full system configuration',         icon: 'shield-checkmark-outline' },
 ]
-
-// ── Input helper ──────────────────────────────────────────────────────────────
-
-function Field({
-  label, error, children,
-}: { label: string; error?: string; children: React.ReactNode }) {
-  return (
-    <View className="mb-4">
-      <Text className="text-sm font-semibold text-gray-700 mb-1.5">{label}</Text>
-      {children}
-      {error ? <Text className="text-red-500 text-xs mt-1">{error}</Text> : null}
-    </View>
-  )
-}
-
-// ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function RegisterScreen() {
   const [form, setForm] = useState<RegisterPayload>({
-    first_name: '',
-    last_name:  '',
-    email:      '',
-    company:    '',
-    phone:      '',
-    role:       'CLIENT',
-    password:   '',
-    password2:  '',
+    first_name: '', last_name: '', email: '', phone: '', role: 'CLIENT', password: '', password2: '', org_name: '',
   })
-  const [fieldErrors, setFE]  = useState<FieldErrors>({})
+  const [fieldErrors, setFE] = useState<FieldErrors>({})
   const [generalError, setGE] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  // Refs for keyboard "next" chaining
-  const lastNameRef  = useRef<TextInput>(null)
-  const emailRef     = useRef<TextInput>(null)
-  const companyRef   = useRef<TextInput>(null)
-  const phoneRef     = useRef<TextInput>(null)
-  const passwordRef  = useRef<TextInput>(null)
-  const password2Ref = useRef<TextInput>(null)
 
   function set<K extends keyof RegisterPayload>(key: K, value: RegisterPayload[K]) {
     setForm((p) => ({ ...p, [key]: value }))
     setFE((p) => ({ ...p, [key]: undefined }))
+    if (generalError) setGE(null)
   }
 
   async function handleSubmit() {
-    setFE({})
-    setGE(null)
-
-    // Client-side password match check before hitting the network
+    setFE({}); setGE(null)
     if (form.password !== form.password2) {
-      setFE({ password2: 'Passwords do not match.' })
-      return
+      setFE({ password2: 'Passwords do not match.' }); return
     }
-
     setLoading(true)
     try {
       await authApi.register(form)
-      // Navigate to login — user confirms credentials before entering the app
       router.replace('/(auth)/login')
     } catch (err) {
       const { fields, general } = parseApiErrors(err)
       setFE(fields)
-      setGE(
-        general ??
-        (Object.keys(fields).length > 0
-          ? 'Please correct the errors above.'
-          : 'Registration failed. Please try again.'),
-      )
-    } finally {
-      setLoading(false)
-    }
+      setGE(general ?? (Object.keys(fields).length > 0 ? 'Please correct the errors above.' : 'Registration failed. Please try again.'))
+    } finally { setLoading(false) }
   }
 
-  const inputStyle = (key: keyof RegisterPayload) => ({
-    borderWidth: 1,
-    borderColor: fieldErrors[key] ? '#fca5a5' : '#e5e7eb',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: '#111827',
-    backgroundColor: fieldErrors[key] ? '#fef2f2' : '#f9fafb',
-  } as const)
-
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0f2d5e' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Navy header */}
-        <SafeAreaView edges={['top']} style={{ backgroundColor: '#0f2d5e' }}>
-          <View className="bg-ct-navy px-6 pt-6 pb-10">
-            <View className="flex-row items-center gap-3 mb-6">
-              <View className="w-10 h-10 rounded-xl bg-ct-orange items-center justify-center">
-                <Text className="text-white font-bold text-base">CT</Text>
-              </View>
-              <View>
-                <Text className="text-white font-bold text-xl">CargoTrack</Text>
-                <Text className="text-blue-300 text-xs">Logistics Intelligence</Text>
-              </View>
+    <KeyboardAvoidingView className="flex-1 bg-ct-navy" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
+        {/* Hero */}
+        <SafeAreaView edges={['top']} className="bg-ct-navy overflow-hidden">
+          {/* Decorative rings */}
+          <View pointerEvents="none" className="absolute w-[240px] h-[240px] rounded-full border-[44px] border-white/[0.07] -top-[90px] -right-[70px]" />
+          <View pointerEvents="none" className="absolute w-[150px] h-[150px] rounded-full border-[28px] border-white/[0.05] top-5 right-5" />
+          <View pointerEvents="none" className="absolute w-[110px] h-[110px] rounded-full border-[22px] border-white/[0.06] -bottom-[30px] -left-[30px]" />
+
+          <View className="px-7 pt-ct-lg pb-9">
+            <View className="w-[52px] h-[52px] rounded-ct-lg bg-ct-orange items-center justify-center mb-ct-lg"
+              style={{ shadowColor: '#f5801e', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 6 }}>
+              <Ionicons name="cube" size={26} color="#fff" />
             </View>
-            <Text className="text-white text-2xl font-bold">Create account</Text>
-            <Text className="text-blue-300 text-sm mt-1">
-              Northern Corridor · East Africa
-            </Text>
+            <Text className="text-ct-2xl font-extrabold text-white tracking-tight">CargoTrack</Text>
+            <Text className="text-ct-sm font-medium text-ct-text-brand mt-0.5">East Africa Logistics Intelligence</Text>
+            <View className="w-8 h-[3px] rounded-sm bg-ct-orange mt-5 mb-ct-lg" />
+            <Text className="text-ct-3xl font-extrabold text-white tracking-tight">Create account</Text>
+            <Text className="text-ct-base text-ct-text-brand mt-1 leading-5">Join the Northern Corridor network</Text>
           </View>
         </SafeAreaView>
 
         {/* Form card */}
-        <View className="flex-1 bg-white rounded-t-3xl -mt-5 px-6 pt-7 pb-12">
-
-          {/* General error banner */}
+        <View className="flex-1 bg-ct-surface-card dark:bg-ct-dark-card rounded-t-ct-2xl -mt-[22px] px-6 pt-8 pb-12">
           {generalError && (
-            <View className="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
-              <Text className="text-red-700 text-sm leading-5">{generalError}</Text>
+            <View className="flex-row items-center bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-ct-md p-ct-md mb-5">
+              <Ionicons name="alert-circle-outline" size={16} color="#b91c1c" style={{ marginRight: 8 }} />
+              <Text className="flex-1 text-ct-sm text-red-700 dark:text-red-200 leading-[18px]">{generalError}</Text>
             </View>
           )}
 
           {/* Name row */}
-          <View className="flex-row" style={{ gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="First name" error={fieldErrors.first_name}>
-                <TextInput
-                  style={inputStyle('first_name')}
-                  placeholder="Jane"
-                  placeholderTextColor="#9ca3af"
-                  value={form.first_name}
-                  onChangeText={(v) => set('first_name', v)}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                  onSubmitEditing={() => lastNameRef.current?.focus()}
-                />
-              </Field>
+          <View className="flex-row gap-2.5 mb-[18px]">
+            <View className="flex-1">
+              <Input
+                label="First name" icon="person-outline" placeholder="Jane"
+                value={form.first_name} error={fieldErrors.first_name}
+                onChangeText={(v) => set('first_name', v)} autoCapitalize="words" returnKeyType="next"
+              />
             </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Last name" error={fieldErrors.last_name}>
-                <TextInput
-                  ref={lastNameRef}
-                  style={inputStyle('last_name')}
-                  placeholder="Mwangi"
-                  placeholderTextColor="#9ca3af"
-                  value={form.last_name}
-                  onChangeText={(v) => set('last_name', v)}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                  onSubmitEditing={() => emailRef.current?.focus()}
-                />
-              </Field>
+            <View className="flex-1">
+              <Input
+                label="Last name" icon="person-outline" placeholder="Mwangi"
+                value={form.last_name} error={fieldErrors.last_name}
+                onChangeText={(v) => set('last_name', v)} autoCapitalize="words" returnKeyType="next"
+              />
             </View>
           </View>
 
-          {/* Email */}
-          <Field label="Email address" error={fieldErrors.email}>
-            <TextInput
-              ref={emailRef}
-              style={inputStyle('email')}
-              placeholder="jane@company.com"
-              placeholderTextColor="#9ca3af"
-              value={form.email}
-              onChangeText={(v) => set('email', v)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="next"
-              onSubmitEditing={() => companyRef.current?.focus()}
-            />
-          </Field>
+          <Input
+            label="Email address" icon="mail-outline" placeholder="jane@company.com"
+            value={form.email} error={fieldErrors.email}
+            onChangeText={(v) => set('email', v)} keyboardType="email-address"
+            autoCapitalize="none" autoCorrect={false} className="mb-[18px]"
+          />
 
-          {/* Company + Phone row */}
-          <View className="flex-row" style={{ gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Company" error={fieldErrors.company}>
-                <TextInput
-                  ref={companyRef}
-                  style={inputStyle('company')}
-                  placeholder="Acme Freight"
-                  placeholderTextColor="#9ca3af"
-                  value={form.company}
-                  onChangeText={(v) => set('company', v)}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                  onSubmitEditing={() => phoneRef.current?.focus()}
-                />
-              </Field>
+          {/* Org + Phone row */}
+          <View className="flex-row gap-2.5 mb-[18px]">
+            <View className="flex-1">
+              <Input
+                label="Organization" icon="briefcase-outline" placeholder="Acme Freight"
+                value={form.org_name ?? ''} error={fieldErrors.org_name}
+                onChangeText={(v) => set('org_name', v)} autoCapitalize="words"
+              />
             </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Phone" error={fieldErrors.phone}>
-                <TextInput
-                  ref={phoneRef}
-                  style={inputStyle('phone')}
-                  placeholder="+254 700 000 000"
-                  placeholderTextColor="#9ca3af"
-                  value={form.phone}
-                  onChangeText={(v) => set('phone', v)}
-                  keyboardType="phone-pad"
-                  returnKeyType="next"
-                  onSubmitEditing={() => passwordRef.current?.focus()}
-                />
-              </Field>
+            <View className="flex-1">
+              <Input
+                label="Phone" icon="call-outline" placeholder="+254 700 000 000"
+                value={form.phone} error={fieldErrors.phone}
+                onChangeText={(v) => set('phone', v)} keyboardType="phone-pad"
+              />
             </View>
           </View>
 
           {/* Role selector */}
-          <View className="mb-4">
-            <Text className="text-sm font-semibold text-gray-700 mb-2">Account type</Text>
-            <View className="flex-row" style={{ gap: 10 }}>
+          <View className="mb-[18px]">
+            <Text className="text-ct-sm font-heading font-bold text-ct-text-secondary dark:text-ct-dark-text-muted mb-2 uppercase tracking-wider">Account type</Text>
+            <View className="flex-row flex-wrap gap-2">
               {ROLES.map((opt) => {
                 const selected = form.role === opt.value
                 return (
                   <TouchableOpacity
-                    key={opt.value}
-                    onPress={() => set('role', opt.value)}
-                    style={{
-                      flex: 1,
-                      borderWidth: 2,
-                      borderColor: selected ? '#0f2d5e' : '#e5e7eb',
-                      borderRadius: 12,
-                      padding: 12,
-                      backgroundColor: selected ? '#eff6ff' : '#f9fafb',
-                    }}
-                    activeOpacity={0.75}
+                    key={opt.value} onPress={() => set('role', opt.value)} activeOpacity={0.75}
+                    className={`w-[31%] items-center rounded-ct-md p-2.5 border-[1.5px] ${
+                      selected
+                        ? 'border-ct-navy bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-ct-border-light dark:border-ct-dark-border bg-ct-surface-muted dark:bg-ct-dark-surface'
+                    }`}
                   >
-                    <Text style={{
-                      fontSize: 13, fontWeight: '700',
-                      color: selected ? '#0f2d5e' : '#374151',
-                      marginBottom: 2,
-                    }}>
+                    <Ionicons name={opt.icon} size={18} color={selected ? '#0f2d5e' : '#9ca3af'} style={{ marginBottom: 4 }} />
+                    <Text className={`text-ct-xs font-bold text-center ${selected ? 'text-ct-navy dark:text-blue-300' : 'text-ct-text-secondary dark:text-ct-dark-text-muted'}`}>
                       {opt.label}
                     </Text>
-                    <Text style={{ fontSize: 11, color: selected ? '#3b82f6' : '#6b7280' }}>
+                    <Text className={`text-[10px] text-center mt-0.5 leading-[13px] ${selected ? 'text-blue-500 dark:text-blue-400' : 'text-ct-text-faint'}`}>
                       {opt.sub}
                     </Text>
                   </TouchableOpacity>
                 )
               })}
             </View>
-            {fieldErrors.role ? (
-              <Text className="text-red-500 text-xs mt-1">{fieldErrors.role}</Text>
-            ) : null}
+            {fieldErrors.role && <Text className="text-ct-xs text-ct-danger mt-1.5">{fieldErrors.role}</Text>}
           </View>
 
-          {/* Password row */}
-          <View className="flex-row" style={{ gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Password" error={fieldErrors.password}>
-                <TextInput
-                  ref={passwordRef}
-                  style={inputStyle('password')}
-                  placeholder="Min. 8 chars"
-                  placeholderTextColor="#9ca3af"
-                  value={form.password}
-                  onChangeText={(v) => set('password', v)}
-                  secureTextEntry
-                  returnKeyType="next"
-                  onSubmitEditing={() => password2Ref.current?.focus()}
-                />
-              </Field>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Confirm" error={fieldErrors.password2}>
-                <TextInput
-                  ref={password2Ref}
-                  style={inputStyle('password2')}
-                  placeholder="Repeat"
-                  placeholderTextColor="#9ca3af"
-                  value={form.password2}
-                  onChangeText={(v) => set('password2', v)}
-                  secureTextEntry
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
-              </Field>
-            </View>
-          </View>
+          <Input
+            label="Password" icon="lock-closed-outline" placeholder="Min. 10 characters, 1 upper, 1 digit, 1 symbol"
+            value={form.password} error={fieldErrors.password}
+            onChangeText={(v) => set('password', v)} secureTextEntry className="mb-[18px]"
+          />
 
-          {/* Submit */}
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={loading}
-            className="bg-ct-navy rounded-xl py-4 items-center mt-2"
-            style={{ opacity: loading ? 0.65 : 1 }}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-white font-bold text-base">Create account</Text>
-            )}
-          </TouchableOpacity>
+          <Input
+            label="Confirm password" icon="lock-closed-outline" placeholder="Repeat password"
+            value={form.password2} error={fieldErrors.password2}
+            onChangeText={(v) => set('password2', v)} secureTextEntry
+            returnKeyType="done" onSubmitEditing={handleSubmit} className="mb-7"
+          />
 
-          {/* Login link */}
-          <TouchableOpacity
-            onPress={() => router.replace('/(auth)/login')}
-            className="mt-6 items-center"
-          >
-            <Text className="text-sm text-gray-500">
+          <Button variant="primary" size="lg" loading={loading} onPress={handleSubmit} className="w-full">
+            Create account
+          </Button>
+
+          <TouchableOpacity onPress={() => router.replace('/(auth)/login')} className="mt-5 items-center" activeOpacity={0.7}>
+            <Text className="text-ct-base text-ct-text-muted dark:text-ct-dark-text-muted">
               Already have an account?{' '}
-              <Text className="text-ct-navy font-semibold">Sign in</Text>
+              <Text className="text-ct-navy dark:text-ct-orange font-bold">Sign in</Text>
             </Text>
           </TouchableOpacity>
 
-          <Text className="text-center text-xs text-gray-400 mt-6">
-            © {new Date().getFullYear()} CargoTrack Ltd · Enterprise Logistics Intelligence
+          <Text className="mt-6 text-center text-ct-xs text-gray-300 dark:text-gray-600">
+            {new Date().getFullYear()} CargoTrack Ltd
           </Text>
         </View>
       </ScrollView>

@@ -13,10 +13,11 @@ GET  /api/v1/dashboard/map/     GeoJSON FeatureCollection (stub until geocoding
                                  is implemented).
 """
 from django.urls import path
-from .api_views import DashboardAPIView, KPIApiView, MapDataAPIView
+from .api_views import DashboardAPIView, KPIApiView, MapDataAPIView, PublicLandingStatsView
 
 urlpatterns = [
     path('stats/', DashboardAPIView.as_view(), name='v1-dashboard-stats'),
     path('kpis/',  KPIApiView.as_view(),       name='v1-dashboard-kpis'),
     path('map/',   MapDataAPIView.as_view(),   name='v1-dashboard-map'),
+    path('public-stats/', PublicLandingStatsView.as_view(), name='v1-public-stats'),
 ]

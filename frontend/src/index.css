@@ -113,9 +113,52 @@ h1, h2, h3, h4, h5, h6,
   font-family: 'Space Grotesk', system-ui, sans-serif;
 }
 
-/* Leaflet overrides for dark mode */
-.dark .leaflet-tile {
-  filter: brightness(0.7) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+/* ── Leaflet dark-mode polish ──────────────────────────────────────────────
+   LiveMap uses CartoDB Dark Matter tiles (natively dark) — do NOT invert them.
+   Only fix the chrome: controls, attribution, and popups.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Map canvas background matches the navy so there's no white flash on load */
+.dark .leaflet-container {
+  background: #0a1929;
+}
+
+/* Zoom control */
+.dark .leaflet-control-zoom a {
+  background-color: rgba(10, 25, 41, 0.92) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+.dark .leaflet-control-zoom a:hover {
+  background-color: rgba(249, 115, 22, 0.85) !important;
+  color: #fff !important;
+}
+
+/* Attribution bar */
+.dark .leaflet-control-attribution {
+  background: rgba(10, 25, 41, 0.80) !important;
+  color: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(4px);
+}
+.dark .leaflet-control-attribution a {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* Popup wrapper */
+.dark .leaflet-popup-content-wrapper {
+  background: #111c2d;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.85);
+}
+.dark .leaflet-popup-tip {
+  background: #111c2d;
+}
+.dark .leaflet-popup-close-button {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+.dark .leaflet-popup-close-button:hover {
+  color: #fff !important;
 }
 
 /* Animated route dash for live map */
@@ -126,8 +169,49 @@ h1, h2, h3, h4, h5, h6,
   animation: dash-move 1s linear infinite;
 }
 
+/* ── Shimmer skeleton animation ──────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg,
+    oklch(0.92 0.004 286.32 / 60%) 0%,
+    oklch(0.96 0.002 286.37 / 80%) 40%,
+    oklch(0.92 0.004 286.32 / 60%) 100%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+.dark .animate-shimmer {
+  background: linear-gradient(90deg,
+    rgb(255 255 255 / 5%) 0%,
+    rgb(255 255 255 / 12%) 40%,
+    rgb(255 255 255 / 5%) 100%
+  );
+  background-size: 800px 100%;
+}
+
 /* Scrollbar polish */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: oklch(0.75 0 0 / 40%); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: oklch(0.6 0 0 / 60%); }
+
+/* ── Glass surface for modals / panels ──────────────────────────────────── */
+.glass-panel {
+  background: rgb(255 255 255 / 85%);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgb(0 0 0 / 6%);
+}
+.dark .glass-panel {
+  background: rgb(10 25 41 / 92%);
+  border-color: rgb(255 255 255 / 8%);
+}
+
+/* ── Scrollbar hide utility ─────────────────────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }

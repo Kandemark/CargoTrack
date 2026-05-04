@@ -19,6 +19,8 @@ import type { User, Alert } from '@shared/api/types'
 interface AuthState {
   user: User | null
   isAuthenticated: boolean
+  biometricEnabled: boolean
+  setBiometricEnabled: (v: boolean) => void
   setTokens: (access: string, refresh: string) => Promise<void>
   setUser: (user: User) => void
   logout: () => Promise<void>
@@ -28,6 +30,9 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()((set) => ({
   user: null,
   isAuthenticated: false,
+  biometricEnabled: false,
+
+  setBiometricEnabled: (v) => set({ biometricEnabled: v }),
 
   setTokens: async (access, refresh) => {
     await SecureStore.setItemAsync('access_token', access)

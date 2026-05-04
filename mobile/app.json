@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0f2d5e"
     },
@@ -20,11 +20,12 @@
     "android": {
       "package": "com.cargotrack.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0f2d5e"
+        "foregroundImage": "./assets/images/icon-foreground.png",
+        "backgroundColor": "#F5801E"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro",

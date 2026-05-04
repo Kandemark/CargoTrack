@@ -110,8 +110,9 @@ export function createApiClient(config: ApiClientConfig): AxiosInstance {
         if (!refreshToken) throw new Error('No refresh token')
 
         const refreshUrl = config.refreshEndpoint ?? '/api/auth/token/refresh/'
+        const activeBaseUrl = String(instance.defaults.baseURL ?? config.baseURL ?? '').replace(/\/+$/, '')
         const { data } = await axios.post<{ access: string }>(
-          `${config.baseURL}${refreshUrl}`,
+          `${activeBaseUrl}${refreshUrl}`,
           { refresh: refreshToken },
           { timeout: config.timeout ?? 15_000 },
         )

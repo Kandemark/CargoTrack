@@ -18,15 +18,25 @@
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
+export type UserRole =
+  | 'ADMIN' | 'LOGISTICS_MGR' | 'CLIENT' | 'CARRIER'
+  | 'DISPATCHER' | 'CUSTOMS_BROKER' | 'WAREHOUSE_MGR'
+  | 'PORT_AGENT' | 'FINANCE_OFFICER'
+
 export interface User {
   id: number
   email: string
   username: string
   first_name: string
   last_name: string
-  role: 'ADMIN' | 'LOGISTICS_MGR' | 'CLIENT' | 'CARRIER'
-  company: string
+  role: UserRole
+  role_display: string
+  org_id: number | null
+  org_name: string | null
   phone: string
+  onboarding_completed: boolean
+  date_joined: string
+  last_login: string | null
 }
 
 export interface TokenPair {
@@ -143,6 +153,8 @@ export interface DashboardSummary {
   exception_count: number
   carrier_count: number
   open_alerts: number
+  total_revenue_mtd?: number
+  total_cost_mtd?: number
 }
 
 export interface CarrierPerformance {
@@ -220,6 +232,27 @@ export interface Document {
   created_at:       string
 }
 
+// ─── Landing Page ──────────────────────────────────────────────────────────────
+
+export interface MapDot {
+  lat: number
+  lng: number
+  status: string
+}
+
+export interface PublicLandingStats {
+  active_shipments: number
+  total_shipments: number
+  active_carriers: number
+  active_trucks: number
+  on_time_rate: number
+  total_tonnes: number
+  delay_rate: number
+  avg_driver_rating: number
+  total_deliveries: number
+  map_dots: MapDot[]
+}
+
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 export interface PaginatedResponse<T> {
@@ -227,4 +260,150 @@ export interface PaginatedResponse<T> {
   next: string | null
   previous: string | null
   results: T[]
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────────────
+
+export interface ConversationParticipant {
+  id: number
+  first_name: string
+  last_name: string
+  username: string
+  role: string
+}
+
+export interface LastMessage {
+  id: number
+  content: string
+  sender_name: string
+  created_at: string
+  is_read: boolean
+}
+
+export interface Conversation {
+  id: number
+  subject: string
+  shipment: number | null
+  is_group: boolean
+  participants: number[]
+  participants_display: string
+  last_message: LastMessage | null
+  unread_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ConversationDetail extends Conversation {
+  messages: ChatMessage[]
+}
+
+export interface ChatMessage {
+  id: number
+  conversation: number
+  sender: number | null
+  sender_id: number | null
+  sender_name: string
+  sender_role: string
+  content: string
+  attachment_url: string
+  is_read: boolean
+  is_system: boolean
+  created_at: string
+}
+
+export interface TypingEvent {
+  conversation_id: number
+  user_id: number
+  user_name: string
+}
+
+export interface ReadReceipt {
+  conversation_id: number
+  reader_id: number
+}
+
+// ─── Marketplace ────────────────────────────────────────────────────────────────
+
+export type CargoType =
+  | 'GENERAL' | 'PERISHABLE' | 'HAZARDOUS' | 'FRAGILE'
+  | 'BULK' | 'CONTAINER' | 'LIQUID' | 'VEHICLES' | 'LIVESTOCK' | 'OTHER'
+
+export type ListingStatus =
+  | 'OPEN' | 'IN_PROGRESS' | 'AWARDED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED'
+
+export type BidStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN'
+
+export interface TruckInfo {
+  id: number
+  fleet_id: string
+  plate: string
+}
+
+export interface Bid {
+  id: number
+  listing: number
+  carrier: number
+  carrier_name: string
+  truck: number | null
+  truck_info: TruckInfo | null
+  driver: number | null
+  driver_name: string | null
+  amount: string
+  notes: string
+  status: BidStatus
+  estimated_days: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface FreightListing {
+  id: number
+  posted_by: number
+  posted_by_name: string
+  cargo_type: CargoType
+  cargo_type_display: string
+  weight_kg: number
+  volume_m3: number | null
+  origin: string
+  destination: string
+  pickup_date: string
+  delivery_date: string
+  budget_min: string | null
+  budget_max: string | null
+  description: string
+  requires_hazmat: boolean
+  requires_reefer: boolean
+  status: ListingStatus
+  bid_count: number
+  lowest_bid: number | null
+  bids: Bid[]
+  awarded_shipment: number | null
+  created_at: string
+  updated_at: string
+  expires_at: string | null
+}
+
+export interface FreightListingCreatePayload {
+  cargo_type: string
+  weight_kg: number
+  volume_m3?: number | null
+  origin: string
+  destination: string
+  pickup_date: string
+  delivery_date: string
+  budget_min?: string | null
+  budget_max?: string | null
+  description?: string
+  requires_hazmat?: boolean
+  requires_reefer?: boolean
+  expires_at?: string | null
+}
+
+export interface BidCreatePayload {
+  listing: number
+  amount: string
+  truck?: number | null
+  driver?: number | null
+  notes?: string
+  estimated_days?: number | null
 }

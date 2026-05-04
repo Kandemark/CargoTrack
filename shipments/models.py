@@ -39,7 +39,7 @@ class Shipment(models.Model):
     OOP:
         - Encapsulation: all cargo data and lifecycle state in one class.
         - Composition:   owns a Route via ForeignKey.
-        - State machine: status field transitions through STATUS_CHOICES.
+        - State machine: status and dispatch_status fields define dual state machines.
     """
 
     STATUS_CHOICES = [
@@ -50,14 +50,36 @@ class Shipment(models.Model):
         ('DELAYED',    'Delayed'),
     ]
 
+    DISPATCH_STATUS_CHOICES = [
+        ('UNASSIGNED', 'Unassigned'),
+        ('OFFERED',    'Offered'),
+        ('ACCEPTED',   'Accepted'),
+        ('DISPATCHED', 'Dispatched'),
+    ]
+
     tracking_number      = models.CharField(max_length=20, unique=True)
     route                = models.ForeignKey(
-        Route, on_delete=models.CASCADE, related_name='shipments'
+        Route, on_delete=models.CASCADE, related_name='shipments',
     )
     status               = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default='PENDING'
+        max_length=20, choices=STATUS_CHOICES, default='PENDING',
     )
-    carrier_name         = models.CharField(max_length=100)
+    dispatch_status      = models.CharField(
+        max_length=20, choices=DISPATCH_STATUS_CHOICES, default='UNASSIGNED',
+    )
+    carrier_name         = models.CharField(max_length=100, blank=True)  # deprecated — kept for migration
+    carrier              = models.ForeignKey(
+        'carriers.Carrier', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='shipments',
+    )
+    assigned_truck       = models.ForeignKey(
+        'fleet.Truck', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='shipments',
+    )
+    assigned_driver      = models.ForeignKey(
+        'fleet.Driver', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='shipments',
+    )
     weight_kg            = models.FloatField()
     scheduled_departure  = models.DateTimeField()
     scheduled_arrival    = models.DateTimeField()
@@ -77,11 +99,18 @@ class Shipment(models.Model):
     def __str__(self) -> str:
         return self.tracking_number
 
+    def save(self, *args, **kwargs):
+        # Sync carrier_name for backward compatibility
+        if self.carrier and not self.carrier_name:
+            self.carrier_name = self.carrier.name
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["tracking_number"]),
             models.Index(fields=["status"]),
+            models.Index(fields=["dispatch_status"]),
         ]
 
 
@@ -113,6 +142,44 @@ class Document(models.Model):
         if not self.filename and self.file:
             self.filename = self.file.name.split('/')[-1]
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.get_doc_type_display()} — {self.shipment.tracking_number}'
+
+
+class ComplianceDoc(models.Model):
+    DOC_TYPE_CHOICES = [
+        ('CERTIFICATE',   'Certificate of Origin'),
+        ('PERMIT',        'Import/Export Permit'),
+        ('DECLARATION',   'Customs Declaration'),
+        ('INVOICE',       'Commercial Invoice'),
+        ('MANIFEST',      'Cargo Manifest'),
+        ('PHYTOSANITARY', 'Phytosanitary Certificate'),
+        ('INSURANCE',     'Insurance Certificate'),
+        ('OTHER',         'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('VALID',    'Valid'),
+        ('EXPIRED',  'Expired'),
+        ('EXPIRING', 'Expiring Soon'),
+        ('MISSING',  'Missing'),
+        ('PENDING',  'Pending'),
+    ]
+
+    shipment    = models.ForeignKey(Shipment, on_delete=models.CASCADE, related_name='compliance_docs')
+    doc_type    = models.CharField(max_length=20, choices=DOC_TYPE_CHOICES)
+    reference   = models.CharField(max_length=200, blank=True)
+    issued_by   = models.CharField(max_length=200, blank=True)
+    issued_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    is_required = models.BooleanField(default=True)
+    status      = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
+    notes       = models.TextField(blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
         return f'{self.get_doc_type_display()} — {self.shipment.tracking_number}'

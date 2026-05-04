@@ -1,38 +1,64 @@
 """
-cargotrack/api_urls.py — Versioned API Router
-==============================================
-
-Mounted at ``/api/<version>/`` by cargotrack/urls.py.
-All endpoints require ``Authorization: Bearer <access_token>`` unless
-explicitly overridden with ``permission_classes = [AllowAny]``.
-
-Resolved URL table (prefix = /api/v1/)
----------------------------------------
-Prefix          Module                  Description
------------     --------------------    ----------------------------------------
-accounts/       accounts.api_urls       User profile (GET/PATCH /api/v1/accounts/me/)
-routes/         shipments.api_views     Read-only route catalogue (RouteListAPIView)
-shipments/      shipments.api_urls      Shipment CRUD + delay-prediction trigger
-tracking/       tracking.api_urls       TrackingEvent list + create
-alerts/         alerts.api_urls         Alert list + notification stream
-dashboard/      dashboard.api_urls      KPI aggregates (read-only, manager+ access)
-
-Note: ``routes/`` is mounted here (not under ``shipments/``) to keep the public
-API path as ``/api/v1/routes/`` — matching the README contract and the frontend
-API client. Moving it into ``shipments.api_urls`` would produce the breaking path
-``/api/v1/shipments/routes/``.
+cargotrack/api_urls.py — Versioned API Router.
+Mounted at /api/<version>/ by cargotrack/urls.py.
 """
 from django.urls import path, include
-from shipments.api_views import RouteListAPIView
+from shipments.api_views import (
+    RouteListAPIView, ComplianceDocListCreateView, ComplianceDocDetailView,
+    SLAListView, AnalyticsView, CarbonView, ProfitAnalyticsView, RouteAnalyticsView,
+    CarrierBenchmarkView, CorridorAnalyticsView, CustomerAnalyticsView,
+    TemporalAnalyticsView, AnalyticsExportView, PerformanceAnalyticsView,
+    DriverLeaderboardView, BidAnalyticsView,
+)
+from accounts.api_views import (
+    NotificationListView, NotificationMarkReadView, NotificationMarkAllReadView,
+    NotificationDismissView, AuditEntryListView, AuditEntryCreateView,
+    IntegrationListView, IntegrationDetailView,
+)
 
 urlpatterns = [
-    path('accounts/',  include('accounts.api_urls')),
-    # RouteListAPIView lives in shipments but is mounted at the top-level routes/
-    # prefix to keep the public API path at /api/v1/routes/ (see module docstring).
-    path('routes/',    RouteListAPIView.as_view(), name='v1-routes'),
-    path('shipments/', include('shipments.api_urls')),
-    path('tracking/',  include('tracking.api_urls')),
-    path('alerts/',    include('alerts.api_urls')),
-    path('dashboard/', include('dashboard.api_urls')),
-    path('',           include('payments.api_urls')),      # /api/v1/invoices/ + /api/v1/payments/webhook/*
+    path('accounts/',     include('accounts.api_urls')),
+    path('routes/',       RouteListAPIView.as_view(),          name='v1-routes'),
+    path('shipments/',    include('shipments.api_urls')),
+    path('tracking/',     include('tracking.api_urls')),
+    path('alerts/',       include('alerts.api_urls')),
+    path('dashboard/',    include('dashboard.api_urls')),
+    path('',              include('payments.api_urls')),
+    path('fleet/',        include('fleet.api_urls')),
+    path('',              include('carriers.api_urls')),
+    path('chat/',         include('chats.api_urls')),
+    path('marketplace/',  include('marketplace.api_urls')),
+
+    # Analytics / SLA / Carbon / Profit / Routes / Carriers / Corridors / Customers / Temporal (computed from shipments)
+    path('analytics/',                     AnalyticsView.as_view(),            name='v1-analytics'),
+    path('analytics/profit/',              ProfitAnalyticsView.as_view(),     name='v1-analytics-profit'),
+    path('analytics/routes/',              RouteAnalyticsView.as_view(),      name='v1-analytics-routes'),
+    path('analytics/carrier-benchmark/',   CarrierBenchmarkView.as_view(),    name='v1-analytics-carrier-benchmark'),
+    path('analytics/corridors/',           CorridorAnalyticsView.as_view(),   name='v1-analytics-corridors'),
+    path('analytics/customers/',           CustomerAnalyticsView.as_view(),   name='v1-analytics-customers'),
+    path('analytics/temporal/',            TemporalAnalyticsView.as_view(),   name='v1-analytics-temporal'),
+    path('analytics/export/',              AnalyticsExportView.as_view(),     name='v1-analytics-export'),
+    path('analytics/performance/',         PerformanceAnalyticsView.as_view(), name='v1-analytics-performance'),
+    path('analytics/driver-leaderboard/',  DriverLeaderboardView.as_view(),   name='v1-analytics-driver-leaderboard'),
+    path('analytics/bid-analytics/',       BidAnalyticsView.as_view(),        name='v1-analytics-bid-analytics'),
+    path('sla/',                           SLAListView.as_view(),             name='v1-sla'),
+    path('carbon/',                        CarbonView.as_view(),              name='v1-carbon'),
+
+    # Compliance documents
+    path('compliance/',            ComplianceDocListCreateView.as_view(),  name='v1-compliance-list'),
+    path('compliance/<int:pk>/',   ComplianceDocDetailView.as_view(),      name='v1-compliance-detail'),
+
+    # Notifications
+    path('notifications/',                     NotificationListView.as_view(),        name='v1-notif-list'),
+    path('notifications/mark-all-read/',       NotificationMarkAllReadView.as_view(), name='v1-notif-mark-all'),
+    path('notifications/<int:pk>/read/',       NotificationMarkReadView.as_view(),    name='v1-notif-read'),
+    path('notifications/<int:pk>/',            NotificationDismissView.as_view(),     name='v1-notif-dismiss'),
+
+    # Audit log
+    path('audit/',        AuditEntryListView.as_view(),        name='v1-audit-list'),
+    path('audit/create/', AuditEntryCreateView.as_view(),      name='v1-audit-create'),
+
+    # Integrations
+    path('integrations/',            IntegrationListView.as_view(),   name='v1-integrations-list'),
+    path('integrations/<int:pk>/',   IntegrationDetailView.as_view(), name='v1-integrations-detail'),
 ]

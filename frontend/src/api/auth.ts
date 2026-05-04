@@ -20,11 +20,19 @@ export interface RegisterPayload {
   first_name: string
   last_name:  string
   email:      string
-  company:    string
   phone:      string
-  role:       'CLIENT' | 'CARRIER'
+  role:       string
   password:   string
   password2:  string
+  org_name?:  string
+  org_type?:  string
+  join_code?: string
+  license_number?:  string
+  license_class?:   string
+  years_experience?: number
+  certifications?:   string[]
+  cargo_prefs?:      string[]
+  tax_id?:           string
 }
 
 export const authApi = {
@@ -48,6 +56,6 @@ export const authApi = {
   getMe: () => apiClient.get<User>('/api/v1/accounts/me/'),
 
   /** PATCH /api/v1/accounts/me/ — update editable profile fields. */
-  updateMe: (data: Partial<Pick<User, 'first_name' | 'last_name' | 'company' | 'phone'>>) =>
+  updateMe: (data: Partial<Pick<User, 'first_name' | 'last_name' | 'phone'>>) =>
     apiClient.patch<User>('/api/v1/accounts/me/', data),
 }

@@ -48,8 +48,21 @@ ALLOWED_HOSTS = config(
     cast=Csv(),
 )
 
+# In DEBUG mode, accept all hosts so physical devices and emulators on the same
+# network can reach the dev server without manual IP configuration.
+# Also enumerate LAN IPs for the startup banner.
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
+
+    print(f'[CargoTrack] DEBUG mode — accepting connections from all hosts.')
+    print(f'[CargoTrack] Android emulator: http://10.0.2.2:8000')
+    print(f'[CargoTrack] Physical device:  port 8000 on this machine')
+    print(f'[CargoTrack] Run .\\scripts\\dev.ps1 status to see your LAN IPs.')
+
 # ── Installed apps ────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
+    'daphne',  # ASGI server — must be listed first
+
     # Django built-ins
     'django.contrib.admin',
     'django.contrib.auth',
@@ -59,6 +72,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Third-party packages
+    'channels',                            # Django Channels — WebSocket support
     'rest_framework',                      # DRF — API framework
     'rest_framework_simplejwt',            # JWT token generation
     'rest_framework_simplejwt.token_blacklist',  # refresh-token revocation
@@ -72,6 +86,10 @@ INSTALLED_APPS = [
     'dashboard.apps.DashboardConfig',      # aggregated KPI views (no models)
     'predictions.apps.PredictionsConfig',  # ML prediction domain types
     'payments',                            # Invoice & payment gateway integrations
+    'fleet.apps.FleetConfig',              # Truck & driver fleet management
+    'carriers.apps.CarriersConfig',        # Carrier companies & rate cards
+    'chats.apps.ChatsConfig',              # Real-time messaging & video calls
+    'marketplace.apps.MarketplaceConfig',  # Freight marketplace & job board
 ]
 
 # ── Middleware ────────────────────────────────────────────────────────────────
@@ -106,6 +124,19 @@ TEMPLATES = [{
 }]
 
 WSGI_APPLICATION = 'cargotrack.wsgi.application'
+ASGI_APPLICATION = 'cargotrack.asgi.application'
+
+# ── Django Channels ─────────────────────────────────────────────────────────
+# Redis-backed channel layer for WebSocket communication across processes.
+# Channels handles the ASGI protocol; Daphne serves as the ASGI application server.
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [config('REDIS_URL', default='redis://localhost:6379/0')],
+        },
+    },
+}
 
 # ── Database ──────────────────────────────────────────────────────────────────
 # PostgreSQL 16 is the recommended production database, but SQLite is supported
@@ -170,6 +201,16 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # Rate limiting: auth endpoints are throttled to prevent brute-force attacks.
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '20/min',   # unauthenticated — register, token obtain
+        'user': '100/min',  # authenticated — normal API usage
+        'auth': '30/min',   # scoped — login/register endpoints (applied per-view)
+    },
     # Standard cursor-less pagination returned as {count, next, previous, results}.
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,

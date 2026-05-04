@@ -1,16 +1,13 @@
 {
   "version": 8,
   "name": "CargoTrack",
-  "metadata": { "cargotrack:version": "1.0" },
   "sources": {
     "ofm": {
       "type": "vector",
       "url": "https://tiles.openfreemap.org/planet",
-      "attribution": "© OpenFreeMap contributors, © OpenStreetMap contributors"
+      "attribution": "© OpenStreetMap contributors"
     }
   },
-  "sprite": "https://tiles.openfreemap.org/sprite/liberty",
-  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   "layers": [
     { "id": "bg", "type": "background", "paint": { "background-color": "#F5F3EF" } },
 
@@ -89,36 +86,6 @@
 
     { "id": "boundary-state", "type": "line", "source": "ofm", "source-layer": "boundary",
       "filter": ["==", "admin_level", 4],
-      "paint": { "line-color": "#D4CCBF", "line-width": 0.7, "line-dasharray": [4, 3] } },
-
-    { "id": "place-village", "type": "symbol", "source": "ofm", "source-layer": "place",
-      "filter": ["in", "class", "village", "hamlet", "suburb"],
-      "minzoom": 11,
-      "layout": { "text-field": "{name:en}", "text-font": ["Open Sans Regular"],
-        "text-size": 10, "text-max-width": 7 },
-      "paint": { "text-color": "#6B7280", "text-halo-color": "#F5F3EF", "text-halo-width": 1 } },
-
-    { "id": "place-town", "type": "symbol", "source": "ofm", "source-layer": "place",
-      "filter": ["==", "class", "town"],
-      "minzoom": 8,
-      "layout": { "text-field": "{name:en}", "text-font": ["Open Sans Regular"],
-        "text-size": 12, "text-max-width": 8 },
-      "paint": { "text-color": "#374151", "text-halo-color": "#F5F3EF", "text-halo-width": 1.5 } },
-
-    { "id": "place-city", "type": "symbol", "source": "ofm", "source-layer": "place",
-      "filter": ["in", "class", "city"],
-      "minzoom": 4,
-      "layout": { "text-field": "{name:en}", "text-font": ["Open Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 4, 11, 10, 15],
-        "text-max-width": 8, "icon-allow-overlap": false },
-      "paint": { "text-color": "#1F2937", "text-halo-color": "#F5F3EF", "text-halo-width": 2 } },
-
-    { "id": "country-label", "type": "symbol", "source": "ofm", "source-layer": "place",
-      "filter": ["==", "class", "country"],
-      "minzoom": 3,
-      "layout": { "text-field": "{name:en}", "text-font": ["Open Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 3, 12, 8, 18],
-        "text-transform": "uppercase", "text-letter-spacing": 0.12, "text-max-width": 10 },
-      "paint": { "text-color": "#374151", "text-halo-color": "#F5F3EF", "text-halo-width": 2 } }
+      "paint": { "line-color": "#D4CCBF", "line-width": 0.7, "line-dasharray": [4, 3] } }
   ]
 }

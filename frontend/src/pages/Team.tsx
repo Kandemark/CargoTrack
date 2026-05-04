@@ -152,8 +152,9 @@ export default function Team() {
   async function load() {
     setLoading(true); setError(null)
     try {
-      const res = await apiClient.get<{ results?: TeamMember[] } | TeamMember[]>('/api/v1/accounts/')
-      const data = (res.data as { results?: TeamMember[] })?.results ?? (res.data as TeamMember[]) ?? []
+      const res = await apiClient.get<any>('/api/v1/accounts/')
+      const raw: any = res.data
+      const data: TeamMember[] = Array.isArray(raw) ? raw : (raw?.results ?? [])
       setMembers(data)
     } catch {
       setError('Failed to load team members.')

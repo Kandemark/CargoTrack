@@ -1,22 +1,24 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import {
-  View,
-  Text,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  ActivityIndicator,
-  Dimensions,
-  StyleSheet,
-} from 'react-native'
+import { useEffect, useState, useCallback } from 'react'
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity, Dimensions } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import Svg, { Circle, Path } from 'react-native-svg'
-import { dashboardApi, shipmentsApi } from '@/lib/api'
+import { apiClient, dashboardApi, shipmentsApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
-import { riskLevel, ALERT_SEVERITY_COLORS } from '@shared/utils/statusColors'
+import { ALERT_SEVERITY_COLORS } from '@shared/utils/statusColors'
 import { timeAgo } from '@shared/utils/formatters'
+import {
+  GlassCard,
+  KpiCard,
+  SectionLabel,
+  Skeleton,
+  TimelineEvent,
+} from '@/components/ui'
+import OnTimeRing from '@/components/OnTimeRing'
+import RiskRow from '@/components/RiskRow'
+import CarrierRow from '@/components/CarrierRow'
+import LiveDot from '@/components/LiveDot'
+import AnimatedKpiValue from '@/components/AnimatedKpiValue'
 import type {
   DashboardSummary,
   CarrierPerformance,
@@ -28,252 +30,11 @@ import type {
 
 const { width: SCREEN_W } = Dimensions.get('window')
 
-// ─── Skeleton ────────────────────────────────────────────────────────────────
-
-function Skeleton({ w, h, radius = 8 }: { w: number | string; h: number; radius?: number }) {
-  return (
-    <View
-      style={{
-        width: w as number,
-        height: h,
-        borderRadius: radius,
-        backgroundColor: '#e2e8f0',
-      }}
-    />
-  )
-}
-
-// ─── KPI card ─────────────────────────────────────────────────────────────────
-
-function KpiCard({
-  label, value, accent, iconName,
-}: {
-  label: string
-  value: string | number
-  accent: string
-  iconName: React.ComponentProps<typeof Ionicons>['name']
-}) {
-  return (
-    <View
-      style={{
-        width: 130,
-        marginRight: 12,
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 14,
-        shadowColor: '#000',
-        shadowOpacity: 0.04,
-        shadowOffset: { width: 0, height: 1 },
-        shadowRadius: 4,
-        elevation: 2,
-      }}
-    >
-      <View
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 10,
-          backgroundColor: `${accent}22`,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 10,
-        }}
-      >
-        <Ionicons name={iconName} size={17} color={accent} />
-      </View>
-      <Text style={{ fontSize: 24, fontWeight: '800', color: '#111827', letterSpacing: -0.5 }}>
-        {value}
-      </Text>
-      <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{label}</Text>
-    </View>
-  )
-}
-
-// ─── On-time ring ─────────────────────────────────────────────────────────────
-
-function OnTimeRing({ rate }: { rate: number }) {
-  const size    = 120
-  const stroke  = 10
-  const r       = (size - stroke) / 2
-  const circ    = 2 * Math.PI * r
-  const pct     = Math.min(Math.max(rate, 0), 100)
-  const dash    = (pct / 100) * circ
-  const color   = pct >= 80 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#ef4444'
-
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <Svg width={size} height={size}>
-        {/* Track */}
-        <Circle
-          cx={size / 2} cy={size / 2} r={r}
-          stroke="#e5e7eb" strokeWidth={stroke} fill="none"
-        />
-        {/* Arc — rotate -90° so 0% starts at top */}
-        <Circle
-          cx={size / 2} cy={size / 2} r={r}
-          stroke={color} strokeWidth={stroke} fill="none"
-          strokeDasharray={`${dash} ${circ}`}
-          strokeLinecap="round"
-          transform={`rotate(-90, ${size / 2}, ${size / 2})`}
-        />
-      </Svg>
-      <View style={{ position: 'absolute', top: 0, left: 0, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 22, fontWeight: '800', color, letterSpacing: -1 }}>
-          {pct.toFixed(1)}%
-        </Text>
-      </View>
-      <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>On-Time Rate</Text>
-    </View>
-  )
-}
-
-// ─── Risk bar row ─────────────────────────────────────────────────────────────
-
-function RiskRow({
-  id, trackingNumber, score,
-}: {
-  id: number; trackingNumber: string; score: number
-}) {
-  const risk = riskLevel(score)
-  const pct  = Math.round(score * 100)
-  return (
-    <TouchableOpacity
-      onPress={() => router.push(`/shipment/${id}`)}
-      style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}
-      activeOpacity={0.7}
-    >
-      <Text style={{ fontSize: 11, color: '#374151', width: 110, fontVariant: ['tabular-nums'] }} numberOfLines={1}>
-        {trackingNumber}
-      </Text>
-      <View style={{ flex: 1, height: 6, backgroundColor: '#f1f5f9', borderRadius: 3, marginHorizontal: 8 }}>
-        <View style={{ width: `${pct}%`, height: 6, backgroundColor: risk.color, borderRadius: 3 }} />
-      </View>
-      <Text style={{ fontSize: 11, fontWeight: '700', color: risk.color, width: 34, textAlign: 'right' }}>
-        {pct}%
-      </Text>
-    </TouchableOpacity>
-  )
-}
-
-// ─── Carrier row ──────────────────────────────────────────────────────────────
-
-function CarrierRow({ c }: { c: CarrierPerformance }) {
-  const highRisk = c.avg_risk > 0.5
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        paddingVertical: 9,
-        paddingHorizontal: 10,
-        borderRadius: 8,
-        backgroundColor: highRisk ? '#fef2f2' : 'transparent',
-        marginBottom: 2,
-      }}
-    >
-      <Text style={{ flex: 2, fontSize: 12, color: '#111827', fontWeight: '600' }} numberOfLines={1}>
-        {c.carrier_name}
-      </Text>
-      <Text style={{ flex: 1, fontSize: 12, color: '#6b7280', textAlign: 'center' }}>
-        {c.shipment_count}
-      </Text>
-      <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: riskLevel(c.avg_risk).color, textAlign: 'center' }}>
-        {Math.round(c.avg_risk * 100)}%
-      </Text>
-      <Text style={{ flex: 1, fontSize: 12, color: '#6b7280', textAlign: 'right' }}>
-        {c.on_time}
-      </Text>
-    </View>
-  )
-}
-
-// ─── Event type display info ──────────────────────────────────────────────────
-
 const EVENT_DOT: Record<EventType, string> = {
-  DEPARTURE:     '#3b82f6',
-  CHECKPOINT:    '#6b7280',
-  CUSTOMS_ENTRY: '#f59e0b',
-  CUSTOMS_CLEAR: '#f59e0b',
-  ARRIVAL:       '#10b981',
-  DELAY:         '#ef4444',
-  NOTE:          '#9ca3af',
+  DEPARTURE: '#3b82f6', CHECKPOINT: '#6b7280', CUSTOMS_ENTRY: '#f59e0b',
+  CUSTOMS_CLEAR: '#f59e0b', ARRIVAL: '#10b981', DELAY: '#ef4444', NOTE: '#9ca3af',
 }
-const EVENT_EMOJI: Record<EventType, string> = {
-  DEPARTURE:     '✈️',
-  CHECKPOINT:    '📍',
-  CUSTOMS_ENTRY: '🛃',
-  CUSTOMS_CLEAR: '✅',
-  ARRIVAL:       '🏁',
-  DELAY:         '⚠️',
-  NOTE:          '📝',
-}
-
-// ─── Alert severity pill ──────────────────────────────────────────────────────
-
 const SEVERITY_ORDER: AlertSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
-
-function SeverityPill({
-  severity, count,
-}: {
-  severity: AlertSeverity; count: number
-}) {
-  const c = ALERT_SEVERITY_COLORS[severity]
-  return (
-    <TouchableOpacity
-      onPress={() => router.push('/(tabs)/alerts')}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: c.background,
-        borderRadius: 20,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        marginRight: 8,
-        borderWidth: 1,
-        borderColor: c.border,
-      }}
-      activeOpacity={0.75}
-    >
-      <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.dot, marginRight: 5 }} />
-      <Text style={{ fontSize: 11, fontWeight: '700', color: c.text }}>
-        {severity.charAt(0) + severity.slice(1).toLowerCase()} · {count}
-      </Text>
-    </TouchableOpacity>
-  )
-}
-
-// ─── Section header ───────────────────────────────────────────────────────────
-
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <Text style={{ fontSize: 11, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>
-      {title}
-    </Text>
-  )
-}
-
-// ─── Card wrapper ─────────────────────────────────────────────────────────────
-
-function Card({ children, style }: { children: React.ReactNode; style?: object }) {
-  return (
-    <View
-      style={[{
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 16,
-        shadowColor: '#000',
-        shadowOpacity: 0.04,
-        shadowOffset: { width: 0, height: 1 },
-        shadowRadius: 4,
-        elevation: 2,
-      }, style]}
-    >
-      {children}
-    </View>
-  )
-}
-
-// ─── Screen ───────────────────────────────────────────────────────────────────
 
 interface PageData {
   summary: DashboardSummary
@@ -281,44 +42,68 @@ interface PageData {
   events: TrackingEvent[]
   riskItems: { id: number; tracking_number: string; delay_risk_score: number }[]
   alerts: AlertType[]
+  invoices: Array<{ id: number; invoice_number: string; amount_kes: string; currency: string; status: string; shipment_tracking: string }>
+  compliance: Array<{ id: number; tracking_number: string; doc_type_display: string; status_display: string; days_until_expiry: number | null }>
+  notifications: Array<{ id: number; title: string; message: string; created_at: string; is_read: boolean }>
+  fleet: { trucks: number; trucks_active: number; drivers: number; drivers_on_route: number; fleet_utilisation: number } | null
+  carbon: { total_kg: number; offset_kg: number; net_kg: number; by_carrier: Array<{ name: string; total_kg: number; grade: string }> } | null
+  sla: { compliance_pct: number; total: number; on_time: number; at_risk: number; breached: number } | null
 }
 
 export default function DashboardScreen() {
   const { user } = useAuthStore()
-  const [data, setData]         = useState<PageData | null>(null)
-  const [loading, setLoading]   = useState(true)
+  const [data, setData] = useState<PageData | null>(null)
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     setError(null)
     try {
-      const [statsRes, shipmentsRes, alertsRes] = await Promise.all([
-        dashboardApi.getStats(),
-        shipmentsApi.list({ page: 1, page_size: 20 }),
-        dashboardApi.getAlerts({ all: true }),
-      ])
+      const safeGet = async <T,>(url: string) => {
+        try { const res = await apiClient.get<T>(url); return res.data } catch { return null }
+      }
+
+      const [statsRes, shipmentsRes, alertsRes, slaData, carbonData, fleetData, invoicesData, complianceData, notificationsData] =
+        await Promise.all([
+          dashboardApi.getStats(),
+          shipmentsApi.list({ page: 1, page_size: 20 }),
+          dashboardApi.getAlerts({ all: true }),
+          safeGet<any>('/api/v1/sla/'),
+          safeGet<any>('/api/v1/carbon/'),
+          safeGet<any>('/api/v1/fleet/stats/'),
+          safeGet<any>('/api/v1/invoices/?page_size=20'),
+          safeGet<any>('/api/v1/compliance/?page_size=20'),
+          safeGet<any>('/api/v1/notifications/?unread=1&page_size=8'),
+        ])
 
       const statsData = statsRes.data
       const shipmentsList = Array.isArray(shipmentsRes.data)
-        ? shipmentsRes.data
-        : (shipmentsRes.data as any).results ?? []
+        ? shipmentsRes.data : (shipmentsRes.data as any).results ?? []
 
-      // Sort by risk score descending, take top 8
       const riskItems = [...shipmentsList]
         .sort((a, b) => (b.delay_risk_score ?? 0) - (a.delay_risk_score ?? 0))
         .slice(0, 8)
         .map((s) => ({ id: s.id, tracking_number: s.tracking_number, delay_risk_score: s.delay_risk_score ?? 0 }))
 
       const alertsList: AlertType[] = alertsRes.data.results ?? []
+      const invoiceList = Array.isArray(invoicesData) ? invoicesData : invoicesData?.results ?? []
+      const complianceList = Array.isArray(complianceData) ? complianceData : complianceData?.results ?? []
+      const notificationList = Array.isArray(notificationsData) ? notificationsData : notificationsData?.results ?? []
 
       setData({
-        summary:  statsData.summary,
+        summary: statsData.summary,
         carriers: (statsData.carrier_performance ?? []).sort((a, b) => b.avg_risk - a.avg_risk),
-        events:   statsData.recent_events ?? [],
+        events: statsData.recent_events ?? [],
         riskItems,
-        alerts:   alertsList,
+        alerts: alertsList,
+        invoices: invoiceList,
+        compliance: complianceList,
+        notifications: notificationList,
+        fleet: fleetData,
+        carbon: carbonData,
+        sla: slaData,
       })
     } catch {
       setError('Failed to load dashboard. Pull down to retry.')
@@ -331,254 +116,294 @@ export default function DashboardScreen() {
   useEffect(() => { load() }, [load])
 
   const firstName = user?.first_name || user?.username || 'there'
-
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-  // Alert severity counts
   const severityCounts = data
     ? SEVERITY_ORDER.reduce<Record<AlertSeverity, number>>((acc, s) => {
-        acc[s] = data.alerts.filter((a) => a.severity === s).length
-        return acc
+        acc[s] = data.alerts.filter((a) => a.severity === s).length; return acc
       }, { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 })
     : null
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
-      <View style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
+    <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-bg dark:bg-ct-dark-bg">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#f5801e" />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Glass greeting header ──────────────────────────────────── */}
+        <GlassCard variant="elevated" accentColor="#f5801e" accentPosition="left" className="mt-ct-lg mb-ct-lg">
+          <View className="p-ct-lg">
+            <View className="flex-row items-center mb-ct-md">
+              <LiveDot className="mr-2" />
+              <Text className="text-ct-sm font-bold text-ct-text-brand dark:text-slate-300">{greeting}</Text>
+            </View>
+            <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white tracking-tight">{firstName}</Text>
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <View style={{ backgroundColor: '#0f2d5e', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 20 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: '#93b4d8', fontSize: 12, fontWeight: '600' }}>{greeting}</Text>
-              <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 1, letterSpacing: -0.3 }}>
-                {firstName} 👋
-              </Text>
-            </View>
-            {/* Logo mark */}
-            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#f5801e', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="cube" size={20} color="#fff" />
-            </View>
+            {!!data && (
+              <View className="flex-row mt-ct-lg gap-2">
+                <View className="flex-1 bg-blue-500/15 dark:bg-blue-500/10 rounded-ct-md p-2.5">
+                  <Text className="text-[10px] font-bold text-blue-700 dark:text-blue-300">IN TRANSIT</Text>
+                  <AnimatedKpiValue value={data.summary.active_shipments} className="text-ct-xl font-extrabold text-blue-800 dark:text-blue-200" />
+                </View>
+                <View className="flex-1 bg-red-100 dark:bg-red-500/15 rounded-ct-md p-2.5">
+                  <Text className="text-[10px] font-bold text-red-700 dark:text-red-300">DELAYED</Text>
+                  <AnimatedKpiValue value={data.summary.delayed_shipments} className="text-ct-xl font-extrabold text-red-800 dark:text-red-200" />
+                </View>
+                <View className="flex-1 bg-orange-100 dark:bg-ct-orange/15 rounded-ct-md p-2.5">
+                  <Text className="text-[10px] font-bold text-orange-700 dark:text-orange-300">ALERTS</Text>
+                  <AnimatedKpiValue value={data.summary.open_alerts} className="text-ct-xl font-extrabold text-orange-800 dark:text-orange-200" />
+                </View>
+              </View>
+            )}
           </View>
+        </GlassCard>
 
-          {/* Status strip — only shown once data is loaded */}
-          {!!data && (
-            <View style={{ flexDirection: 'row', marginTop: 14, gap: 8 }}>
-              <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 10 }}>
-                <Text style={{ color: '#93b4d8', fontSize: 10, fontWeight: '600' }}>IN TRANSIT</Text>
-                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 }}>
-                  {data.summary.active_shipments}
-                </Text>
-              </View>
-              <View style={{ flex: 1, backgroundColor: 'rgba(239,68,68,0.18)', borderRadius: 10, padding: 10 }}>
-                <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '600' }}>DELAYED</Text>
-                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 }}>
-                  {data.summary.delayed_shipments}
-                </Text>
-              </View>
-              <View style={{ flex: 1, backgroundColor: 'rgba(245,128,30,0.18)', borderRadius: 10, padding: 10 }}>
-                <Text style={{ color: '#fdba74', fontSize: 10, fontWeight: '600' }}>ALERTS</Text>
-                <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 }}>
-                  {data.summary.open_alerts}
-                </Text>
-              </View>
+        {/* Loading */}
+        {loading && (
+          <>
+            <Skeleton variant="kpi-glass-row" className="mb-ct-lg" />
+            <Skeleton variant="card" className="h-[180px] mb-ct-lg" />
+            <Skeleton variant="card" className="h-[220px]" />
+          </>
+        )}
+
+        {/* Error */}
+        {!loading && error && (
+          <View className="items-center pt-16 px-6">
+            <Ionicons name="cloud-offline-outline" size={48} color="#94a3b8" />
+            <Text className="text-ct-base text-ct-text-muted dark:text-slate-300 mt-ct-md text-center leading-5">{error}</Text>
+            <TouchableOpacity onPress={() => load()} activeOpacity={0.8} className="mt-5 px-6 py-2.5 bg-ct-orange rounded-ct-md">
+              <Text className="text-ct-base font-bold text-white">Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Data */}
+        {!loading && data && (
+          <>
+            {/* KPI row */}
+            <View className="mb-ct-lg">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4">
+                <KpiCard icon="cube" iconColor="#0f2d5e" label="Total Shipments" value={data.summary.total_shipments} />
+                <KpiCard icon="navigate" iconColor="#3b82f6" label="In Transit" value={data.summary.active_shipments} className="ml-ct-md" />
+                <KpiCard icon="checkmark-circle" iconColor="#10b981" label="Delivered" value={data.summary.delivered_shipments} className="ml-ct-md" />
+                <KpiCard icon="warning" iconColor="#ef4444" label="Delayed" value={data.summary.delayed_shipments} className="ml-ct-md" />
+                <KpiCard icon="notifications" iconColor="#f59e0b" label="Open Alerts" value={data.summary.open_alerts} className="ml-ct-md" />
+              </ScrollView>
             </View>
-          )}
-        </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#f5801e" />
-          }
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── Loading skeleton ──────────────────────────────────────────── */}
-          {loading && (
-            <>
-              <View style={{ flexDirection: 'row', marginBottom: 16 }}>
-                {[0,1,2].map((i) => (
-                  <View key={i} style={{ marginRight: 12 }}>
-                    <Skeleton w={130} h={100} radius={16} />
-                  </View>
-                ))}
-              </View>
-              <Skeleton w="100%" h={180} radius={16} />
-              <View style={{ height: 12 }} />
-              <Skeleton w="100%" h={220} radius={16} />
-            </>
-          )}
-
-          {/* ── Error state ───────────────────────────────────────────────── */}
-          {!loading && error && (
-            <View style={{ alignItems: 'center', paddingTop: 60 }}>
-              <Ionicons name="cloud-offline-outline" size={48} color="#94a3b8" />
-              <Text style={{ color: '#64748b', marginTop: 12, textAlign: 'center' }}>{error}</Text>
-            </View>
-          )}
-
-          {/* ── Data ─────────────────────────────────────────────────────── */}
-          {!loading && data && (
-            <>
-              {/* 0. Hero map preview card */}
-              <TouchableOpacity
-                onPress={() => router.push('/(tabs)/track')}
-                activeOpacity={0.88}
-                style={{
-                  backgroundColor: '#0f2d5e',
-                  borderRadius: 18,
-                  marginBottom: 16,
-                  overflow: 'hidden',
-                  height: 120,
-                  justifyContent: 'flex-end',
-                }}
-              >
-                {/* Simulated map bg */}
-                <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: '#1a3a6b' }}>
-                  {/* Grid lines for map feel */}
-                  {[0.25, 0.5, 0.75].map((f) => (
-                    <View key={f} style={{
-                      position: 'absolute', left: 0, right: 0,
-                      top: `${f * 100}%`, height: 1, backgroundColor: 'rgba(255,255,255,0.04)',
-                    }} />
-                  ))}
-                  {[0.25, 0.5, 0.75].map((f) => (
-                    <View key={f} style={{
-                      position: 'absolute', top: 0, bottom: 0,
-                      left: `${f * 100}%`, width: 1, backgroundColor: 'rgba(255,255,255,0.04)',
-                    }} />
-                  ))}
-                  {/* Route line decoration */}
-                  <View style={{ position: 'absolute', top: 40, left: 40, right: 40, height: 2, backgroundColor: 'rgba(37,99,235,0.6)', borderRadius: 1 }} />
-                  {/* Dots */}
-                  {[0, 0.5, 1].map((f) => (
-                    <View key={f} style={{
-                      position: 'absolute',
-                      left: 40 + f * (SCREEN_W - 112),
-                      top: 33,
-                      width: 16, height: 16, borderRadius: 8,
-                      backgroundColor: f === 0 ? '#2563EB' : f === 1 ? '#16A34A' : '#f5801e',
-                      borderWidth: 2, borderColor: '#fff',
-                    }} />
-                  ))}
-                </View>
-                <View style={{ padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View>
-                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>Live Corridor Map</Text>
-                    <Text style={{ color: '#93b4d8', fontSize: 11, marginTop: 1 }}>
-                      {data.summary.active_shipments} shipments in motion
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5801e', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
-                    <Ionicons name="navigate" size={13} color="#fff" />
-                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', marginLeft: 5 }}>Open</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-
-              {/* 1. KPI cards — horizontal scroll */}
-              <View style={{ marginBottom: 16 }}>
-                <SectionHeader title="Overview" />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, paddingHorizontal: 16 }}>
-                  <KpiCard label="Total Shipments"  value={data.summary.total_shipments}     accent="#0f2d5e" iconName="cube" />
-                  <KpiCard label="In Transit"        value={data.summary.active_shipments}    accent="#3b82f6" iconName="navigate" />
-                  <KpiCard label="Delivered"          value={data.summary.delivered_shipments} accent="#10b981" iconName="checkmark-circle" />
-                  <KpiCard label="Delayed"            value={data.summary.delayed_shipments}   accent="#ef4444" iconName="warning" />
-                  <KpiCard label="Open Alerts"        value={data.summary.open_alerts}         accent="#f59e0b" iconName="notifications" />
-                </ScrollView>
-              </View>
-
-              {/* 2. On-time ring + Alert severity side by side */}
-              <Card>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {/* On-time + alerts */}
+            <GlassCard variant="subtle" className="mb-ct-lg">
+              <View className="p-ct-lg">
+                <SectionLabel label="On-Time Performance & Alerts" />
+                <View className="flex-row items-center mt-2">
                   <OnTimeRing rate={data.summary.on_time_rate} />
-                  <View style={{ flex: 1, marginLeft: 20 }}>
-                    <SectionHeader title="Alerts by Severity" />
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {severityCounts && SEVERITY_ORDER.map((s) => (
-                        <SeverityPill key={s} severity={s} count={severityCounts[s]} />
-                      ))}
-                    </View>
+                  <View className="flex-1 ml-4">
+                    {severityCounts && SEVERITY_ORDER.map((s) => {
+                      const c = ALERT_SEVERITY_COLORS[s]
+                      return (
+                        <TouchableOpacity
+                          key={s}
+                          onPress={() => router.push('/(tabs)/alerts')}
+                          className="flex-row items-center rounded-full px-ct-md py-1.5 mb-1.5 border"
+                          style={{ backgroundColor: c.background, borderColor: c.border }}
+                          activeOpacity={0.75}
+                        >
+                          <View className="w-[7px] h-[7px] rounded-full mr-1.5" style={{ backgroundColor: c.dot }} />
+                          <Text className="text-ct-xs font-bold" style={{ color: c.text }}>
+                            {s.charAt(0) + s.slice(1).toLowerCase()} · {severityCounts[s]}
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    })}
                   </View>
                 </View>
-              </Card>
+              </View>
+            </GlassCard>
 
-              {/* 3. Delay risk heatmap */}
-              {data.riskItems.length > 0 && (
-                <Card>
-                  <SectionHeader title="Delay Risk — Top Shipments" />
-                  {/* Column headers */}
-                  <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                    <Text style={{ width: 110, fontSize: 10, color: '#9ca3af' }}>Tracking #</Text>
-                    <Text style={{ flex: 1, fontSize: 10, color: '#9ca3af', marginHorizontal: 8 }}>Risk</Text>
-                    <Text style={{ width: 34, fontSize: 10, color: '#9ca3af', textAlign: 'right' }}>Score</Text>
+            {/* Risk heatmap */}
+            {data.riskItems.length > 0 && (
+              <GlassCard variant="subtle" className="mb-ct-lg">
+                <View className="p-ct-lg">
+                  <SectionLabel label="Delay Risk — Top Shipments" />
+                  <View className="flex-row mb-2 mt-2">
+                    <Text className="w-[110px] text-[10px] text-ct-text-faint dark:text-slate-400">Tracking #</Text>
+                    <Text className="flex-1 text-[10px] text-ct-text-faint dark:text-slate-400 mx-2">Risk</Text>
+                    <Text className="w-[34px] text-[10px] text-ct-text-faint dark:text-slate-400 text-right">Score</Text>
                   </View>
                   {data.riskItems.map((item) => (
-                    <RiskRow
-                      key={item.id}
-                      id={item.id}
-                      trackingNumber={item.tracking_number}
-                      score={item.delay_risk_score}
-                    />
+                    <RiskRow key={item.id} id={item.id} trackingNumber={item.tracking_number} score={item.delay_risk_score} />
                   ))}
-                </Card>
-              )}
+                </View>
+              </GlassCard>
+            )}
 
-              {/* 4. Carrier performance */}
-              {data.carriers.length > 0 && (
-                <Card>
-                  <SectionHeader title="Carrier Performance" />
-                  {/* Header row */}
-                  <View style={{ flexDirection: 'row', marginBottom: 6, paddingHorizontal: 10 }}>
-                    <Text style={{ flex: 2, fontSize: 10, color: '#9ca3af' }}>Carrier</Text>
-                    <Text style={{ flex: 1, fontSize: 10, color: '#9ca3af', textAlign: 'center' }}>Ships</Text>
-                    <Text style={{ flex: 1, fontSize: 10, color: '#9ca3af', textAlign: 'center' }}>Avg Risk</Text>
-                    <Text style={{ flex: 1, fontSize: 10, color: '#9ca3af', textAlign: 'right' }}>On-Time</Text>
+            {/* Carrier performance */}
+            {data.carriers.length > 0 && (
+              <GlassCard variant="subtle" className="mb-ct-lg">
+                <View className="p-ct-lg">
+                  <SectionLabel label="Carrier Performance" />
+                  <View className="flex-row mb-1.5 px-2.5 mt-2">
+                    <Text className="flex-[2] text-[10px] text-ct-text-faint dark:text-slate-400">Carrier</Text>
+                    <Text className="flex-1 text-[10px] text-ct-text-faint dark:text-slate-400 text-center">Ships</Text>
+                    <Text className="flex-1 text-[10px] text-ct-text-faint dark:text-slate-400 text-center">Avg Risk</Text>
+                    <Text className="flex-1 text-[10px] text-ct-text-faint dark:text-slate-400 text-right">On-Time</Text>
                   </View>
                   {data.carriers.map((c, i) => <CarrierRow key={i} c={c} />)}
-                </Card>
-              )}
+                </View>
+              </GlassCard>
+            )}
 
-              {/* 5. Recent events feed */}
-              {data.events.length > 0 && (
-                <Card>
-                  <SectionHeader title="Recent Tracking Events" />
-                  {data.events.slice(0, 10).map((ev, idx) => {
-                    const dotColor = EVENT_DOT[ev.event_type as EventType] ?? '#9ca3af'
-                    const emoji    = EVENT_EMOJI[ev.event_type as EventType] ?? '📍'
-                    const isLast   = idx === Math.min(data.events.length, 10) - 1
-                    return (
-                      <View key={ev.id} style={{ flexDirection: 'row', marginBottom: isLast ? 0 : 12 }}>
-                        {/* Spine */}
-                        <View style={{ width: 28, alignItems: 'center' }}>
-                          <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: `${dotColor}22`, alignItems: 'center', justifyContent: 'center' }}>
-                            <Text style={{ fontSize: 11 }}>{emoji}</Text>
-                          </View>
-                          {!isLast && (
-                            <View style={{ width: 2, flex: 1, backgroundColor: '#e5e7eb', marginTop: 2 }} />
-                          )}
-                        </View>
-                        {/* Content */}
-                        <View style={{ flex: 1, marginLeft: 10, paddingBottom: isLast ? 0 : 4 }}>
-                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#111827' }}>
-                            {ev.event_type_display}
-                          </Text>
-                          <Text style={{ fontSize: 11, color: '#6b7280' }}>{ev.location}</Text>
-                          <Text style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>
-                            {timeAgo(ev.timestamp)}
-                          </Text>
-                        </View>
-                      </View>
-                    )
-                  })}
-                </Card>
-              )}
-            </>
-          )}
-        </ScrollView>
-      </View>
+            {/* Recent events feed */}
+            {data.events.length > 0 && (
+              <GlassCard variant="subtle" className="mb-ct-lg">
+                <View className="p-ct-lg">
+                  <SectionLabel label="Recent Tracking Events" />
+                  <View className="mt-2">
+                    {data.events.slice(0, 10).map((ev, idx) => {
+                      const dotColor = EVENT_DOT[ev.event_type as EventType] ?? '#9ca3af'
+                      const isLast = idx === Math.min(data.events.length, 10) - 1
+                      return (
+                        <TimelineEvent
+                          key={ev.id}
+                          label={ev.event_type_display}
+                          sublabel={ev.location}
+                          timestamp={timeAgo(ev.timestamp)}
+                          variant="completed"
+                          isLast={isLast}
+                        />
+                      )
+                    })}
+                  </View>
+                </View>
+              </GlassCard>
+            )}
+
+            {/* SLA + Fleet */}
+            <GlassCard variant="subtle" className="mb-ct-lg">
+              <View className="p-ct-lg">
+                <SectionLabel label="Execution Control" />
+                <View className="flex-row gap-2.5 mt-2 mb-ct-md">
+                  <View className="flex-1 bg-blue-50 dark:bg-blue-500/10 rounded-ct-md p-ct-md">
+                    <Text className="text-ct-xs font-bold text-blue-700 dark:text-blue-300 uppercase">SLA compliance</Text>
+                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                      {data.sla ? `${data.sla.compliance_pct}%` : '—'}
+                    </Text>
+                    <Text className="text-ct-sm text-ct-text-faint dark:text-slate-400 mt-1">
+                      {data.sla ? `${data.sla.on_time} on time · ${data.sla.breached} breached` : 'No SLA data'}
+                    </Text>
+                  </View>
+                  <View className="flex-1 bg-lime-50 dark:bg-lime-500/10 rounded-ct-md p-ct-md">
+                    <Text className="text-ct-xs font-bold text-lime-700 dark:text-lime-300 uppercase">Fleet utilisation</Text>
+                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                      {data.fleet ? `${data.fleet.fleet_utilisation}%` : '—'}
+                    </Text>
+                    <Text className="text-ct-sm text-lime-600 dark:text-lime-400 mt-1">
+                      {data.fleet ? `${data.fleet.trucks_active}/${data.fleet.trucks} trucks active` : 'Unavailable'}
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-row flex-wrap -mx-1">
+                  <View className="flex-1 min-w-[46%] bg-slate-50 dark:bg-white/[0.04] rounded-ct-md p-ct-md m-1">
+                    <Text className="text-[10px] font-bold text-ct-text-faint dark:text-slate-400 uppercase">Drivers on route</Text>
+                    <Text className="text-ct-lg font-extrabold text-ct-text-primary dark:text-white mt-1">{data.fleet?.drivers_on_route ?? '—'}</Text>
+                    {data.fleet && <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{data.fleet.drivers} drivers total</Text>}
+                  </View>
+                  <View className="flex-1 min-w-[46%] bg-slate-50 dark:bg-white/[0.04] rounded-ct-md p-ct-md m-1">
+                    <Text className="text-[10px] font-bold text-ct-text-faint dark:text-slate-400 uppercase">At-risk loads</Text>
+                    <Text className="text-ct-lg font-extrabold text-ct-text-primary dark:text-white mt-1">{data.sla?.at_risk ?? '—'}</Text>
+                    <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">Needs monitoring</Text>
+                  </View>
+                </View>
+              </View>
+            </GlassCard>
+
+            {/* Finance & Compliance */}
+            <GlassCard variant="subtle" className="mb-ct-lg">
+              <View className="p-ct-lg">
+                <SectionLabel label="Finance & Compliance" />
+                <View className="flex-row gap-2.5 mt-2 mb-ct-md">
+                  <View className="flex-1 bg-orange-50 dark:bg-orange-500/10 rounded-ct-md p-ct-md">
+                    <Text className="text-ct-xs font-bold text-orange-700 dark:text-orange-300 uppercase">Open invoices</Text>
+                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                      {data.invoices.filter((i) => i.status === 'PENDING' || i.status === 'FAILED').length}
+                    </Text>
+                    <Text className="text-ct-sm text-orange-600 dark:text-orange-300 mt-1">
+                      {data.invoices.filter((i) => i.status === 'PAID').length} paid this cycle
+                    </Text>
+                  </View>
+                  <View className="flex-1 bg-red-50 dark:bg-red-500/10 rounded-ct-md p-ct-md">
+                    <Text className="text-ct-xs font-bold text-red-700 dark:text-red-300 uppercase">Expiring docs</Text>
+                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                      {data.compliance.filter((d) => d.days_until_expiry !== null && d.days_until_expiry <= 14).length}
+                    </Text>
+                    <Text className="text-ct-sm text-red-600 dark:text-red-300 mt-1">{data.compliance.length} tracked</Text>
+                  </View>
+                </View>
+                {data.invoices.slice(0, 3).map((inv) => (
+                  <TouchableOpacity
+                    key={inv.id} onPress={() => router.push('/(tabs)/payments')} activeOpacity={0.75}
+                    className="flex-row justify-between items-center py-2.5 border-t border-slate-200 dark:border-white/[0.06]"
+                  >
+                    <View className="flex-1 mr-2.5">
+                      <Text className="text-ct-sm font-bold text-ct-text-primary dark:text-white">{inv.invoice_number}</Text>
+                      <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{inv.shipment_tracking}</Text>
+                    </View>
+                    <Text className="text-ct-sm font-bold" style={{ color: inv.status === 'PAID' ? '#4ade80' : '#fb923c' }}>
+                      {Number(inv.amount_kes).toLocaleString()} {inv.currency}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </GlassCard>
+
+            {/* Sustainability & Comms */}
+            <GlassCard variant="subtle" className="mb-ct-lg">
+              <View className="p-ct-lg">
+                <SectionLabel label="Sustainability & Comms" />
+                <View className="flex-row gap-2.5 mt-2 mb-ct-md">
+                  <View className="flex-1 bg-cyan-50 dark:bg-cyan-500/10 rounded-ct-md p-ct-md">
+                    <Text className="text-ct-xs font-bold text-cyan-700 dark:text-cyan-300 uppercase">Net carbon</Text>
+                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                      {data.carbon ? `${Math.round(data.carbon.net_kg)} kg` : '—'}
+                    </Text>
+                    <Text className="text-ct-sm text-cyan-600 dark:text-cyan-400 mt-1">
+                      {data.carbon ? `${Math.round(data.carbon.offset_kg)} kg offset` : 'Unavailable'}
+                    </Text>
+                  </View>
+                  <View className="flex-1 bg-purple-50 dark:bg-purple-500/10 rounded-ct-md p-ct-md">
+                    <Text className="text-ct-xs font-bold text-purple-700 dark:text-purple-300 uppercase">Unread updates</Text>
+                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">{data.notifications.length}</Text>
+                    <Text className="text-ct-sm text-purple-600 dark:text-purple-400 mt-1">Waiting in your inbox</Text>
+                  </View>
+                </View>
+                {data.carbon?.by_carrier?.[0] && (
+                  <View className="bg-slate-50 dark:bg-white/[0.04] rounded-ct-md p-ct-md mb-2.5">
+                    <Text className="text-ct-xs font-bold text-ct-text-faint dark:text-slate-400 uppercase">Highest emitting carrier</Text>
+                    <Text className="text-ct-md font-extrabold text-ct-text-primary dark:text-white mt-1">{data.carbon.by_carrier[0].name}</Text>
+                    <Text className="text-ct-sm text-ct-text-faint dark:text-slate-400 mt-0.5">
+                      {Math.round(data.carbon.by_carrier[0].total_kg)} kg CO2 · Grade {data.carbon.by_carrier[0].grade}
+                    </Text>
+                  </View>
+                )}
+                {data.notifications.slice(0, 3).map((item) => (
+                  <TouchableOpacity
+                    key={item.id} onPress={() => router.push('/(tabs)/account')} activeOpacity={0.75}
+                    className="py-2.5 border-t border-slate-200 dark:border-white/[0.06]"
+                  >
+                    <Text className="text-ct-sm font-bold text-ct-text-primary dark:text-white">{item.title}</Text>
+                    <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5" numberOfLines={2}>{item.message}</Text>
+                    <Text className="text-[10px] text-ct-text-faint dark:text-slate-500 mt-1">{timeAgo(item.created_at)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </GlassCard>
+          </>
+        )}
+      </ScrollView>
     </SafeAreaView>
   )
 }

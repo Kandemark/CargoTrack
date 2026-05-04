@@ -21,7 +21,7 @@ ShipmentStatusSerializer
     accidental overwrite of immutable fields during status transitions.
 """
 from rest_framework import serializers
-from .models import Document, Route, Shipment
+from .models import ComplianceDoc, Document, Route, Shipment
 
 VALID_STATUSES = {s for s, _ in Shipment.STATUS_CHOICES}
 
@@ -59,19 +59,33 @@ class RouteSerializer(serializers.ModelSerializer):
 class ShipmentSerializer(serializers.ModelSerializer):
     """Full read serializer — nests route for rich GET responses."""
 
-    route          = RouteSerializer(read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    route           = RouteSerializer(read_only=True)
+    status_display  = serializers.CharField(source='get_status_display', read_only=True)
+    dispatch_status_display = serializers.CharField(source='get_dispatch_status_display', read_only=True)
+    carrier_id      = serializers.IntegerField(source='carrier.id', read_only=True, default=None)
+    truck_id        = serializers.IntegerField(source='assigned_truck.id', read_only=True, default=None)
+    driver_id       = serializers.IntegerField(source='assigned_driver.id', read_only=True, default=None)
+    driver_name     = serializers.SerializerMethodField()
 
     class Meta:
         model = Shipment
         fields = [
             'id', 'tracking_number', 'route', 'status', 'status_display',
-            'carrier_name', 'weight_kg',
+            'dispatch_status', 'dispatch_status_display',
+            'carrier_name', 'carrier_id',
+            'truck_id', 'driver_id', 'driver_name',
+            'weight_kg',
             'scheduled_departure', 'scheduled_arrival',
             'actual_departure', 'actual_arrival',
+            'client',
             'delay_risk_score', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'tracking_number', 'created_at', 'updated_at']
+
+    def get_driver_name(self, obj):
+        if obj.assigned_driver:
+            return f'{obj.assigned_driver.first_name} {obj.assigned_driver.last_name}'
+        return None
 
 
 class ShipmentCreateSerializer(serializers.ModelSerializer):
@@ -98,11 +112,6 @@ class ShipmentCreateSerializer(serializers.ModelSerializer):
                 f"Invalid status '{value}'. Must be one of: {', '.join(VALID_STATUSES)}."
             )
         return value
-
-    def validate_carrier_name(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("carrier_name cannot be blank.")
-        return value.strip()
 
     def validate(self, attrs):
         dep = attrs.get('scheduled_departure')
@@ -136,6 +145,33 @@ class ShipmentStatusSerializer(serializers.ModelSerializer):
         return value
 
 
+class DispatchSerializer(serializers.Serializer):
+    """Serializer for the dispatch assignment endpoint."""
+    carrier_id = serializers.IntegerField(required=True)
+    truck_id   = serializers.IntegerField(required=False)
+    driver_id  = serializers.IntegerField(required=False)
+
+    def validate_carrier_id(self, value):
+        from carriers.models import Carrier
+        if not Carrier.objects.filter(id=value, status='ACTIVE').exists():
+            raise serializers.ValidationError("Carrier not found or not active.")
+        return value
+
+    def validate_truck_id(self, value):
+        if value:
+            from fleet.models import Truck
+            if not Truck.objects.filter(id=value).exists():
+                raise serializers.ValidationError("Truck not found.")
+        return value
+
+    def validate_driver_id(self, value):
+        if value:
+            from fleet.models import Driver
+            if not Driver.objects.filter(id=value).exists():
+                raise serializers.ValidationError("Driver not found.")
+        return value
+
+
 class DocumentSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.SerializerMethodField()
     doc_type_display = serializers.CharField(source='get_doc_type_display', read_only=True)
@@ -159,3 +195,22 @@ class DocumentSerializer(serializers.ModelSerializer):
         if obj.file and request:
             return request.build_absolute_uri(obj.file.url)
         return None
+
+
+class ComplianceDocSerializer(serializers.ModelSerializer):
+    tracking_number  = serializers.CharField(source='shipment.tracking_number', read_only=True)
+    doc_type_display = serializers.CharField(source='get_doc_type_display', read_only=True)
+    status_display   = serializers.CharField(source='get_status_display', read_only=True)
+    days_until_expiry = serializers.SerializerMethodField()
+
+    def get_days_until_expiry(self, obj):
+        if not obj.expiry_date:
+            return None
+        from django.utils import timezone
+        delta = obj.expiry_date - timezone.now().date()
+        return delta.days
+
+    class Meta:
+        model = ComplianceDoc
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')

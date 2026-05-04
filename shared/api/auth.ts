@@ -1,15 +1,25 @@
 import type { AxiosInstance } from 'axios'
-import type { TokenPair, User } from './types'
+import type { TokenPair, User, UserRole } from './types'
 
 export interface RegisterPayload {
   first_name: string
   last_name:  string
   email:      string
-  company:    string
   phone:      string
-  role:       'CLIENT' | 'CARRIER'
+  role:       UserRole
   password:   string
   password2:  string
+  // Organization fields (step 2 of onboarding)
+  org_name?:   string
+  org_type?:   string
+  join_code?:  string
+  // Role-specific fields (step 3 of onboarding)
+  license_number?:   string
+  license_class?:    string
+  years_experience?: number
+  certifications?:   string[]
+  cargo_prefs?:      string[]
+  tax_id?:           string
 }
 
 export function createAuthApi(client: AxiosInstance) {
@@ -55,7 +65,7 @@ export function createAuthApi(client: AxiosInstance) {
      * Update the authenticated user's editable profile fields.
      * PATCH /api/v1/accounts/me/
      */
-    updateMe: (data: Partial<Pick<User, 'first_name' | 'last_name' | 'company' | 'phone'>>) =>
+    updateMe: (data: Partial<Pick<User, 'first_name' | 'last_name' | 'phone'>>) =>
       client.patch<User>('/api/v1/accounts/me/', data),
   }
 }

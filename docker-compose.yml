@@ -1,5 +1,20 @@
 services:
 
+  # ── Redis 7 ─────────────────────────────────────────────────────────────────────
+  # Pub/sub channel layer for Django Channels WebSocket communication.
+  # Required for real-time features: notifications, chat, tracking, video signaling.
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # ── PostgreSQL 16 ─────────────────────────────────────────────────────────────
   # Sole database for all CargoTrack domain models.  The alpine variant keeps
   # the image small and has no known CVEs at the pinned minor version.
@@ -40,26 +55,20 @@ services:
       dockerfile: Dockerfile.backend
     depends_on:
       db:
-        # Wait for the Postgres healthcheck to pass before starting Django.
-        # Without this, Django's migrate command would fail on first boot.
         condition: service_healthy
-    # Load all environment variables from .env into the container.
+      redis:
+        condition: service_healthy
     env_file: .env
     environment:
-      # Override DB_HOST so Django reaches Postgres by its Docker service name
-      # ('db') rather than 'localhost', which would resolve to the backend
-      # container itself instead of the Postgres container.
       DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
     volumes:
-      # Bind-mount the repo root so code changes are reflected without rebuild.
-      # In production, remove this mount and bake the code into the image.
       - .:/app
     ports:
-      # Expose Django on the host for direct API testing (e.g. curl, Postman).
       - "8000:8000"
     command: >
       sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
+             daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application"
 
   # ── React / Vite frontend ──────────────────────────────────────────────────────
   # Runs the Vite dev server with hot module replacement.  In production,
@@ -93,6 +102,5 @@ services:
       - "5173:5173"
 
 volumes:
-  # Named volume for Postgres data persistence across container restarts.
-  # Removed only by `docker compose down -v` or explicit `docker volume rm`.
   postgres_data:
+  redis_data:

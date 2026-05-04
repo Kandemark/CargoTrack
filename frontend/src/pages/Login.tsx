@@ -1,17 +1,14 @@
 /**
- * @file Login.tsx
- * @description Login page — unauthenticated entry point for the React SPA.
+ * Login.tsx — Authenticated entry point for CargoTrack.
  *
- * Submits credentials via `useAuthStore.login()` which calls
- * `POST /api/auth/token/` and then `GET /api/v1/accounts/me/`.
- * On success, redirects to `/dashboard`.  On failure, displays an
- * inline error message without revealing which field was wrong.
- *
- * @route /login
- * @auth Public (AllowAny)
+ * Username + password authentication against POST /api/auth/token/.
+ * On success redirects to the role-appropriate dashboard.
+ * Features password visibility toggle, animated feedback, and rate-limit awareness.
  */
 import { useState, type FormEvent } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Eye, EyeOff, LogIn, Shield, Truck, ArrowRight, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { getRoleDashboard } from '@/lib/roleUtils'
 
@@ -19,106 +16,225 @@ export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const login = useAuthStore((s) => s.login)
+
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError]       = useState<string | null>(null)
-  const [loading, setLoading]   = useState(false)
+  const [showPw, setShowPw] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!username.trim() || !password.trim()) {
+      setError('Please enter both username and password.')
+      return
+    }
     setLoading(true)
     try {
-      await login({ username, password })
+      await login({ username: username.trim(), password })
       const user = useAuthStore.getState().user
       const next = searchParams.get('next')
       navigate(next ?? getRoleDashboard(user?.role), { replace: true })
-    } catch {
-      setError('Invalid username or password. Please try again.')
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 429) {
+        setError('Too many attempts. Please wait a moment and try again.')
+      } else if (status === 401 || status === 403) {
+        setError('Invalid username or password. Please try again.')
+      } else if (status && status >= 500) {
+        setError('Server error. Please try again shortly.')
+      } else {
+        setError('Unable to connect. Check your network and try again.')
+      }
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        {/* Wordmark */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <div
-              className="w-8 h-8 rounded-md flex items-center justify-center"
-              style={{ background: 'var(--ct-orange)' }}
-            >
-              <span className="text-white font-bold text-sm">CT</span>
-            </div>
-            <span className="text-2xl font-bold" style={{ color: 'var(--ct-navy)' }}>CargoTrack</span>
-          </div>
-          <p className="text-gray-500 text-sm">Northern Corridor Logistics Intelligence</p>
-        </div>
+    <div className="min-h-screen flex bg-[#0f2d5e]">
+      {/* Left: decorative brand panel */}
+      <div className="hidden lg:flex lg:w-[42%] xl:w-[45%] relative overflow-hidden bg-gradient-to-br from-[#0f2d5e] via-[#133568] to-[#0a2047]">
+        {/* Grid pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+          }}
+        />
+        {/* Decorative circles */}
+        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full border border-white/[0.06]" />
+        <div className="absolute top-1/4 -right-16 w-64 h-64 rounded-full border border-white/[0.08]" />
+        <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full border border-white/[0.05]" />
 
-        {/* Card */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
-          <h1 className="text-xl font-semibold text-gray-900 mb-1">Sign in to your account</h1>
-          <p className="text-sm text-gray-500 mb-6">
-            Don&rsquo;t have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:underline font-medium">
-              Create one
+        <div className="relative flex flex-col justify-center px-14 xl:px-20 w-full">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+          >
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-11 h-11 rounded-xl bg-[#f5801e] flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <Truck className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-2xl font-black text-white tracking-tight">CargoTrack</span>
+            </div>
+
+            <h1 className="text-4xl xl:text-5xl font-black text-white leading-[1.15] tracking-tight mb-5">
+              Northern Corridor
+              <br />
+              <span className="text-[#f5801e]">Logistics Intelligence</span>
+            </h1>
+
+            <p className="text-blue-200/80 text-lg leading-relaxed max-w-md">
+              Real-time freight tracking, ML-powered delay alerts, and complete audit
+              trails across Kenya, Uganda, Tanzania, and Rwanda.
+            </p>
+
+            <div className="mt-12 space-y-5">
+              {[
+                { icon: Shield, text: 'Role-based access for all 9 logistics roles' },
+                { icon: AlertTriangle, text: 'Proactive delay risk scoring and alerts' },
+                { icon: Truck, text: 'Live GPS tracking from Mombasa to Kigali' },
+              ].map(({ icon: Icon, text }) => (
+                <div key={text} className="flex items-center gap-3 text-blue-200/90">
+                  <div className="w-8 h-8 rounded-lg bg-white/[0.08] flex items-center justify-center shrink-0">
+                    <Icon className="w-4 h-4 text-[#f5801e]" />
+                  </div>
+                  <span className="text-sm">{text}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-14 pt-8 border-t border-white/[0.08]">
+              <p className="text-blue-300/60 text-xs">
+                Trusted by freight forwarders, carriers, and shippers across East Africa.
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Right: login form */}
+      <div className="flex-1 flex items-center justify-center px-6 bg-white dark:bg-gray-900 lg:rounded-l-[40px]">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="w-full max-w-[420px]"
+        >
+          {/* Mobile logo (hidden on desktop) */}
+          <div className="lg:hidden flex items-center gap-2.5 mb-8">
+            <div className="w-9 h-9 rounded-lg bg-[#f5801e] flex items-center justify-center">
+              <Truck className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-xl font-black text-gray-900 dark:text-white">CargoTrack</span>
+          </div>
+
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1.5">
+            Welcome back
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">
+            Sign in to your account to continue.{' '}
+            <Link to="/register" className="text-[#f5801e] hover:text-orange-600 font-semibold transition-colors">
+              Create one &rarr;
             </Link>
           </p>
 
-          {error && (
-            <div className="mb-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-              {error}
-            </div>
-          )}
+          {/* Error */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-5"
+              >
+                <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-400 text-sm">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  {error}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Username */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email address
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Username
               </label>
               <input
-                type="email"
+                type="text"
                 required
-                autoComplete="email"
+                autoComplete="username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-colors"
-                style={{ ['--tw-ring-color' as string]: 'var(--ct-navy)' }}
-                placeholder="your@email.com"
+                onChange={(e) => { setUsername(e.target.value); setError(null) }}
+                placeholder="Enter your username"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0f2d5e] dark:focus:ring-[#f5801e] focus:border-transparent transition-all"
               />
             </div>
 
+            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                 Password
               </label>
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-colors"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(null) }}
+                  placeholder="Enter your password"
+                  className="w-full px-4 py-3 pr-11 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#0f2d5e] dark:focus:ring-[#f5801e] focus:border-transparent transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(!showPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-60 mt-2"
-              style={{ background: 'var(--ct-navy)' }}
+              className="w-full py-3 px-4 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all disabled:opacity-60 mt-2"
+              style={{
+                background: 'linear-gradient(135deg, #0f2d5e 0%, #1a4a8b 100%)',
+                boxShadow: '0 4px 14px rgba(15, 45, 94, 0.35)',
+              }}
             >
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? (
+                <>
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4" />
+                  Sign in
+                </>
+              )}
             </button>
           </form>
-        </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          &copy; {new Date().getFullYear()} CargoTrack Ltd &mdash; Enterprise Logistics Intelligence
-        </p>
+          {/* Footer */}
+          <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-8">
+            &copy; {new Date().getFullYear()} CargoTrack Ltd &mdash; Enterprise Logistics Intelligence
+          </p>
+        </motion.div>
       </div>
     </div>
   )

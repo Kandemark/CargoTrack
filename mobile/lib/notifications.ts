@@ -8,6 +8,7 @@
  */
 import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
+import Constants from 'expo-constants'
 import { Platform } from 'react-native'
 import type { AxiosInstance } from 'axios'
 
@@ -27,6 +28,11 @@ Notifications.setNotificationHandler({
  * Safe to call multiple times — returns early if permission is denied or unavailable.
  */
 export async function registerPushToken(client: AxiosInstance): Promise<void> {
+  if (Constants.appOwnership === 'expo') {
+    console.log('[notifications] Skipping remote push registration in Expo Go')
+    return
+  }
+
   // Push tokens only work on physical devices
   if (!Device.isDevice) {
     console.log('[notifications] Skipping push registration on simulator/emulator')
