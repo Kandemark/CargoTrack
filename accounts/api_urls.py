@@ -11,6 +11,8 @@ router.register('users', api_views.UserAdminViewSet, basename='admin-users')
 
 urlpatterns = [
     path('me/',                      api_views.MeAPIView.as_view(),                  name='v1-me'),
+    path('me/export/',               api_views.DataExportView.as_view(),            name='v1-me-export'),
+    path('me/delete/',               api_views.DeleteAccountView.as_view(),         name='v1-me-delete'),
     path('me/activity/',             api_views.UserActivityView.as_view(),          name='v1-me-activity'),
     path('me/sessions/',             api_views.SessionListView.as_view(),           name='v1-me-sessions'),
     path('me/sessions/<int:pk>/',    api_views.SessionRevokeView.as_view(),         name='v1-me-session-revoke'),

@@ -14,6 +14,8 @@ from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 from django.db import models
 
+from cargotrack.encryption import EncryptedTextField
+
 
 class CustomUser(AbstractUser):
     """
@@ -42,7 +44,7 @@ class CustomUser(AbstractUser):
         choices=Role.choices,
         default=Role.CLIENT,
     )
-    phone = models.CharField(max_length=20, blank=True)
+    phone = EncryptedTextField(max_length=20, blank=True)
     organization = models.ForeignKey(
         'Organization', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='members',
@@ -352,7 +354,7 @@ class Organization(models.Model):
     website = models.URLField(blank=True)
     address = models.TextField(blank=True)
     country = models.CharField(max_length=100, default='Kenya')
-    tax_id = models.CharField(max_length=50, blank=True)
+    tax_id = EncryptedTextField(max_length=50, blank=True)
     is_verified = models.BooleanField(default=False)
     invite_code = models.CharField(max_length=20, unique=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

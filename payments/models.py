@@ -7,6 +7,7 @@ Each Invoice may have multiple Payment attempts (retries, partial refunds).
 from django.conf import settings
 from django.db import models
 
+from cargotrack.encryption import EncryptedTextField
 from shipments.models import Shipment
 
 
@@ -87,7 +88,7 @@ class Payment(models.Model):
     currency           = models.CharField(max_length=3, default='KES')
     status             = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     raw_webhook        = models.JSONField(default=dict, blank=True)
-    phone_number       = models.CharField(max_length=20, blank=True)
+    phone_number       = EncryptedTextField(max_length=20, blank=True)
     created_at         = models.DateTimeField(auto_now_add=True)
     updated_at         = models.DateTimeField(auto_now=True)
 

@@ -4,6 +4,8 @@ fleet/models.py — Truck and Driver domain models for CargoTrack fleet manageme
 from django.conf import settings
 from django.db import models
 
+from cargotrack.encryption import EncryptedTextField
+
 
 class Truck(models.Model):
     STATUS_CHOICES = [
@@ -98,12 +100,12 @@ class Driver(models.Model):
     )
     first_name   = models.CharField(max_length=100)
     last_name    = models.CharField(max_length=100)
-    phone        = models.CharField(max_length=30)
-    email        = models.EmailField(blank=True)
+    phone        = EncryptedTextField(max_length=30)
+    email        = EncryptedTextField(max_length=254, blank=True)
     avatar_url   = models.URLField(blank=True)
 
     # License
-    license_number  = models.CharField(max_length=50, blank=True)
+    license_number  = EncryptedTextField(max_length=50, blank=True)
     license_class   = models.CharField(max_length=10, choices=LICENSE_CLASSES, default='C')
     license_expiry  = models.DateField(null=True, blank=True)
 

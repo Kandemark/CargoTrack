@@ -5,6 +5,7 @@ from .api_views import (
     ConversationDetailView,
     MessageCreateView,
     MarkReadView,
+    WebRTCConfigView,
 )
 
 urlpatterns = [
@@ -12,4 +13,5 @@ urlpatterns = [
     path('conversations/<int:pk>/', ConversationDetailView.as_view(), name='v1-conversation-detail'),
     path('conversations/<int:pk>/messages/', MessageCreateView.as_view(), name='v1-message-create'),
     path('conversations/<int:pk>/mark-read/', MarkReadView.as_view(), name='v1-mark-read'),
+    path('webrtc-config/', WebRTCConfigView.as_view(), name='v1-webrtc-config'),
 ]

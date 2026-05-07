@@ -695,3 +695,223 @@ class OrganizationJoinView(APIView):
         request.user.organization = org
         request.user.save(update_fields=['organization'])
         return Response(OrganizationSerializer(org).data)
+
+
+# ── Data Export & Account Deletion (GDPR-style compliance) ────────────────────
+
+class DataExportView(APIView):
+    """
+    GET /api/v1/accounts/me/export/
+
+    Returns all personal data associated with the authenticated user as
+    a structured JSON document.  This satisfies data-portability
+    requirements (GDPR Art. 20, Kenya DPA Sec. 40).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        user = request.user
+        from shipments.models import Document, Shipment
+        from tracking.models import TrackingEvent
+        from payments.models import Invoice, Payment
+        from chats.models import Conversation, Message
+
+        export = {
+            'exported_at': timezone.now().isoformat(),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'phone': user.phone,
+                'role': user.role,
+                'date_joined': user.date_joined.isoformat(),
+                'last_login': user.last_login.isoformat() if user.last_login else None,
+            },
+            'organization': None,
+            'profile': {
+                'notification_prefs': user.profile.notification_prefs,
+            },
+        }
+
+        if user.organization:
+            org = user.organization
+            export['organization'] = {
+                'name': org.name,
+                'org_type': org.org_type,
+                'tax_id': org.tax_id,
+                'country': org.country,
+                'address': org.address,
+            }
+
+        # Shipments
+        shipments = user.client_shipments.all().select_related('route')
+        export['shipments'] = []
+        for s in shipments:
+            events = TrackingEvent.objects.filter(shipment=s).order_by('timestamp')
+            docs = Document.objects.filter(shipment=s)
+            invoices = Invoice.objects.filter(shipment=s)
+            export['shipments'].append({
+                'tracking_number': s.tracking_number,
+                'status': s.status,
+                'origin': s.origin,
+                'destination': s.destination,
+                'scheduled_arrival': s.scheduled_arrival.isoformat() if s.scheduled_arrival else None,
+                'actual_arrival': s.actual_arrival.isoformat() if s.actual_arrival else None,
+                'created_at': s.created_at.isoformat(),
+                'events': [
+                    {
+                        'event_type': e.event_type,
+                        'location': e.location,
+                        'notes': e.notes,
+                        'timestamp': e.timestamp.isoformat(),
+                    }
+                    for e in events
+                ],
+                'documents': [
+                    {'filename': d.filename, 'doc_type': d.doc_type, 'created_at': d.created_at.isoformat()}
+                    for d in docs
+                ],
+                'invoices': [
+                    {
+                        'invoice_number': inv.invoice_number,
+                        'amount': str(inv.amount_kes),
+                        'status': inv.status,
+                        'created_at': inv.created_at.isoformat(),
+                    }
+                    for inv in invoices
+                ],
+            })
+
+        # Payments made
+        export['payments'] = list(
+            Payment.objects.filter(invoice__created_by=user).values(
+                'id', 'provider', 'amount', 'currency', 'status', 'created_at',
+            )
+        )
+        for p in export['payments']:
+            p['created_at'] = p['created_at'].isoformat()
+            p['amount'] = str(p['amount'])
+
+        # Chat messages
+        messages = Message.objects.filter(sender=user).select_related('conversation')[:1000]
+        export['chat_messages'] = [
+            {
+                'content': m.content,
+                'conversation_id': m.conversation_id,
+                'created_at': m.created_at.isoformat(),
+            }
+            for m in messages
+        ]
+
+        # Audit entries
+        audit = AuditEntry.objects.filter(user=user)[:100]
+        export['audit_log'] = [
+            {
+                'action': a.action,
+                'resource': a.resource,
+                'description': a.description,
+                'result': a.result,
+                'created_at': a.created_at.isoformat(),
+            }
+            for a in audit
+        ]
+
+        # Log the export
+        AuditEntry.objects.create(
+            user=user, action='EXPORT', resource='accounts/me/export',
+            description='Personal data export requested', result='SUCCESS',
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+        )
+
+        return Response(export)
+
+
+class DeleteAccountView(APIView):
+    """
+    DELETE /api/v1/accounts/me/
+
+    Permanently deletes the authenticated user's account and all
+    associated data.  This is a hard delete — it cannot be undone.
+
+    Data deleted:
+      - User account (CustomUser + UserProfile)
+      - All shipments, tracking events, and documents
+      - All invoices and payments
+      - All chat messages and conversations
+      - All notifications and API keys
+      - All JWT sessions (blacklisted)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, **kwargs):
+        user = request.user
+        confirmation = request.data.get('confirmation', '')
+        if confirmation != f'DELETE {user.username}':
+            return Response(
+                {
+                    'detail': (
+                        f'Must confirm by sending {{"confirmation": "DELETE {user.username}"}} '
+                        f'in the request body. This action is irreversible.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Log before deletion
+        AuditEntry.objects.create(
+            user=user, action='DELETE', resource='accounts/me',
+            description='Account deletion requested', result='SUCCESS',
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+        )
+
+        user_id = user.id
+
+        # Delete all user-owned data in dependency order
+        from shipments.models import Document, Shipment
+        from tracking.models import TrackingEvent
+        from payments.models import Invoice, Payment
+        from chats.models import Conversation, Message
+
+        # Tracking events recorded by the user
+        TrackingEvent.objects.filter(recorded_by=user).delete()
+        # Messages sent by the user
+        Message.objects.filter(sender=user).delete()
+        # Documents uploaded by the user
+        Document.objects.filter(uploaded_by=user).delete()
+        # Payments
+        Payment.objects.filter(invoice__created_by=user).delete()
+        Invoice.objects.filter(created_by=user).delete()
+        # Shipments owned by the user
+        Shipment.objects.filter(client=user).delete()
+        # Notifications
+        Notification.objects.filter(user=user).delete()
+        # API keys
+        APIKey.objects.filter(user=user).delete()
+        # Audit entries
+        AuditEntry.objects.filter(user=user).delete()
+        # Remove from conversations
+        Conversation.objects.filter(participants=user).delete()
+
+        # Blacklist all outstanding JWT tokens for this user
+        try:
+            from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+            tokens = OutstandingToken.objects.filter(user_id=user_id)
+            for token in tokens:
+                BlacklistedToken.objects.get_or_create(token=token)
+            tokens.delete()
+        except Exception:
+            pass
+
+        # Delete the user (cascades to user profile via OneToOneField)
+        user.delete()
+
+        response = Response(
+            {'detail': 'Account permanently deleted.'},
+            status=status.HTTP_200_OK,
+        )
+        # Clear JWT cookies
+        from cargotrack.auth_views import _clear_token_cookies
+        _clear_token_cookies(response)
+        return response

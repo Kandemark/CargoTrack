@@ -24,6 +24,8 @@ from pathlib import Path
 
 from decouple import Csv, config
 
+from .logging_config import get_logging_config
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ── Core security ─────────────────────────────────────────────────────────────
@@ -366,3 +368,6 @@ CORS_ALLOWED_ORIGINS = config(
 )
 # Required for JWT cookies and session-based auth to be sent cross-origin.
 CORS_ALLOW_CREDENTIALS = True
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+LOGGING = get_logging_config(debug=DEBUG)

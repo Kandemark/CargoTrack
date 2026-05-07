@@ -1,4 +1,9 @@
 """chats/api_views.py — REST API views for conversations and messages."""
+import hashlib
+import hmac
+import time
+
+from decouple import config
 from django.db import models as db_models
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -123,3 +128,57 @@ class MarkReadView(APIView):
                 )
 
         return Response({'marked_read': updated})
+
+
+class WebRTCConfigView(APIView):
+    """
+    GET /api/v1/chat/webrtc-config/
+
+    Returns ICE server configuration (STUN + TURN) for WebRTC clients.
+    TURN credentials are time-limited (24h) HMAC-SHA1 tokens generated
+    from the shared secret, following the TURN REST API standard.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        turn_secret = config('TURN_SECRET', default='')
+        turn_realm = config('TURN_REALM', default='cargotrack.local')
+        turn_host = config('TURN_HOST', default='localhost')
+        turn_port = config('TURN_PORT', default='3478')
+
+        ice_servers = [
+            {
+                'urls': [
+                    'stun:stun.l.google.com:19302',
+                    'stun:stun1.l.google.com:19302',
+                ],
+            },
+        ]
+
+        if turn_secret:
+            # Generate time-limited credentials (valid for 24 hours)
+            timestamp = int(time.time()) + 86400
+            username = str(timestamp)
+
+            # HMAC-SHA1 of the timestamped username
+            mac = hmac.new(
+                turn_secret.encode(),
+                username.encode(),
+                hashlib.sha1,
+            )
+            credential = mac.hexdigest()
+
+            turn_url = f'turn:{turn_host}:{turn_port}'
+            ice_servers.append({
+                'urls': [turn_url],
+                'username': username,
+                'credential': credential,
+                'credentialType': 'password',
+            })
+
+        return Response({
+            'iceServers': ice_servers,
+            'iceTransportPolicy': 'all',
+            'bundlePolicy': 'max-bundle',
+            'rtcpMuxPolicy': 'require',
+        })

@@ -42,6 +42,9 @@ scipy==1.17.1                   # Scientific computing (scikit-learn dependency)
 joblib==1.5.3                   # Parallel processing for scikit-learn estimators
 threadpoolctl==3.6.0            # Thread pool control (scikit-learn dependency)
 
+# ── Security / encryption ──────────────────────────────────────────────────────
+cryptography==45.0.7             # AES-256 field-level encryption for PII (Fernet)
+
 # ── Image handling ──────────────────────────────────────────────────────────────
 Pillow==12.0.0                  # ImageField support (scale tickets, documents)
 

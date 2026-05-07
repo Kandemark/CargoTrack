@@ -3,6 +3,8 @@ carriers/models.py — Carrier and RateCard models for CargoTrack.
 """
 from django.db import models
 
+from cargotrack.encryption import EncryptedTextField
+
 
 class Carrier(models.Model):
     STATUS_CHOICES = [
@@ -19,8 +21,8 @@ class Carrier(models.Model):
         null=True, blank=True, related_name='carriers',
     )
     contact_name     = models.CharField(max_length=200, blank=True)
-    phone            = models.CharField(max_length=30, blank=True)
-    email            = models.EmailField(blank=True)
+    phone            = EncryptedTextField(max_length=30, blank=True)
+    email            = EncryptedTextField(max_length=254, blank=True)
     country          = models.CharField(max_length=100, default='Kenya')
     headquarters     = models.CharField(max_length=200, blank=True)
 
