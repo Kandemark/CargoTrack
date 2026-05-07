@@ -1,0 +1,56 @@
+# CargoTrack Loki — centralized log aggregation
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  replication_factor: 1
+
+# ── Ingest limits ──────────────────────────────────────────────────────────
+limits_config:
+  allow_structured_metadata: true
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  max_cache_freshness_per_query: 10m
+  max_entries_limit_per_query: 5000
+  split_queries_by_interval: 15m
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+
+# ── Schema (v13 — TSDB for better query performance) ───────────────────────
+schema_config:
+  configs:
+    - from: "2025-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: loki_index_
+        period: 24h
+
+# ── Storage (local filesystem for dev; S3/MinIO for production) ────────────
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-index
+    cache_location: /loki/tsdb-cache
+  filesystem:
+    directory: /loki/chunks
+
+# ── Compactor (reduces index size) ─────────────────────────────────────────
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  delete_request_store: filesystem
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        max_size_mb: 100

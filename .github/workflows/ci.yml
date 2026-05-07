@@ -1,0 +1,271 @@
+# CargoTrack CI Pipeline
+# PR → lint → test → build → push images → deploy staging → integration tests
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_OWNER: ${{ github.repository_owner }}
+
+jobs:
+  # ── Pre-flight: detect changed services to avoid unnecessary builds ──────
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      go-tracking: ${{ steps.filter.outputs.go-tracking }}
+      elixir-ws: ${{ steps.filter.outputs.elixir-ws }}
+      gps-ingest: ${{ steps.filter.outputs.gps-ingest }}
+      notification: ${{ steps.filter.outputs.notification }}
+      webhook: ${{ steps.filter.outputs.webhook }}
+      workflow-engine: ${{ steps.filter.outputs.workflow-engine }}
+      edi: ${{ steps.filter.outputs.edi }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api: services/api/**
+            frontend: apps/web/**|libs/shared-types/**
+            go-tracking: services/tracking-ingest/**
+            elixir-ws: services/ws/**
+            gps-ingest: services/gps-ingest/**
+            notification: services/notification/**
+            webhook: services/webhook-dispatcher/**
+            workflow-engine: services/workflow-engine/**
+            edi: services/edi-integration/**
+
+  # ── Lint ────────────────────────────────────────────────────────────────
+  lint:
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: api
+            if: ${{ needs.changes.outputs.api == 'true' }}
+          - service: frontend
+            if: ${{ needs.changes.outputs.frontend == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Python (Django)
+        if: matrix.service == 'api'
+        run: |
+          pip install ruff
+          ruff check services/api/
+
+      - name: Lint TypeScript
+        if: matrix.service == 'frontend'
+        run: |
+          cd apps/web
+          npx biome check --max-diagnostics=50 src/
+
+  # ── Test ────────────────────────────────────────────────────────────────
+  test:
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: api
+            if: ${{ needs.changes.outputs.api == 'true' }}
+          - service: go-tracking
+            if: ${{ needs.changes.outputs.go-tracking == 'true' }}
+          - service: gps-ingest
+            if: ${{ needs.changes.outputs.gps-ingest == 'true' }}
+    services:
+      postgres:
+        image: timescale/timescaledb:2.16-pg16
+        env:
+          POSTGRES_DB: cargotrack_test
+          POSTGRES_USER: cargotrack
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Django tests
+        if: matrix.service == 'api'
+        env:
+          DEBUG: "false"
+          SECRET_KEY: ci-test-key
+          DB_HOST: localhost
+          DB_USER: cargotrack
+          DB_PASSWORD: test
+          DB_NAME: cargotrack_test
+          REDIS_URL: redis://localhost:6379/0
+          OIDC_ENABLED: "false"
+        run: |
+          pip install -r services/api/requirements.txt
+          cd services/api
+          python manage.py migrate --noinput
+          python manage.py check
+          pytest --tb=short -q
+
+      - name: Run Go tests
+        if: matrix.service == 'go-tracking'
+        run: cd services/tracking-ingest && go test ./...
+
+      - name: Run Rust tests
+        if: matrix.service == 'gps-ingest'
+        run: cd services/gps-ingest && cargo test --release
+
+  # ── Build & Push Docker images ──────────────────────────────────────────
+  build:
+    needs: [changes, lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            context: services/api
+            dockerfile: services/api/Dockerfile
+            if: ${{ needs.changes.outputs.api == 'true' }}
+          - name: frontend
+            context: .
+            dockerfile: apps/web/Dockerfile
+            if: ${{ needs.changes.outputs.frontend == 'true' }}
+          - name: go-tracking
+            context: services/tracking-ingest
+            dockerfile: services/tracking-ingest/Dockerfile
+            if: ${{ needs.changes.outputs.go-tracking == 'true' }}
+          - name: gps-ingest
+            context: services/gps-ingest
+            dockerfile: services/gps-ingest/Dockerfile
+            if: ${{ needs.changes.outputs.gps-ingest == 'true' }}
+          - name: notification
+            context: services/notification
+            dockerfile: services/notification/Dockerfile
+            if: ${{ needs.changes.outputs.notification == 'true' }}
+          - name: webhook-dispatcher
+            context: services/webhook-dispatcher
+            dockerfile: services/webhook-dispatcher/Dockerfile
+            if: ${{ needs.changes.outputs.webhook == 'true' }}
+          - name: workflow-engine
+            context: services/workflow-engine
+            dockerfile: services/workflow-engine/Dockerfile
+            if: ${{ needs.changes.outputs.workflow-engine == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_OWNER }}/cargotrack-${{ matrix.name }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Vulnerability Scanning (Trivy) ──────────────────────────────────────
+  scan:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image:
+          - cargotrack-backend
+          - cargotrack-frontend
+          - cargotrack-go-tracking
+          - cargotrack-gps-ingest
+          - cargotrack-notification
+          - cargotrack-webhook-dispatcher
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_OWNER }}/${{ matrix.image }}:sha-${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 1
+          ignore-unfixed: true
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+
+  # ── Deploy to Staging ───────────────────────────────────────────────────
+  deploy-staging:
+    needs: [build, scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.cargotrack.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
+
+      - name: Deploy to staging
+        run: |
+          export IMAGE_TAG=sha-${GITHUB_SHA::7}
+          for svc in backend frontend go-tracking gps-ingest notification webhook-dispatcher workflow-engine edi-integration; do
+            if [ -f "deploy/kubernetes/services/${svc}.yaml" ]; then
+              envsubst < "deploy/kubernetes/services/${svc}.yaml" | kubectl apply -f -
+            fi
+          done
+          kubectl rollout status deployment/backend -n cargotrack --timeout=300s

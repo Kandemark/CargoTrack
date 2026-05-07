@@ -1,0 +1,193 @@
+# CargoTrack Production Deploy — canary → stable rollout
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image tag to deploy (sha-xxxxxxx)"
+        required: true
+      strategy:
+        description: "Deployment strategy"
+        type: choice
+        default: canary
+        options:
+          - canary
+          - blue-green
+          - rolling
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_OWNER: ${{ github.repository_owner }}
+
+jobs:
+  # ── Validate deployment ──────────────────────────────────────────────────
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify image exists
+        run: |
+          IMAGE="${REGISTRY}/${REGISTRY_OWNER}/cargotrack-backend:${{ inputs.version }}"
+          if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "ERROR: Image $IMAGE not found in registry"
+            exit 1
+          fi
+          echo "Image $IMAGE verified"
+
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_OWNER }}/cargotrack-backend:${{ inputs.version }}
+          format: cyclonedx
+          output: sbom-backend.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ inputs.version }}
+          path: sbom-backend.json
+
+  # ── Canary Deployment ────────────────────────────────────────────────────
+  canary:
+    needs: validate
+    if: inputs.strategy == 'canary'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.cargotrack.io
+    strategy:
+      max-parallel: 1
+      matrix:
+        step: [canary-10, canary-25, full]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG_PRODUCTION }}
+
+      - name: Deploy canary (10%)
+        if: matrix.step == 'canary-10'
+        run: |
+          export IMAGE_TAG=${{ inputs.version }}
+          export CANARY_WEIGHT=10
+          envsubst < deploy/kubernetes/services/backend.yaml | kubectl apply -f -
+          echo "Canary deployed at 10% — waiting 5 minutes for metrics"
+          sleep 300
+
+      - name: Verify canary health
+        run: |
+          ERROR_RATE=$(kubectl exec -n cargotrack deploy/backend -- \
+            curl -s http://localhost:8000/api/health/ | jq -r '.error_rate // 0')
+          if (( $(echo "$ERROR_RATE > 0.02" | bc -l) )); then
+            echo "ERROR: Canary error rate $ERROR_RATE exceeds 2% threshold — rolling back"
+            kubectl rollout undo deployment/backend -n cargotrack
+            exit 1
+          fi
+          echo "Canary healthy — error rate: $ERROR_RATE"
+
+      - name: Deploy canary (25%)
+        if: matrix.step == 'canary-25'
+        run: |
+          export IMAGE_TAG=${{ inputs.version }}
+          export CANARY_WEIGHT=25
+          envsubst < deploy/kubernetes/services/backend.yaml | kubectl apply -f -
+          echo "Canary deployed at 25%"
+
+      - name: Full rollout
+        if: matrix.step == 'full'
+        run: |
+          export IMAGE_TAG=${{ inputs.version }}
+          kubectl set image deployment/backend backend=${REGISTRY}/${REGISTRY_OWNER}/cargotrack-backend:${{ inputs.version }} -n cargotrack
+          kubectl rollout status deployment/backend -n cargotrack --timeout=600s
+
+  # ── Blue-Green Deployment ─────────────────────────────────────────────────
+  blue-green:
+    needs: validate
+    if: inputs.strategy == 'blue-green'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.cargotrack.io
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG_PRODUCTION }}
+
+      - name: Deploy green environment
+        run: |
+          export IMAGE_TAG=${{ inputs.version }}
+          export COLOR=green
+          envsubst < deploy/kubernetes/services/backend.yaml | \
+            sed 's/name: backend/name: backend-green/' | \
+            kubectl apply -f -
+          kubectl rollout status deployment/backend-green -n cargotrack --timeout=300s
+
+      - name: Smoke test green
+        run: |
+          GREEN_POD=$(kubectl get pods -n cargotrack -l app=backend-green -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n cargotrack "$GREEN_POD" -- \
+            curl -s http://localhost:8000/api/health/ || exit 1
+          echo "Green environment healthy"
+
+      - name: Switch traffic
+        run: |
+          kubectl patch service backend -n cargotrack \
+            -p '{"spec":{"selector":{"app":"backend-green"}}}'
+          echo "Traffic switched to green — monitoring for 60 seconds"
+          sleep 60
+
+      - name: Decommission blue
+        run: |
+          kubectl delete deployment backend-blue -n cargotrack --ignore-not-found
+          echo "Blue environment decommissioned"
+
+  # ── Post-deploy smoke tests ──────────────────────────────────────────────
+  smoke-test:
+    needs: [canary, blue-green]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: API smoke test
+        run: |
+          for endpoint in "/api/health/" "/api/schema/" "/api/docs/redoc/"; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.cargotrack.io$endpoint")
+            if [ "$STATUS" != "200" ] && [ "$STATUS" != "301" ]; then
+              echo "FAIL: $endpoint returned $STATUS"
+              exit 1
+            fi
+            echo "PASS: $endpoint → $STATUS"
+          done
+
+      - name: Frontend smoke test
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://app.cargotrack.io")
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: Frontend returned $STATUS"
+            exit 1
+          fi
+          echo "PASS: Frontend → $STATUS"
+
+  # ── Notify ───────────────────────────────────────────────────────────────
+  notify:
+    needs: [smoke-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify deployment status
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "CargoTrack deploy ${{ inputs.version }} ${{ needs.smoke-test.result == 'success' && ':white_check_mark:' || ':x:' }}",
+              "blocks": [
+                {"type": "section", "text": {"type": "mrkdwn", "text": "*CargoTrack Production Deploy*\nVersion: `${{ inputs.version }}`\nStrategy: ${{ inputs.strategy }}\nStatus: ${{ needs.smoke-test.result }}"}}
+              ]
+            }

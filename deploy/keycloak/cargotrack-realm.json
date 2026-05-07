@@ -1,0 +1,217 @@
+{
+  "id": "cargotrack",
+  "realm": "cargotrack",
+  "displayName": "CargoTrack Logistics Platform",
+  "enabled": true,
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": true,
+  "verifyEmail": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 900,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "ssoSessionIdleTimeoutRememberMe": 0,
+  "ssoSessionMaxLifespanRememberMe": 0,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": false,
+  "clientSessionIdleTimeout": 0,
+  "clientSessionMaxLifespan": 0,
+  "clientOfflineSessionIdleTimeout": 0,
+  "clientOfflineSessionMaxLifespan": 0,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "defaultSignatureAlgorithm": "RS256",
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "webAuthnPolicyRpEntityName": "CargoTrack",
+  "webAuthnPolicyCreateTimeout": 0,
+  "webAuthnPolicyAvoidSameAuthenticatorRegister": false,
+  "webAuthnPolicyAcceptableAaguids": [],
+  "webAuthnPolicyExtraOrigins": [],
+  "webAuthnPolicyPasswordlessRpEntityName": "CargoTrack",
+  "webAuthnPolicyPasswordlessCreateTimeout": 0,
+  "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
+  "webAuthnPolicyPasswordlessAcceptableAaguids": [],
+  "webAuthnPolicyPasswordlessExtraOrigins": [],
+
+  "roles": {
+    "realm": [
+      {"name": "admin", "description": "Platform administrator — full access"},
+      {"name": "dispatcher", "description": "Fleet dispatcher — assigns shipments to carriers"},
+      {"name": "driver", "description": "Truck driver — updates delivery status, GPS tracking"},
+      {"name": "shipper", "description": "Shipper/customer — creates shipments, tracks cargo"},
+      {"name": "carrier", "description": "Carrier company — manages fleet and drivers"},
+      {"name": "customs_officer", "description": "Customs official — clearance and inspection"},
+      {"name": "finance", "description": "Finance — invoicing and payments"},
+      {"name": "viewer", "description": "Read-only access to dashboards and reports"}
+    ]
+  },
+
+  "defaultRole": {
+    "name": "viewer",
+    "description": "Default role for new users",
+    "composite": false,
+    "clientRole": false,
+    "containerId": "cargotrack"
+  },
+
+  "clients": [
+    {
+      "clientId": "cargotrack-api",
+      "name": "CargoTrack API",
+      "description": "Backend API (Django REST Framework)",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": true,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true
+    },
+    {
+      "clientId": "cargotrack-web",
+      "name": "CargoTrack Web App",
+      "description": "React/Vite SPA frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "rootUrl": "http://localhost:5173",
+      "baseUrl": "http://localhost:5173",
+      "redirectUris": [
+        "http://localhost:5173/*",
+        "http://localhost:5173/callback"
+      ],
+      "webOrigins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:5173/*",
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "cargotrack-mobile",
+      "name": "CargoTrack Mobile App",
+      "description": "Kotlin/Expo mobile app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "cargotrack://oauth/callback",
+        "com.kandemark.cargotrackmonorepo://oauth/callback"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "cargotrack-service",
+      "name": "CargoTrack Service Accounts",
+      "description": "Machine-to-machine communication (gRPC, Kafka consumers)",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "attributes": {
+        "client.credentials.token.expiration": "3600"
+      }
+    }
+  ],
+
+  "identityProviders": [
+    {
+      "alias": "azure-ad",
+      "displayName": "Azure AD / Microsoft 365",
+      "providerId": "oidc",
+      "enabled": false,
+      "trustEmail": true,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "authorizationUrl": "https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/authorize",
+        "tokenUrl": "https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token",
+        "clientId": "${AZURE_CLIENT_ID}",
+        "clientSecret": "${AZURE_CLIENT_SECRET}",
+        "defaultScope": "openid profile email"
+      }
+    },
+    {
+      "alias": "google",
+      "displayName": "Google Workspace",
+      "providerId": "google",
+      "enabled": false,
+      "trustEmail": true,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${GOOGLE_CLIENT_ID}",
+        "clientSecret": "${GOOGLE_CLIENT_SECRET}",
+        "defaultScope": "openid profile email"
+      }
+    }
+  ],
+
+  "requiredCredentials": ["password"],
+  "passwordPolicy": "length(8) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA256",
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "otpPolicyCodeReusable": false,
+  "otpSupportedApplications": ["FreeOTP", "Google Authenticator", "Microsoft Authenticator"],
+
+  "smtpServer": {
+    "host": "${SMTP_HOST:mailhog}",
+    "port": "${SMTP_PORT:1025}",
+    "from": "noreply@cargotrack.io",
+    "fromDisplayName": "CargoTrack",
+    "replyTo": "support@cargotrack.io",
+    "replyToDisplayName": "CargoTrack Support",
+    "envelopeFrom": "",
+    "auth": false,
+    "ssl": false,
+    "starttls": false
+  },
+
+  "browserSecurityHeaders": {
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains",
+    "xContentTypeOptions": "nosniff",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "xXSSProtection": "1; mode=block"
+  },
+
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "fr", "sw", "pt"],
+  "defaultLocale": "en"
+}

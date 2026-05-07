@@ -1,0 +1,65 @@
+# CargoTrack Promtail — log tailing agent for Docker containers
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+    batchwait: 1s
+    batchsize: 1048576
+    timeout: 10s
+
+# ── Scrape Docker container logs ───────────────────────────────────────────
+scrape_configs:
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      # Use the Docker container name as the log source label
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(.*)'
+        target_label: container
+      # Drop Promtail's own logs to avoid feedback loops
+      - source_labels: [__meta_docker_container_name]
+        regex: '/promtail.*'
+        action: drop
+      # Drop short-lived containers
+      - source_labels: [__meta_docker_container_name]
+        regex: '/.*_run_.*'
+        action: drop
+
+  - job_name: docker-logs
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*.log
+
+# ── Pipeline stages ────────────────────────────────────────────────────────
+    pipeline_stages:
+      - docker: {}
+      # Add service name from container label
+      - static_labels:
+          source: docker
+      # Parse JSON log lines (when services log JSON)
+      - json:
+          expressions:
+            level: level
+            message: msg
+            timestamp: ts
+            duration: duration
+      # Set timestamp from parsed JSON if present
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+      # Set log level from parsed JSON
+      - labels:
+          level:
+      # Drop debug noise in production-like settings
+      - drop:
+          expression: '.*Started GET.*|.*200 OK.*admin.*'
+          drop_counter_reason: noise

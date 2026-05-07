@@ -1,0 +1,92 @@
+# CargoTrack Prometheus alert rules
+groups:
+  - name: cargotrack-api
+    interval: 30s
+    rules:
+      # ── API Health ──────────────────────────────────────────────────────
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(traefik_service_requests_total{code=~"5.."}[5m]))
+          / sum(rate(traefik_service_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          category: api
+        annotations:
+          summary: "API error rate exceeds 5%"
+          description: "5xx error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(traefik_service_request_duration_seconds_bucket[5m])) by (service, le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: api
+        annotations:
+          summary: "API P95 latency > 2s for {{ $labels.service }}"
+          description: "P95 latency is {{ $value }}s."
+
+      - alert: CircuitBreakerOpen
+        expr: traefik_service_open_connections > 0
+        for: 2m
+        labels:
+          severity: critical
+          category: api
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.service }}"
+          description: "Service has been circuit-broken for 2+ minutes. Check downstream health."
+
+      # ── Infrastructure ──────────────────────────────────────────────────
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for 2 minutes."
+
+      - alert: HighKafkaConsumerLag
+        expr: kafka_consumer_fetch_manager_records_lag_max > 10000
+        for: 10m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Kafka consumer lag > 10K for {{ $labels.topic }}"
+          description: "Consumer lag is {{ $value }} records."
+
+      - alert: PostgresTooManyConnections
+        expr: pgbouncer_pools_server_active_connections > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "PostgreSQL connection pool > 80% utilized"
+          description: "{{ $value }} active server connections."
+
+      # ── Business ────────────────────────────────────────────────────────
+      - alert: ShipmentSLABreach
+        expr: shipment_transit_time_hours > 72
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Shipment transit time exceeds 72h SLA for {{ $labels.corridor }}"
+          description: "Shipment on {{ $labels.corridor }} has been in transit {{ $value }}h."
+
+      - alert: BorderCrossingDelay
+        expr: border_crossing_delay_hours > 24
+        for: 30m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Border crossing delay > 24h at {{ $labels.border }}"
+          description: "Vehicles waiting {{ $value }}h at {{ $labels.border }}."

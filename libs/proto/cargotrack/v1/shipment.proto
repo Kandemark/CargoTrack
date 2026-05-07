@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package cargotrack.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum ShipmentStatus {
+  SHIPMENT_STATUS_UNSPECIFIED = 0;
+  SHIPMENT_STATUS_PENDING = 1;
+  SHIPMENT_STATUS_IN_TRANSIT = 2;
+  SHIPMENT_STATUS_CUSTOMS = 3;
+  SHIPMENT_STATUS_DELIVERED = 4;
+  SHIPMENT_STATUS_DELAYED = 5;
+}
+
+enum DispatchStatus {
+  DISPATCH_STATUS_UNSPECIFIED = 0;
+  DISPATCH_STATUS_UNASSIGNED = 1;
+  DISPATCH_STATUS_OFFERED = 2;
+  DISPATCH_STATUS_ACCEPTED = 3;
+  DISPATCH_STATUS_DISPATCHED = 4;
+}
+
+// ── Core messages ────────────────────────────────────────────────────────────
+
+message Route {
+  string id = 1;
+  string origin = 2;
+  string destination = 3;
+  double distance_km = 4;
+  double estimated_hours = 5;
+}
+
+message Shipment {
+  string id = 1;
+  string tracking_number = 2;
+  Route route = 3;
+  ShipmentStatus status = 4;
+  DispatchStatus dispatch_status = 5;
+  string carrier_id = 6;
+  string truck_id = 7;
+  string driver_id = 8;
+  double weight_kg = 9;
+  double delay_risk_score = 10;
+  google.protobuf.Timestamp scheduled_departure = 11;
+  google.protobuf.Timestamp scheduled_arrival = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+message ShipmentStateChange {
+  string shipment_id = 1;
+  ShipmentStatus from_status = 2;
+  ShipmentStatus to_status = 3;
+  string location = 4;
+  string triggered_by = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+}
+
+message ShipmentCreated {
+  Shipment shipment = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+}
+
+message ShipmentStatusChanged {
+  string shipment_id = 1;
+  string tracking_number = 2;
+  ShipmentStatus previous = 3;
+  ShipmentStatus current = 4;
+  google.protobuf.Timestamp occurred_at = 5;
+}

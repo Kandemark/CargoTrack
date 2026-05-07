@@ -1,0 +1,10 @@
+# Grafana provisioning — dashboard provider
+apiVersion: 1
+
+providers:
+  - name: CargoTrack
+    folder: CargoTrack
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards

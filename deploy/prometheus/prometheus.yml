@@ -1,0 +1,83 @@
+# CargoTrack Prometheus — metrics collection for all polyglot services
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: cargotrack
+    env: ${PROMETHEUS_ENV:-dev}
+
+# ── Alerting (production: Alertmanager) ────────────────────────────────────
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# ── Scrape targets ────────────────────────────────────────────────────────
+scrape_configs:
+  # Traefik API Gateway (Go — built-in Prometheus metrics)
+  - job_name: traefik
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["traefik:8080"]
+
+  # Django Backend (Python — django-prometheus)
+  - job_name: django-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+    metric_relabel_configs:
+      # Drop high-cardinality view/request labels in dev
+      - source_labels: [__name__]
+        regex: django_http_requests_latency_seconds_by_view_method_bucket
+        action: drop
+
+  # Go Tracking Ingestion
+  - job_name: go-tracking
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["go-tracking:8080"]
+
+  # Elixir WebSocket (Phoenix — TelemetryMetricsPrometheus)
+  - job_name: elixir-ws
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["elixir-ws:4000"]
+
+  # EMQX MQTT Broker (Erlang — built-in Prometheus endpoint)
+  - job_name: emqx
+    metrics_path: /api/v5/prometheus/stats
+    static_configs:
+      - targets: ["emqx:18083"]
+
+  # Java Camunda Workflow Engine
+  - job_name: workflow-engine
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["workflow-engine:8084"]
+
+  # Java Apache Camel EDI Gateway
+  - job_name: edi-integration
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["edi-integration:8085"]
+
+  # PostgreSQL + TimescaleDB (via postgres_exporter sidecar)
+  - job_name: postgres
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  # Redis (via redis_exporter sidecar)
+  - job_name: redis
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  # Kafka (via JMX exporter agent on Kafka broker)
+  - job_name: kafka
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["kafka:9093"]

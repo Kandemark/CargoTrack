@@ -1,0 +1,79 @@
+# CargoTrack Python dependencies
+# ================================
+# Pin all versions to ensure reproducible builds.
+# Update with: pip-compile requirements.in  (if using pip-tools)
+
+# ── Core Django ───────────────────────────────────────────────────────────────
+Django==4.2.29                  # LTS release — supported until April 2026
+asgiref==3.11.1                 # ASGI utilities required by Django
+sqlparse==0.5.5                 # SQL formatter used by Django debug output
+
+# ── Production WSGI / ASGI servers ─────────────────────────────────────────────
+gunicorn==21.2.0                # WSGI server for production (Dockerfile.backend CMD)
+daphne==4.1.2                   # ASGI server for WebSocket support
+
+# ── Real-time / WebSocket ────────────────────────────────────────────────────
+channels==4.2.0                 # Django Channels — ASGI WebSocket support
+channels-redis==4.2.1           # Redis channel layer backend
+redis==5.2.1                    # Redis client library
+
+# ── REST framework + JWT auth ─────────────────────────────────────────────────
+djangorestframework==3.17.1     # DRF — API framework (views, serializers, auth)
+djangorestframework-simplejwt==5.3.1  # JWT token generation and refresh rotation
+drf-spectacular==0.28.0         # OpenAPI 3.1 schema generation from DRF views
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+django-cors-headers==4.9.0      # Cross-Origin Resource Sharing (Vite dev server)
+django-filter==24.3             # DjangoFilterBackend for DRF querystring filtering
+
+# ── Database ──────────────────────────────────────────────────────────────────
+psycopg2-binary==2.9.10         # PostgreSQL 16 adapter (binary; no libpq needed)
+
+# ── HTTP client (used by payment providers: M-Pesa, Airtel, MTN, etc.) ───────
+requests==2.32.3                # HTTP library for payment provider API calls
+
+# ── Configuration / environment ───────────────────────────────────────────────
+python-decouple==3.8            # Reads .env without exposing secrets in source
+
+# ── ML / Data science ─────────────────────────────────────────────────────────
+scikit-learn==1.8.0             # CalibratedClassifierCV, IsotonicRegression, metrics
+xgboost==2.1.4                  # XGBClassifier — gradient-boosted trees (GPU optional)
+numpy==2.4.4                    # Numeric arrays (scikit-learn dependency)
+pandas==3.0.2                   # DataFrame used by FeatureEngineer.transform()
+scipy==1.17.1                   # Scientific computing (scikit-learn dependency)
+joblib==1.5.3                   # Parallel processing for scikit-learn estimators
+threadpoolctl==3.6.0            # Thread pool control (scikit-learn dependency)
+
+# ── Observability / tracing ──────────────────────────────────────────────────────
+opentelemetry-api==1.35.0
+opentelemetry-sdk==1.35.0
+opentelemetry-exporter-otlp-proto-grpc==1.35.0
+opentelemetry-instrumentation-django==0.56b0
+opentelemetry-instrumentation-logging==0.56b0
+opentelemetry-instrumentation-psycopg2==0.56b0
+opentelemetry-instrumentation-redis==0.56b0
+opentelemetry-instrumentation-requests==0.56b0
+protobuf==5.30.2                 # OTLP gRPC dependency
+
+# ── Security / encryption ──────────────────────────────────────────────────────
+cryptography==45.0.7             # AES-256 field-level encryption for PII (Fernet)
+pyotp==2.9.0                     # TOTP generation and verification for 2FA
+
+# ── Image handling ──────────────────────────────────────────────────────────────
+Pillow==12.0.0                  # ImageField support (scale tickets, documents)
+
+# ── Date / time utilities ─────────────────────────────────────────────────────
+python-dateutil==2.9.0.post0    # Flexible date parsing used by pandas
+six==1.17.0                     # Python 2/3 compatibility (dateutil dependency)
+tzdata==2026.1                  # IANA timezone database for USE_TZ=True
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest==9.0.2                   # Test runner
+pytest-django==4.12.0           # Django integration for pytest (conftest.py)
+iniconfig==2.3.0                # pytest configuration file parser
+pluggy==1.6.0                   # pytest plugin system
+
+# ── Output formatting ─────────────────────────────────────────────────────────
+colorama==0.4.6                 # ANSI colour codes on Windows terminals
+Pygments==2.20.0                # Syntax highlighting (pytest/DRF output)
+packaging==26.0                 # Version parsing utility

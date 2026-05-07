@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package cargotrack.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ── Alert Events ─────────────────────────────────────────────────────────────
+
+enum AlertSeverity {
+  ALERT_SEVERITY_UNSPECIFIED = 0;
+  ALERT_SEVERITY_LOW = 1;
+  ALERT_SEVERITY_MEDIUM = 2;
+  ALERT_SEVERITY_HIGH = 3;
+  ALERT_SEVERITY_CRITICAL = 4;
+}
+
+message AlertTriggered {
+  string alert_id = 1;
+  string shipment_id = 2;
+  string tracking_number = 3;
+  string message = 4;
+  AlertSeverity severity = 5;
+  double risk_score = 6;
+  google.protobuf.Timestamp triggered_at = 7;
+}
+
+message AlertAcknowledged {
+  string alert_id = 1;
+  string acknowledged_by = 2;
+  google.protobuf.Timestamp acknowledged_at = 3;
+}
+
+// ── Payment Events ───────────────────────────────────────────────────────────
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_PENDING = 1;
+  PAYMENT_STATUS_COMPLETED = 2;
+  PAYMENT_STATUS_FAILED = 3;
+  PAYMENT_STATUS_REFUNDED = 4;
+}
+
+message PaymentReceived {
+  string payment_id = 1;
+  string invoice_id = 2;
+  string provider = 3;
+  string provider_reference = 4;
+  double amount = 5;
+  string currency = 6;
+  PaymentStatus status = 7;
+  google.protobuf.Timestamp received_at = 8;
+}
+
+// ── Document Events ──────────────────────────────────────────────────────────
+
+message DocumentCreated {
+  string document_id = 1;
+  string shipment_id = 2;
+  string doc_type = 3;
+  string uploaded_by = 4;
+  string file_url = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// ── Marketplace Events ───────────────────────────────────────────────────────
+
+message BidPlaced {
+  string bid_id = 1;
+  string listing_id = 2;
+  string carrier_id = 3;
+  double amount = 4;
+  google.protobuf.Timestamp placed_at = 5;
+}
+
+message BidAccepted {
+  string bid_id = 1;
+  string listing_id = 2;
+  string shipment_id = 3;  // Created shipment
+  google.protobuf.Timestamp accepted_at = 4;
+}
+
+// ── Notification envelope ────────────────────────────────────────────────────
+
+message Notification {
+  string user_id = 1;
+  string type = 2;       // ALERT, SHIPMENT, PAYMENT, SYSTEM, SECURITY
+  string title = 3;
+  string body = 4;
+  string action_url = 5;
+  google.protobuf.Timestamp created_at = 6;
+}

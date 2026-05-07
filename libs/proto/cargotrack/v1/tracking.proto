@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package cargotrack.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum TrackingEventType {
+  TRACKING_EVENT_TYPE_UNSPECIFIED = 0;
+  TRACKING_EVENT_TYPE_DEPARTURE = 1;
+  TRACKING_EVENT_TYPE_CHECKPOINT = 2;
+  TRACKING_EVENT_TYPE_CUSTOMS_ENTRY = 3;
+  TRACKING_EVENT_TYPE_CUSTOMS_CLEAR = 4;
+  TRACKING_EVENT_TYPE_ARRIVAL = 5;
+  TRACKING_EVENT_TYPE_DELAY = 6;
+  TRACKING_EVENT_TYPE_NOTE = 7;
+}
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+
+message TrackingEvent {
+  string id = 1;
+  string shipment_id = 2;
+  TrackingEventType event_type = 3;
+  string location = 4;
+  string notes = 5;
+  int32 recorded_by_id = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+message TrackingEventBatch {
+  repeated TrackingEvent events = 1;
+}
+
+message IngestResponse {
+  bool success = 1;
+  int32 accepted = 2;
+  int32 rejected = 3;
+  string message = 4;
+}
+
+// ── gRPC Service ─────────────────────────────────────────────────────────────
+
+service TrackingIngestionService {
+  // Ingest a single tracking event.
+  rpc IngestEvent(TrackingEvent) returns (IngestResponse);
+
+  // Ingest a batch of tracking events (client-side streaming).
+  rpc StreamEvents(stream TrackingEvent) returns (IngestResponse);
+}

@@ -228,7 +228,7 @@ switch ($Command) {
         Write-Banner
         Write-Host "  Building and launching Android app (npx expo run:android)..." -ForegroundColor Yellow
         Write-Host ""
-        Set-Location (Join-Path $root "mobile")
+        Set-Location (Join-Path $root "apps/mobile")
         npx expo run:android
     }
 

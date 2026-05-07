@@ -1,0 +1,183 @@
+{
+  "title": "CargoTrack — API Overview",
+  "uid": "cargotrack-api-overview",
+  "tags": ["cargotrack", "api"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(traefik_service_requests_total{service=~\"api.*|frontend.*\"}[1m])) by (service)",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {"fillOpacity": 15, "lineWidth": 2}
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "P50 / P95 / P99 Latency",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(traefik_service_request_duration_seconds_bucket{service=~\"api.*\"}[1m])) by (service, le))",
+          "legendFormat": "{{service}} p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(traefik_service_request_duration_seconds_bucket{service=~\"api.*\"}[1m])) by (service, le))",
+          "legendFormat": "{{service}} p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(traefik_service_request_duration_seconds_bucket{service=~\"api.*\"}[1m])) by (service, le))",
+          "legendFormat": "{{service}} p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {"fillOpacity": 10, "lineWidth": 2}
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Error Rate (5xx %)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 8, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(traefik_service_requests_total{service=~\"api.*\",code=~\"5..\"}[1m])) / sum(rate(traefik_service_requests_total{service=~\"api.*\"}[1m])) * 100",
+          "legendFormat": "5xx error %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          },
+          "custom": {"fillOpacity": 25, "lineWidth": 2}
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Active WebSocket Connections",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 8, "w": 4, "h": 8},
+      "targets": [
+        {
+          "expr": "phoenix_socket_connecteds_total",
+          "legendFormat": "connected"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short", "thresholds": {"steps": [
+          {"color": "blue", "value": null}
+        ]}}
+      }
+    },
+    {
+      "id": 5,
+      "title": "Circuit Breaker State",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 8, "w": 4, "h": 8},
+      "targets": [
+        {
+          "expr": "traefik_service_open_connections{service=~\"api.*\"}",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Rate Limit Rejections",
+      "type": "timeseries",
+      "gridPos": {"x": 20, "y": 8, "w": 4, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(traefik_service_requests_total{code=\"429\"}[1m])) by (service)",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {"fillOpacity": 25, "lineWidth": 2}
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Database Connection Pool",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 16, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "pgbouncer_pools_client_active_connections",
+          "legendFormat": "active"
+        },
+        {
+          "expr": "pgbouncer_pools_client_waiting_connections",
+          "legendFormat": "waiting"
+        },
+        {
+          "expr": "pgbouncer_pools_server_active_connections",
+          "legendFormat": "server active"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short", "custom": {"fillOpacity": 15, "lineWidth": 2}}
+      }
+    },
+    {
+      "id": 8,
+      "title": "Kafka Consumer Lag (per partition)",
+      "type": "timeseries",
+      "gridPos": {"x": 8, "y": 16, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(kafka_consumer_fetch_manager_records_lag_max) by (topic)",
+          "legendFormat": "{{topic}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short", "custom": {"fillOpacity": 15, "lineWidth": 2}}
+      }
+    },
+    {
+      "id": 9,
+      "title": "GPS Ingest Throughput (events/s)",
+      "type": "timeseries",
+      "gridPos": {"x": 16, "y": 16, "w": 8, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(gps_ingest_positions_total[1m]))",
+          "legendFormat": "positions/s"
+        },
+        {
+          "expr": "sum(rate(gps_ingest_geofence_events_total[1m])) by (type)",
+          "legendFormat": "geofence {{type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "cps", "custom": {"fillOpacity": 15, "lineWidth": 2}}
+      }
+    }
+  ]
+}

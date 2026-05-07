@@ -1,0 +1,163 @@
+# ── Traefik dynamic configuration: Service routes ──────────────────────────
+
+http:
+  routers:
+    # ── Frontend (React/Vite SPA) ────────────────────────────────────────────────
+    frontend:
+      rule: "Host(`app.cargotrack.localhost`) || Host(`localhost`)"
+      entryPoints: ["websecure"]
+      service: frontend
+      middlewares:
+        - security-headers
+        - compress
+        - retry-api
+      priority: 10
+
+    frontend-dev:
+      rule: "Host(`localhost`) && PathPrefix(`/`)"
+      entryPoints: ["web"]
+      service: frontend
+      priority: 5
+
+    # ── Django Backend API ──────────────────────────────────────────────────────
+    api:
+      rule: "Host(`api.cargotrack.localhost`) || (Host(`localhost`) && PathPrefix(`/api`))"
+      entryPoints: ["websecure"]
+      service: api
+      middlewares:
+        - security-headers
+        - rate-limit-api
+        - circuit-breaker-api
+        - cors-api
+        - compress
+        - retry-api
+      priority: 20
+
+    # ── Django Admin ────────────────────────────────────────────────────────────
+    admin:
+      rule: "Host(`admin.cargotrack.localhost`) || (Host(`localhost`) && PathPrefix(`/admin`))"
+      entryPoints: ["websecure"]
+      service: api
+      middlewares:
+        - security-headers
+        - rate-limit-auth
+        - admin-whitelist
+      priority: 30
+
+    # ── Keycloak ────────────────────────────────────────────────────────────────
+    keycloak:
+      rule: "Host(`auth.cargotrack.localhost`)"
+      entryPoints: ["websecure"]
+      service: keycloak
+      middlewares:
+        - security-headers
+      priority: 15
+      tls: {}
+
+    # ── Elixir WebSocket ────────────────────────────────────────────────────────
+    websocket:
+      rule: "Host(`ws.cargotrack.localhost`)"
+      entryPoints: ["websecure"]
+      service: ws
+      middlewares:
+        - ws-upgrade
+      priority: 15
+
+    # ── gRPC Endpoints ──────────────────────────────────────────────────────────
+    grpc-tracking:
+      rule: "Host(`grpc.cargotrack.localhost`)"
+      entryPoints: ["grpc"]
+      service: go-tracking-grpc
+      priority: 10
+
+    # ── Camunda Workflow Engine ──────────────────────────────────────────────────
+    workflow:
+      rule: "Host(`workflow.cargotrack.localhost`)"
+      entryPoints: ["websecure"]
+      service: workflow-engine
+      middlewares:
+        - security-headers
+        - admin-whitelist
+      priority: 15
+
+    # ── EDI Gateway AS2 Endpoint ────────────────────────────────────────────────
+    edi-as2:
+      rule: "Host(`edi.cargotrack.localhost`)"
+      entryPoints: ["websecure"]
+      service: edi-integration
+      middlewares:
+        - security-headers
+        - limit-upload
+      priority: 15
+
+    # ── Kafka UI (dev) ──────────────────────────────────────────────────────────
+    kafka-ui:
+      rule: "Host(`kafka.cargotrack.localhost`)"
+      entryPoints: ["websecure"]
+      service: kafka-ui
+      middlewares:
+        - security-headers
+        - admin-whitelist
+      priority: 15
+
+    # ── Traefik Dashboard ───────────────────────────────────────────────────────
+    traefik-dashboard:
+      rule: "Host(`traefik.cargotrack.localhost`)"
+      entryPoints: ["websecure"]
+      service: "api@internal"
+      middlewares:
+        - admin-whitelist
+        - security-headers
+
+  # ── Services ──────────────────────────────────────────────────────────────────
+  services:
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:5173"
+
+    api:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8000"
+        healthCheck:
+          path: "/api/health/"
+          interval: "30s"
+          timeout: "3s"
+
+    ws:
+      loadBalancer:
+        servers:
+          - url: "http://elixir-ws:4000"
+
+    go-tracking-grpc:
+      loadBalancer:
+        servers:
+          - url: "h2c://go-tracking:8080"
+        healthCheck:
+          interval: "30s"
+          timeout: "5s"
+
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:8080"
+        healthCheck:
+          path: "/health/ready"
+          interval: "15s"
+          timeout: "5s"
+
+    workflow-engine:
+      loadBalancer:
+        servers:
+          - url: "http://workflow-engine:8084"
+
+    edi-integration:
+      loadBalancer:
+        servers:
+          - url: "http://edi-integration:8085"
+
+    kafka-ui:
+      loadBalancer:
+        servers:
+          - url: "http://kafka-ui:8080"

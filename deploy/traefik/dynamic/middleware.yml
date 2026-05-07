@@ -1,0 +1,105 @@
+# ── Traefik dynamic configuration: Middleware chains ───────────────────────
+
+http:
+  middlewares:
+    # ── Security ────────────────────────────────────────────────────────────────
+    security-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customFrameOptionsValue: "SAMEORIGIN"
+        referrerPolicy: "strict-origin-when-cross-origin"
+        contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.cargotrack.io wss://*.cargotrack.io"
+
+    # ── Rate Limiting ───────────────────────────────────────────────────────────
+    rate-limit-global:
+      rateLimit:
+        average: 100
+        period: 1s
+        burst: 50
+
+    rate-limit-auth:
+      rateLimit:
+        average: 10
+        period: 1s
+        burst: 5
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    rate-limit-api:
+      rateLimit:
+        average: 200
+        period: 1s
+        burst: 100
+
+    # ── Circuit Breaker ─────────────────────────────────────────────────────────
+    circuit-breaker-api:
+      circuitBreaker:
+        expression: "NetworkErrorRatio() > 0.10 || ResponseCodeRatio(500, 600, 0, 600) > 0.05"
+        checkPeriod: "10s"
+        fallbackDuration: "30s"
+        recoveryDuration: "30s"
+
+    # ── Retry ───────────────────────────────────────────────────────────────────
+    retry-api:
+      retry:
+        attempts: 3
+        initialInterval: "100ms"
+
+    # ── Compression ─────────────────────────────────────────────────────────────
+    compress:
+      compress:
+        excludedContentTypes:
+          - text/event-stream
+          - application/grpc
+
+    # ── CORS ────────────────────────────────────────────────────────────────────
+    cors-api:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        accessControlAllowOriginList:
+          - "http://localhost:5173"
+          - "http://127.0.0.1:5173"
+          - "https://app.cargotrack.io"
+        accessControlAllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Requested-With
+        accessControlMaxAge: 3600
+        accessControlAllowCredentials: true
+        addVaryHeader: true
+
+    # ── WebSocket Upgrade ───────────────────────────────────────────────────────
+    ws-upgrade:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+
+    # ── IP Whitelist (admin endpoints) ──────────────────────────────────────────
+    admin-whitelist:
+      ipWhiteList:
+        sourceRange:
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+    # ── Request Size Limiting ───────────────────────────────────────────────────
+    limit-upload:
+      buffering:
+        maxRequestBodyBytes: 52428800  # 50 MB
+        memRequestBodyBytes: 2097152   # 2 MB
+        maxResponseBodyBytes: 52428800
+        memResponseBodyBytes: 2097152

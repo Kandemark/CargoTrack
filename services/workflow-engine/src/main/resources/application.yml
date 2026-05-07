@@ -1,0 +1,42 @@
+server:
+  port: ${WORKFLOW_PORT:8084}
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:cargotrack}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+
+camunda:
+  bpm:
+    admin-user:
+      id: ${CAMUNDA_ADMIN:admin}
+      password: ${CAMUNDA_PASSWORD:admin}
+    process-engine-name: cargotrack-workflow
+    default-serialization-format: application/json
+    history-level: activity
+    auto-deployment:
+      enabled: true
+    deployment-resource-pattern:
+      - classpath*:processes/*.bpmn
+      - classpath*:dmn/*.dmn
+    database:
+      schema-update: true
+    job-execution:
+      enabled: true
+      core-pool-size: 3
+      max-pool-size: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus

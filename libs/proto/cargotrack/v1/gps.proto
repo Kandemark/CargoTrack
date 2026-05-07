@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package cargotrack.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+
+message Position {
+  string device_id = 1;
+  string vehicle_id = 2;
+  double latitude = 3;
+  double longitude = 4;
+  double altitude_m = 5;
+  double speed_kmh = 6;
+  double heading_deg = 7;
+  int32 satellites = 8;
+  double hdop = 9;               // Horizontal dilution of precision
+  google.protobuf.Timestamp device_time = 10;
+  google.protobuf.Timestamp server_time = 11;
+}
+
+message PositionBatch {
+  repeated Position positions = 1;
+}
+
+message PositionAck {
+  int32 accepted = 1;
+  string message = 2;
+}
+
+message GetVehicleRequest {
+  string vehicle_id = 1;
+}
+
+message GeofenceEvent {
+  string vehicle_id = 1;
+  string geofence_id = 2;
+  string geofence_name = 3;
+  enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    EVENT_TYPE_ENTER = 1;
+    EVENT_TYPE_EXIT = 2;
+  }
+  EventType event_type = 4;
+  Position position = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+}
+
+// ── gRPC Service ─────────────────────────────────────────────────────────────
+
+service GPSTelemetryService {
+  // Bi-directional stream: device sends positions, server acks.
+  rpc StreamPositions(stream Position) returns (stream PositionAck);
+
+  // Get the latest known position for a vehicle.
+  rpc GetVehiclePosition(GetVehicleRequest) returns (Position);
+}

@@ -1,0 +1,68 @@
+# ── Traefik static configuration ────────────────────────────────────────────────
+# CargoTrack API Gateway — TLS termination, rate limiting, routing
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: ${LOG_LEVEL:-INFO}
+  format: json
+
+api:
+  dashboard: true
+  insecure: false  # Set to true for local dev dashboard access
+
+# ── Entry Points ──────────────────────────────────────────────────────────────
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        options: default
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers@file
+        - rate-limit-global@file
+
+  # gRPC entry point (internal)
+  grpc:
+    address: ":50051"
+
+# ── Let's Encrypt ─────────────────────────────────────────────────────────────
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ${ACME_EMAIL:-ops@cargotrack.io}
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+      # Staging server for testing — remove CA server line for production
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+
+# ── Providers ─────────────────────────────────────────────────────────────────
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: cargotrack
+    watch: true
+
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# ── Metrics ───────────────────────────────────────────────────────────────────
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true

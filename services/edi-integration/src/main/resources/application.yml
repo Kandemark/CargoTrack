@@ -1,0 +1,43 @@
+server:
+  port: ${EDI_PORT:8085}
+
+camel:
+  springboot:
+    name: cargotrack-edi
+    main-run-controller: true
+  component:
+    kafka:
+      brokers: ${KAFKA_BROKERS:localhost:9092}
+
+# EDI Configuration
+edi:
+  sftp:
+    host: ${EDI_SFTP_HOST:localhost}
+    port: ${EDI_SFTP_PORT:22}
+    user: ${EDI_SFTP_USER:edi-partner}
+    password: ${EDI_SFTP_PASSWORD:change-me}
+  error-dir: /tmp/edi-errors
+  as2:
+    enabled: true
+    encryption-cert: ${AS2_ENCRYPTION_CERT_PATH:}
+    signing-key: ${AS2_SIGNING_KEY_PATH:}
+    partner-cert: ${AS2_PARTNER_CERT_PATH:}
+
+# Kafka topics
+kafka:
+  topic:
+    shipments: cargotrack.shipments.state
+    tracking: cargotrack.tracking.events
+    customs: cargotrack.customs.events
+    outbound: cargotrack.edi.outbound
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+
+logging:
+  level:
+    com.cargotrack.edi: INFO
+    org.apache.camel: INFO

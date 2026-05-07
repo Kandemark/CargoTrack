@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:camunda="http://camunda.org/schema/1.0/dmn"
+             id="customsRiskScoringDefinitions"
+             name="Customs Risk Scoring"
+             namespace="http://cargotrack.io/dmn">
+
+  <decision id="customsRiskScoring" name="Customs Risk Scoring">
+    <decisionTable id="customsRiskTable" hitPolicy="FIRST">
+      <input id="commodityInput" label="Commodity Type"
+             camunda:inputVariable="commodityType">
+        <inputExpression id="commodityExpression" typeRef="string">
+          <text>commodityType</text>
+        </inputExpression>
+      </input>
+
+      <input id="corridorInput" label="Corridor"
+             camunda:inputVariable="corridor">
+        <inputExpression id="corridorExpression" typeRef="string">
+          <text>corridor</text>
+        </inputExpression>
+      </input>
+
+      <input id="declaredValueInput" label="Declared Value (USD)"
+             camunda:inputVariable="declaredValue">
+        <inputExpression id="declaredValueExpression" typeRef="double">
+          <text>declaredValue</text>
+        </inputExpression>
+      </input>
+
+      <input id="shipperHistoryInput" label="Shipper History (prior violations)"
+             camunda:inputVariable="shipperViolations">
+        <inputExpression id="shipperHistoryExpression" typeRef="integer">
+          <text>shipperViolations</text>
+        </inputExpression>
+      </input>
+
+      <output id="riskLevelOutput" label="Risk Level" name="riskLevel" typeRef="string"/>
+      <output id="inspectionTypeOutput" label="Inspection Type" name="inspectionType" typeRef="string"/>
+      <output id="scoreOutput" label="Risk Score" name="riskScore" typeRef="double"/>
+      <output id="notesOutput" label="Notes" name="notes" typeRef="string"/>
+
+      <!-- Rule 1: High-risk commodities always get physical inspection -->
+      <rule>
+        <inputEntry id="rule1_commodity">
+          <text>"electronics","pharmaceuticals","tobacco","alcohol","weapons"</text>
+        </inputEntry>
+        <inputEntry id="rule1_corridor">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule1_value">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule1_history">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="rule1_risk">
+          <text>"HIGH"</text>
+        </outputEntry>
+        <outputEntry id="rule1_inspection">
+          <text>"PHYSICAL"</text>
+        </outputEntry>
+        <outputEntry id="rule1_score">
+          <text>85.0</text>
+        </outputEntry>
+        <outputEntry id="rule1_notes">
+          <text>"High-risk commodity — mandatory physical inspection"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Rule 2: High-value shipments (>$50k) on high-risk corridors -->
+      <rule>
+        <inputEntry id="rule2_commodity">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule2_corridor">
+          <text>"Mombasa-Kampala","Nairobi-Juba","Dar-Goma"</text>
+        </inputEntry>
+        <inputEntry id="rule2_value">
+          <text>&gt; 50000</text>
+        </inputEntry>
+        <inputEntry id="rule2_history">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="rule2_risk">
+          <text>"HIGH"</text>
+        </outputEntry>
+        <outputEntry id="rule2_inspection">
+          <text>"PHYSICAL"</text>
+        </outputEntry>
+        <outputEntry id="rule2_score">
+          <text>75.0</text>
+        </outputEntry>
+        <outputEntry id="rule2_notes">
+          <text>"High value on high-risk corridor"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Rule 3: Shipper with prior violations -->
+      <rule>
+        <inputEntry id="rule3_commodity">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule3_corridor">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule3_value">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule3_history">
+          <text>&gt; 2</text>
+        </inputEntry>
+        <outputEntry id="rule3_risk">
+          <text>"MEDIUM"</text>
+        </outputEntry>
+        <outputEntry id="rule3_inspection">
+          <text>"DOCUMENT_AUDIT"</text>
+        </outputEntry>
+        <outputEntry id="rule3_score">
+          <text>50.0</text>
+        </outputEntry>
+        <outputEntry id="rule3_notes">
+          <text>"Shipper has multiple prior violations — document audit required"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Rule 4: Standard cross-border — low risk -->
+      <rule>
+        <inputEntry id="rule4_commodity">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule4_corridor">
+          <text>"Nairobi-Arusha","Kampala-Kigali"</text>
+        </inputEntry>
+        <inputEntry id="rule4_value">
+          <text>&lt; 25000</text>
+        </inputEntry>
+        <inputEntry id="rule4_history">
+          <text>= 0</text>
+        </inputEntry>
+        <outputEntry id="rule4_risk">
+          <text>"LOW"</text>
+        </outputEntry>
+        <outputEntry id="rule4_inspection">
+          <text>"GREEN_LANE"</text>
+        </outputEntry>
+        <outputEntry id="rule4_score">
+          <text>10.0</text>
+        </outputEntry>
+        <outputEntry id="rule4_notes">
+          <text>"Standard cross-border on low-risk corridor — green lane"</text>
+        </outputEntry>
+      </rule>
+
+      <!-- Rule 5: Default — medium risk -->
+      <rule>
+        <inputEntry id="rule5_commodity">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule5_corridor">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule5_value">
+          <text>-</text>
+        </inputEntry>
+        <inputEntry id="rule5_history">
+          <text>-</text>
+        </inputEntry>
+        <outputEntry id="rule5_risk">
+          <text>"MEDIUM"</text>
+        </outputEntry>
+        <outputEntry id="rule5_inspection">
+          <text>"RANDOM_CHECK"</text>
+        </outputEntry>
+        <outputEntry id="rule5_score">
+          <text>30.0</text>
+        </outputEntry>
+        <outputEntry id="rule5_notes">
+          <text>"Standard risk — random document check may apply"</text>
+        </outputEntry>
+      </rule>
+
+    </decisionTable>
+  </decision>
+</definitions>

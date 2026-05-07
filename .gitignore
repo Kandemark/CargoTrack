@@ -27,6 +27,9 @@ media/
 staticfiles/
 collected-static/
 
+# Generated OpenAPI schema (rebuilt via `python manage.py spectacular --file schema.openapi.yml`)
+schema.openapi.yml
+
 # Django migrations — regenerated per-environment via `makemigrations`
 **/migrations/0*.py
 

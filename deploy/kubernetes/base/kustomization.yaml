@@ -1,0 +1,42 @@
+# CargoTrack — Kubernetes base configuration
+# Applied first: kubectl apply -k deploy/kubernetes/base/
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cargotrack
+  labels:
+    app.kubernetes.io/part-of: cargotrack
+---
+# Secret template — actual values injected via SealedSecrets or External Secrets Operator
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cargotrack-secrets
+  namespace: cargotrack
+type: Opaque
+stringData:
+  # Placeholder values — replace with sealed secrets in production
+  DB_PASSWORD: "${DB_PASSWORD}"
+  SECRET_KEY: "${DJANGO_SECRET_KEY}"
+  ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
+  REDIS_URL: "redis://redis.cargotrack.svc.cluster.local:6379/0"
+  KAFKA_BROKERS: "kafka.cargotrack.svc.cluster.local:9092"
+  KEYCLOAK_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD}"
+  WEBHOOK_SECRET_KEY: "${WEBHOOK_SECRET_KEY}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cargotrack-config
+  namespace: cargotrack
+data:
+  ENV: "production"
+  LOG_LEVEL: "INFO"
+  DB_HOST: "postgres.cargotrack.svc.cluster.local"
+  DB_NAME: "cargotrack"
+  DB_USER: "cargotrack"
+  OIDC_ENABLED: "true"
+  KEYCLOAK_SERVER_URL: "https://auth.cargotrack.io"
+  KEYCLOAK_REALM: "cargotrack"
+  KEYCLOAK_CLIENT_ID: "cargotrack-api"

@@ -1,0 +1,124 @@
+# CargoTrack Sandbox Environment — full stack with synthetic data for local dev
+# Usage: docker compose -f docker-compose.sandbox.yml up -d
+#        docker compose -f docker-compose.sandbox.yml run backend python manage.py seed_demo
+#        docker compose -f docker-compose.sandbox.yml run backend python manage.py generate_training_data
+#        docker compose -f docker-compose.sandbox.yml run backend python manage.py train_model
+
+services:
+  # ── Core infrastructure ──────────────────────────────────────────────────
+  db:
+    image: timescale/timescaledb:2.16-pg16
+    environment:
+      POSTGRES_DB: cargotrack_sandbox
+      POSTGRES_USER: cargotrack
+      POSTGRES_PASSWORD: sandbox
+    ports:
+      - "5432:5432"
+    volumes:
+      - sandbox_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cargotrack -d cargotrack_sandbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/confluent-local:7.8.0
+    hostname: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      CLUSTER_ID: cargotrack-sandbox
+    ports:
+      - "9092:9092"
+
+  emqx:
+    image: emqx/emqx:5.7-alpine
+    ports:
+      - "1883:1883"
+      - "18083:18083"
+
+  # ── Backend (Django) ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DEBUG: "true"
+      SECRET_KEY: sandbox-insecure-key-do-not-use-in-production
+      DB_HOST: db
+      DB_USER: cargotrack
+      DB_PASSWORD: sandbox
+      DB_NAME: cargotrack_sandbox
+      REDIS_URL: redis://redis:6379/0
+      OIDC_ENABLED: "false"
+      ALLOWED_HOSTS: "*"
+    volumes:
+      - ./services/api:/app
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "python manage.py migrate &&
+             daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application"
+
+  # ── Frontend ──────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      - backend
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - ./libs/shared-types:/app/shared
+    ports:
+      - "5173:5173"
+
+  # ── Observability (lightweight) ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v3.2
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+
+  grafana:
+    image: grafana/grafana:11.6
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro
+
+volumes:
+  sandbox_pg_data:
