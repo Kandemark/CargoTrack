@@ -1,0 +1,104 @@
+# CargoTrack Elixir WebSocket — K8s Deployment + Service + HPA
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elixir-ws
+  namespace: cargotrack
+  labels:
+    app: elixir-ws
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: elixir-ws
+  template:
+    metadata:
+      labels:
+        app: elixir-ws
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4000"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: elixir-ws
+      containers:
+        - name: elixir-ws
+          image: ghcr.io/kandemark/cargotrack-elixir-ws:${IMAGE_TAG}
+          ports:
+            - containerPort: 4000
+              name: http
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cargotrack-secrets
+                  key: REDIS_URL
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: cargotrack-secrets
+                  key: SECRET_KEY
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elixir-ws
+  namespace: cargotrack
+  labels:
+    app: elixir-ws
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4000
+      targetPort: 4000
+      name: http
+  selector:
+    app: elixir-ws
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: elixir-ws-hpa
+  namespace: cargotrack
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: elixir-ws
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
