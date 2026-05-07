@@ -35,7 +35,8 @@ requests==2.32.3                # HTTP library for payment provider API calls
 python-decouple==3.8            # Reads .env without exposing secrets in source
 
 # ── ML / Data science ─────────────────────────────────────────────────────────
-scikit-learn==1.8.0             # RandomForestClassifier, GridSearchCV, metrics
+scikit-learn==1.8.0             # CalibratedClassifierCV, IsotonicRegression, metrics
+xgboost==2.1.4                  # XGBClassifier — gradient-boosted trees (GPU optional)
 numpy==2.4.4                    # Numeric arrays (scikit-learn dependency)
 pandas==3.0.2                   # DataFrame used by FeatureEngineer.transform()
 scipy==1.17.1                   # Scientific computing (scikit-learn dependency)
@@ -44,6 +45,7 @@ threadpoolctl==3.6.0            # Thread pool control (scikit-learn dependency)
 
 # ── Security / encryption ──────────────────────────────────────────────────────
 cryptography==45.0.7             # AES-256 field-level encryption for PII (Fernet)
+pyotp==2.9.0                     # TOTP generation and verification for 2FA
 
 # ── Image handling ──────────────────────────────────────────────────────────────
 Pillow==12.0.0                  # ImageField support (scale tickets, documents)

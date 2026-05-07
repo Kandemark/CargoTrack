@@ -50,6 +50,9 @@ class CustomUser(AbstractUser):
         related_name='members',
     )
     onboarding_completed = models.BooleanField(default=False)
+    totp_secret = EncryptedTextField(max_length=64, blank=True)
+    totp_enabled = models.BooleanField(default=False)
+    totp_backup_codes = models.JSONField(default=list, blank=True)
     failed_login_attempts = models.PositiveSmallIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

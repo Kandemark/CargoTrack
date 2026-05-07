@@ -187,3 +187,15 @@ scratch/
 debug/
 tmp/
 temp/
+smoke_test.py
+smoke_test_*.py
+
+# ── Elixir / Phoenix ───────────────────────────────────────────────────────────
+elixir-ws/_build/
+elixir-ws/deps/
+erl_crash.dump
+*.ez
+
+# ── Go ──────────────────────────────────────────────────────────────────────────
+go-tracking/tracking-server.exe
+go-tracking/tracking-server

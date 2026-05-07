@@ -12,7 +12,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser) -> None:
         parser.add_argument(
             '--model',
-            default='rf',
+            default='xgb',
             choices=sorted(DelayPredictor.MODELS.keys()),
             help='Model backend to train.',
         )

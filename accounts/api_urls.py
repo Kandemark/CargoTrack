@@ -11,6 +11,10 @@ router.register('users', api_views.UserAdminViewSet, basename='admin-users')
 
 urlpatterns = [
     path('me/',                      api_views.MeAPIView.as_view(),                  name='v1-me'),
+    path('me/totp/setup/',           api_views.TOTPSetupView.as_view(),             name='v1-me-totp-setup'),
+    path('me/totp/verify/',          api_views.TOTPVerifyView.as_view(),            name='v1-me-totp-verify'),
+    path('me/totp/disable/',         api_views.TOTPDisableView.as_view(),           name='v1-me-totp-disable'),
+    path('me/totp/status/',          api_views.TOTPStatusView.as_view(),            name='v1-me-totp-status'),
     path('me/export/',               api_views.DataExportView.as_view(),            name='v1-me-export'),
     path('me/delete/',               api_views.DeleteAccountView.as_view(),         name='v1-me-delete'),
     path('me/activity/',             api_views.UserActivityView.as_view(),          name='v1-me-activity'),

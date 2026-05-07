@@ -107,12 +107,23 @@ class AlertManager:
         if not self._handlers:
             logger.warning("AlertManager: no handlers registered.")
             return False
-        
+
         results = []
         for handler in self._handlers:
             success = handler.send(alert)
             results.append(success)
-            logger.info("AlertManager: %s dispatched to %s (success=%s)", 
+            logger.info("AlertManager: %s dispatched to %s (success=%s)",
                         alert.alert_type, handler.get_handler_name(), success)
-        
+
+        # Publish to event stream for async processing and audit trail
+        from cargotrack.streams import publish
+        publish('alerts', 'alert.triggered', {
+            'alert_type': alert.alert_type,
+            'shipment_id': str(alert.shipment_id),
+            'tracking_number': alert.tracking_number,
+            'severity': alert.severity,
+            'risk_score': str(alert.risk_score),
+            'message': alert.message[:500],
+        })
+
         return any(results)

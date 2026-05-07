@@ -55,11 +55,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── PostgreSQL 16 ─────────────────────────────────────────────────────────────
-  # Sole database for all CargoTrack domain models.  The alpine variant keeps
-  # the image small and has no known CVEs at the pinned minor version.
+  # ── PostgreSQL 16 + TimescaleDB 2.16 ─────────────────────────────────────────
+  # TimescaleDB is a time-series extension for PostgreSQL that automatically
+  # partitions the tracking_events table by time (hypertable) and compresses
+  # old chunks.  The timescaledb image is a drop-in replacement for upstream
+  # Postgres with the extension preloaded in shared_preload_libraries.
   db:
-    image: postgres:16-alpine
+    image: timescale/timescaledb:2.16-pg16
     environment:
       # Database name created on first startup; matches Django DB_NAME setting.
       POSTGRES_DB:       ${DB_NAME:-cargotrack}
@@ -109,6 +111,43 @@ services:
     command: >
       sh -c "python manage.py migrate &&
              daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application"
+
+  # ── Elixir/Phoenix WebSocket service ──────────────────────────────────────────
+  # Drop-in replacement for Django Channels' Daphne ASGI server for real-time
+  # features: notifications, chat, video signalling.  Validates JWT tokens with
+  # the same HS256 secret as the Django backend.  Connects to Redis for PubSub
+  # bridging between Phoenix channels and Django's Redis Channel Layer.
+  elixir-ws:
+    build:
+      context: ./elixir-ws
+      dockerfile: Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      WS_PORT: "4000"
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY_BASE: ${JWT_SECRET_KEY:-django-insecure-dev-key}
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    ports:
+      - "4000:4000"
+
+  # ── Go tracking ingestion service ─────────────────────────────────────────────
+  # High-throughput tracking event ingestion (POST /events, flushes batches to
+  # PostgreSQL via COPY protocol).  Route /api/v1/tracking/events/ traffic here
+  # for 10x+ throughput over Django for the write path.
+  go-tracking:
+    build:
+      context: ./go-tracking
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TRACKING_DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-cargotrack}?sslmode=disable
+      TRACKING_PORT: "8080"
+    ports:
+      - "8080:8080"
 
   # ── React / Vite frontend ──────────────────────────────────────────────────────
   # Runs the Vite dev server with hot module replacement.  In production,

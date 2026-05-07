@@ -45,8 +45,16 @@ class TrackingEventListCreateView(generics.ListCreateAPIView):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(recorded_by=self.request.user)
+        instance = serializer.save(recorded_by=self.request.user)
         invalidate_dashboard_caches()
+
+        from cargotrack.streams import publish
+        publish('tracking', 'tracking.event_created', {
+            'event_id': instance.pk,
+            'shipment_id': instance.shipment_id,
+            'event_type': instance.event_type,
+            'location': instance.location,
+        })
 
 
 class TrackingEventDetailView(generics.RetrieveAPIView):

@@ -162,6 +162,16 @@ def _process_webhook(provider_name: str, data: dict) -> None:
             invoice.paid_at = datetime.utcnow()
             invoice.save(update_fields=['status', 'paid_at'])
             invalidate_dashboard_caches()
+
+            # Publish to event stream for async notification processing
+            from cargotrack.streams import publish
+            publish('payments', 'payment.received', {
+                'payment_id': payment.pk,
+                'invoice_id': invoice.pk,
+                'provider': provider_name,
+                'amount': str(payment.amount),
+                'currency': payment.currency,
+            })
     except Exception:
         logger.exception('%s webhook processing failed', provider_name)
 

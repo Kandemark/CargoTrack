@@ -3,35 +3,54 @@ import json
 import logging
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
+from cargotrack.ws_auth import WebSocketAuthMixin
+
 logger = logging.getLogger(__name__)
 
 
-class NotificationConsumer(AsyncJsonWebsocketConsumer):
+class NotificationConsumer(WebSocketAuthMixin, AsyncJsonWebsocketConsumer):
     """
     Pushes real-time notifications to authenticated WebSocket clients.
 
-    Auth: JWT token validated by WebSocketAuthMiddleware; scope['user'] is set.
-    Group: ``notifications_{user_id}`` — one group per user so notifications
-    are delivered only to the intended recipient.
+    Auth: challenge-response protocol (legacy query-string token also accepted).
+    Group: ``notifications_{user_id}`` — one group per user.
     """
 
     async def connect(self):
-        user = self.scope.get('user')
-        if user is None or not user.is_authenticated:
-            await self.close(code=4001)
-            return
-
-        self.group_name = f'notifications_{user.pk}'
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
-        await self.send_json({'type': 'connected', 'detail': 'Notification stream active.'})
+
+        user = self.scope.get('user')
+        if user is not None and user.is_authenticated:
+            # Legacy: already authenticated via query-string token
+            self.authenticated = True
+            await self._join_group()
+            await self.send_json({'type': 'connected', 'detail': 'Notification stream active.'})
+
+    async def on_auth_success(self):
+        await self._join_group()
+
+    async def _join_group(self):
+        user = self.scope.get('user')
+        if user and user.is_authenticated:
+            self.group_name = f'notifications_{user.pk}'
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
 
     async def disconnect(self, code):
         if hasattr(self, 'group_name'):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive_json(self, content):
-        pass  # clients don't send messages on this channel
+        msg_type = content.get('type')
+
+        if msg_type == 'auth':
+            await self.handle_auth_message(content)
+            return
+
+        if not self.require_auth():
+            await self.send_auth_required()
+            return
+
+        # No other message types supported on this channel
 
     # ── Event handlers (called by channel layer) ────────────────────────
 

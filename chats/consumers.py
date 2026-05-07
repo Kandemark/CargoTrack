@@ -3,52 +3,74 @@ import json
 import logging
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
+
+from cargotrack.ws_auth import WebSocketAuthMixin
 from .models import Conversation, Message, VideoCall
 
 logger = logging.getLogger(__name__)
 
 
-class ChatConsumer(AsyncJsonWebsocketConsumer):
+class ChatConsumer(WebSocketAuthMixin, AsyncJsonWebsocketConsumer):
     """
     Real-time chat consumer.
 
-    Auth: scope['user'] set by WebSocketAuthMiddleware.
+    Auth: challenge-response protocol (legacy query-string token also accepted).
     Route: ws/chat/<conversation_id>/
     Group: chat_<conversation_id>
     """
 
     async def connect(self):
-        user = self.scope.get('user')
-        if user is None or not user.is_authenticated:
-            await self.close(code=4001)
-            return
-
+        await self.accept()
         self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
 
-        # Verify user is a participant
+        user = self.scope.get('user')
+        if user is not None and user.is_authenticated:
+            is_participant = await self._is_participant(user, self.conversation_id)
+            if not is_participant:
+                await self.close(code=4003)
+                return
+            self.authenticated = True
+            await self._join_group()
+            await self.send_json({
+                'type': 'connected',
+                'conversation_id': int(self.conversation_id),
+            })
+
+    async def on_auth_success(self):
+        user = self.scope.get('user')
         is_participant = await self._is_participant(user, self.conversation_id)
         if not is_participant:
+            await self.send_json({'type': 'error', 'detail': 'Not a participant.'})
             await self.close(code=4003)
             return
-
-        self.group_name = f'chat_{self.conversation_id}'
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
+        await self._join_group()
         await self.send_json({
             'type': 'connected',
             'conversation_id': int(self.conversation_id),
         })
+
+    async def _join_group(self):
+        self.group_name = f'chat_{self.conversation_id}'
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
 
     async def disconnect(self, code):
         if hasattr(self, 'group_name'):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive_json(self, content):
+        msg_type = content.get('type')
+
+        if msg_type == 'auth':
+            await self.handle_auth_message(content)
+            return
+
+        if not self.require_auth():
+            await self.send_auth_required()
+            return
+
         user = self.scope.get('user')
         if not user:
             return
-
-        msg_type = content.get('type')
 
         if msg_type == 'message':
             text = content.get('content', '').strip()
@@ -104,7 +126,8 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json({'type': 'message', 'payload': event['payload']})
 
     async def typing_indicator(self, event):
-        if event['payload']['user_id'] != self.scope.get('user').id:
+        user = self.scope.get('user')
+        if user and event['payload']['user_id'] != user.id:
             await self.send_json({'type': 'typing', 'payload': event['payload']})
 
     async def read_receipt(self, event):
@@ -137,44 +160,63 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         ).exclude(sender=user).update(is_read=True)
 
 
-class VideoSignalingConsumer(AsyncJsonWebsocketConsumer):
+class VideoSignalingConsumer(WebSocketAuthMixin, AsyncJsonWebsocketConsumer):
     """
     WebRTC video call signaling consumer.
 
-    Auth: scope['user'] set by WebSocketAuthMiddleware.
+    Auth: challenge-response protocol (legacy query-string token also accepted).
     Route: ws/video/<conversation_id>/
     Group: video_<conversation_id>
     """
 
     async def connect(self):
-        user = self.scope.get('user')
-        if user is None or not user.is_authenticated:
-            await self.close(code=4001)
-            return
-
+        await self.accept()
         self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
+
+        user = self.scope.get('user')
+        if user is not None and user.is_authenticated:
+            self.user_id = user.id
+            self.user_name = user.get_full_name() or user.username
+            is_participant = await self._is_participant(user, self.conversation_id)
+            if not is_participant:
+                await self.close(code=4003)
+                return
+            self.authenticated = True
+            await self._join_group()
+
+    async def on_auth_success(self):
+        user = self.scope.get('user')
         self.user_id = user.id
         self.user_name = user.get_full_name() or user.username
-
         is_participant = await self._is_participant(user, self.conversation_id)
         if not is_participant:
+            await self.send_json({'type': 'error', 'detail': 'Not a participant.'})
             await self.close(code=4003)
             return
+        await self._join_group()
 
+    async def _join_group(self):
         self.group_name = f'video_{self.conversation_id}'
         await self.channel_layer.group_add(self.group_name, self.channel_name)
-        await self.accept()
 
     async def disconnect(self, code):
         if hasattr(self, 'group_name'):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive_json(self, content):
+        msg_type = content.get('type')
+
+        if msg_type == 'auth':
+            await self.handle_auth_message(content)
+            return
+
+        if not self.require_auth():
+            await self.send_auth_required()
+            return
+
         user = self.scope.get('user')
         if not user:
             return
-
-        msg_type = content.get('type')
 
         if msg_type == 'call':
             # Initiate a call — notify other participants

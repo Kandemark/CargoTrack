@@ -82,10 +82,16 @@ class SecureTokenObtainPairView(TokenObtainPairView):
     POST /api/auth/token/
 
     Extends SimpleJWT's TokenObtainPairView with:
+    - TOTP two-factor authentication (if enabled on the account).
     - Account lockout after 5 consecutive failed attempts (15-minute cooldown).
     - Audit logging for every login attempt (success and failure).
     - IP address and User-Agent capture for security forensics.
     - Auth-scoped throttling (30 req/min from settings).
+
+    When TOTP is enabled, the client must include a ``totp_code`` field in
+    the request body.  If TOTP is enabled and the field is missing, a
+    ``totp_required`` response is returned so the client can prompt the user
+    for their authenticator code without re-entering the password.
     """
     from rest_framework.throttling import ScopedRateThrottle
     throttle_classes = [ScopedRateThrottle]
@@ -93,6 +99,7 @@ class SecureTokenObtainPairView(TokenObtainPairView):
 
     def post(self, request, *args, **kwargs):
         username = request.data.get('username', '')
+        totp_code = request.data.get('totp_code', '').strip()
         ip = request.META.get('REMOTE_ADDR', '')
         ua = request.META.get('HTTP_USER_AGENT', '')[:500]
 
@@ -116,11 +123,60 @@ class SecureTokenObtainPairView(TokenObtainPairView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
+        # TOTP check — before password verification so we can short-circuit
+        # if the client needs to prompt for a TOTP code.
+        if user and user.totp_enabled and not totp_code:
+            # First, verify the password so we don't leak whether TOTP is enabled.
+            # authenticate() checks credentials without issuing tokens.
+            from django.contrib.auth import authenticate
+            auth_user = authenticate(
+                request=request,
+                username=username,
+                password=request.data.get('password', ''),
+            )
+            if auth_user is None:
+                if user:
+                    user.record_failed_login()
+                AuditEntry.objects.create(
+                    user=user, action='LOGIN', resource='auth/token',
+                    description='Failed login — invalid credentials',
+                    ip_address=ip, result='FAILURE',
+                    metadata={'username': username, 'reason': 'invalid_credentials', 'user_agent': ua},
+                )
+                return Response(
+                    {'detail': 'Invalid credentials.'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            # Password is valid but TOTP is needed
+            return Response(
+                {
+                    'detail': 'TOTP code required.',
+                    'totp_required': True,
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if user and user.totp_enabled and totp_code:
+            from .totp_utils import verify_totp, verify_backup_code
+            if not verify_totp(user.totp_secret, totp_code) and not verify_backup_code(totp_code, user.totp_backup_codes):
+                user.record_failed_login()
+                AuditEntry.objects.create(
+                    user=user, action='LOGIN', resource='auth/token',
+                    description='Failed login — invalid TOTP code',
+                    ip_address=ip, result='FAILURE',
+                    metadata={'username': username, 'reason': 'invalid_totp', 'user_agent': ua},
+                )
+                return Response(
+                    {'detail': 'Invalid TOTP code.'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            # Valid TOTP — persist backup code consumption
+            if not verify_totp(user.totp_secret, totp_code):
+                user.save(update_fields=['totp_backup_codes'])
+
         try:
             response = super().post(request, *args, **kwargs)
         except Exception as exc:
-            # SimpleJWT raises AuthenticationFailed on bad credentials — catch it,
-            # log the failed attempt, then re-raise so DRF handles the response.
             if user:
                 user.record_failed_login()
             AuditEntry.objects.create(
@@ -136,7 +192,8 @@ class SecureTokenObtainPairView(TokenObtainPairView):
             user.clear_failed_logins()
         AuditEntry.objects.create(
             user=user, action='LOGIN', resource='auth/token',
-            description='Successful login',
+            description='Successful login'
+                + (' (2FA verified)' if user.totp_enabled else ''),
             ip_address=ip, result='SUCCESS',
             metadata={'user_agent': ua},
         )
@@ -915,3 +972,147 @@ class DeleteAccountView(APIView):
         from cargotrack.auth_views import _clear_token_cookies
         _clear_token_cookies(response)
         return response
+
+
+# ── TOTP 2FA ─────────────────────────────────────────────────────────────────
+
+class TOTPSetupView(APIView):
+    """
+    POST /api/v1/accounts/me/totp/setup/
+
+    Generate a new TOTP secret and return a provisioning URI (otpauth://)
+    for displaying as a QR code.  The secret is stored on the user but
+    not activated until the user verifies a code via TOTPVerifyView.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, **kwargs):
+        user = request.user
+        if user.totp_enabled:
+            return Response(
+                {'detail': 'TOTP is already enabled. Disable it first to re-setup.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from .totp_utils import generate_totp_secret, get_totp_uri
+        secret = generate_totp_secret()
+        user.totp_secret = secret
+        user.save(update_fields=['totp_secret'])
+
+        uri = get_totp_uri(secret, user.email)
+        return Response({
+            'secret': secret,
+            'uri': uri,
+            'detail': 'Scan the QR code with your authenticator app, then verify with a code.',
+        })
+
+
+class TOTPVerifyView(APIView):
+    """
+    POST /api/v1/accounts/me/totp/verify/
+
+    Verify a TOTP code from the user's authenticator app and activate 2FA.
+    Returns backup codes on first activation (shown once).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, **kwargs):
+        user = request.user
+        code = request.data.get('code', '').strip()
+
+        if not user.totp_secret:
+            return Response(
+                {'detail': 'TOTP not set up. Call /totp/setup/ first.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from .totp_utils import generate_backup_codes, hash_backup_codes, verify_totp
+        if not verify_totp(user.totp_secret, code):
+            return Response(
+                {'detail': 'Invalid verification code.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        was_already_enabled = user.totp_enabled
+
+        backup_codes = generate_backup_codes()
+        user.totp_enabled = True
+        user.totp_backup_codes = hash_backup_codes(backup_codes)
+        user.save(update_fields=['totp_enabled', 'totp_backup_codes'])
+
+        AuditEntry.objects.create(
+            user=user, action='UPDATE', resource='accounts/me/totp/verify',
+            description='TOTP 2FA activated' if not was_already_enabled else 'TOTP re-verified',
+            result='SUCCESS',
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+        )
+
+        response_data = {'detail': 'TOTP two-factor authentication enabled.'}
+        if not was_already_enabled:
+            response_data['backup_codes'] = backup_codes
+            response_data['warning'] = 'Store these backup codes securely. They will not be shown again.'
+
+        return Response(response_data)
+
+
+class TOTPDisableView(APIView):
+    """
+    POST /api/v1/accounts/me/totp/disable/
+
+    Disable TOTP 2FA.  Requires current password or a valid TOTP code.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, **kwargs):
+        user = request.user
+        if not user.totp_enabled:
+            return Response(
+                {'detail': 'TOTP is not enabled.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        code = request.data.get('code', '').strip()
+        password = request.data.get('password', '').strip()
+
+        authenticated = False
+
+        if code:
+            from .totp_utils import verify_totp
+            authenticated = verify_totp(user.totp_secret, code)
+        elif password:
+            authenticated = user.check_password(password)
+
+        if not authenticated:
+            return Response(
+                {'detail': 'Invalid code or password.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.totp_enabled = False
+        user.totp_secret = ''
+        user.totp_backup_codes = []
+        user.save(update_fields=['totp_enabled', 'totp_secret', 'totp_backup_codes'])
+
+        AuditEntry.objects.create(
+            user=user, action='UPDATE', resource='accounts/me/totp/disable',
+            description='TOTP 2FA disabled', result='SUCCESS',
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+        )
+
+        return Response({'detail': 'TOTP two-factor authentication disabled.'})
+
+
+class TOTPStatusView(APIView):
+    """
+    GET /api/v1/accounts/me/totp/status/
+
+    Return whether TOTP is enabled and how many backup codes remain.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        user = request.user
+        return Response({
+            'enabled': user.totp_enabled,
+            'backup_codes_remaining': len(user.totp_backup_codes or []),
+        })
