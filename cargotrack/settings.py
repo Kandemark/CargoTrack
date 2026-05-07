@@ -97,6 +97,11 @@ INSTALLED_APPS = [
 # requests are handled before Django's common checks run.
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # GZip compression: placed early so all downstream responses are compressed.
+    'django.middleware.gzip.GZipMiddleware',
+    # Content Security Policy: prevents XSS by restricting resource origins.
+    # Must come early so all responses get the header.
+    'cargotrack.csp.ContentSecurityPolicyMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',      # CORS headers — before Common
     'django.middleware.common.CommonMiddleware',
@@ -138,6 +143,21 @@ CHANNEL_LAYERS = {
     },
 }
 
+# ── Redis Cache ───────────────────────────────────────────────────────────────
+# Low-level Redis interface for direct cache operations, pub/sub, and Channels.
+# CACHES uses django-redis which pools connections and supports compression.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': config('REDIS_URL', default='redis://localhost:6379/1'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django.core.cache.backends.redis.RedisClient',
+        },
+        'TIMEOUT': 300,  # 5-minute default TTL
+        'KEY_PREFIX': 'ct',
+    },
+}
+
 # ── Database ──────────────────────────────────────────────────────────────────
 # PostgreSQL 16 is the recommended production database, but SQLite is supported
 # for local development. Default to SQLite if no DB_NAME is provided or if
@@ -157,6 +177,15 @@ if 'postgresql' in DB_ENGINE:
         'PASSWORD': config('DB_PASSWORD', default=''),
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
+        # Connection pooling: keep DB connections alive for 10 minutes instead
+        # of creating a new one per request.  Set to 0 to disable (one
+        # connection per request).  For high-traffic production, also deploy
+        # pgBouncer as a sidecar service.
+        'CONN_MAX_AGE': config('DB_CONN_MAX_AGE', default=600, cast=int),
+        'CONN_HEALTH_CHECKS': True,  # Verify connection health before reuse
+        'OPTIONS': {
+            'application_name': 'cargotrack',
+        },
     })
 
 
@@ -192,9 +221,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ── Django REST Framework ─────────────────────────────────────────────────────
 REST_FRAMEWORK = {
-    # JWT is primary; SessionAuthentication keeps the Django admin functional.
+    # CookieJWT is primary (reads ct_access httpOnly cookie for web, falls back
+    # to Authorization: Bearer header for mobile).  SessionAuth keeps admin working.
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'cargotrack.authentication.CookieJWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     # All views require authentication unless they explicitly set AllowAny.
@@ -299,6 +329,16 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 # Must stay False: the React SPA reads the CSRF cookie for AJAX requests.
 # Django's CSRF middleware sets the cookie; the frontend reads it with JS.
 CSRF_COOKIE_HTTPONLY = False
+
+# ── Request size limits ──────────────────────────────────────────────────────
+# JSON body — 1 MB is ample for shipment creation, tracking events, etc.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1_048_576  # 1 MB
+# File uploads — 10 MB for shipment documents (BOLs, customs, scale tickets).
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10_485_760  # 10 MB
+# Max number of fields in a single form/JSON body (prevents hash collision DoS).
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 200
+# Max number of files in a single multipart upload.
+DATA_UPLOAD_MAX_NUMBER_FILES = 5
 
 # ── Clickjacking / content-type protection ────────────────────────────────────
 X_FRAME_OPTIONS = 'DENY'

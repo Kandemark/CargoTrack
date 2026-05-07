@@ -50,10 +50,14 @@ export function createAuthApi(client: AxiosInstance) {
 
     /**
      * Blacklist the refresh token on the server (requires simplejwt blacklist).
-     * POST /api/auth/token/blacklist/
+     * POST /api/auth/token/logout/
+     * On web (cookies), the refresh token is sent automatically.  Pass an
+     * explicit refresh token for mobile clients.
      */
-    logout: (refreshToken: string) =>
-      client.post('/api/auth/token/blacklist/', { refresh: refreshToken }),
+    logout: (refreshToken?: string) =>
+      client.post('/api/auth/token/logout/',
+        refreshToken ? { refresh: refreshToken } : {},
+      ),
 
     /**
      * Return the currently authenticated user's profile.

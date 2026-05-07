@@ -1,5 +1,26 @@
 services:
 
+  # ── pgBouncer (connection pooler) ───────────────────────────────────────────────
+  # Sits between Django and PostgreSQL, multiplexing application connections
+  # over a smaller number of persistent database connections.  Essential for
+  # production deployments where many Daphne/Gunicorn workers share the DB.
+  # To enable: set DB_HOST=pgtower and DB_PORT=6432 in .env.
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      DB_NAME: ${DB_NAME:-cargotrack}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+    ports:
+      - "6432:6432"
+    depends_on:
+      db:
+        condition: service_healthy
+
   # ── Redis 7 ─────────────────────────────────────────────────────────────────────
   # Pub/sub channel layer for Django Channels WebSocket communication.
   # Required for real-time features: notifications, chat, tracking, video signaling.

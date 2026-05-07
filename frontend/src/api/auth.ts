@@ -1,15 +1,14 @@
 /**
  * frontend/src/api/auth.ts
  *
- * API functions for authentication and user profile management.
- * Token lifecycle functions are called both directly (login/register/logout)
- * and by the Axios interceptor in client.ts (refreshToken).
+ * API functions for authentication.  JWT tokens are stored as httpOnly cookies
+ * (ct_access, ct_refresh) set by the backend — JavaScript never touches them.
  *
  * Endpoint coverage:
- *   POST /api/auth/token/          — obtain JWT pair (login)
- *   POST /api/auth/register/       — create account + return JWT pair
- *   POST /api/auth/token/refresh/  — get new access token from refresh token
- *   POST /api/auth/token/blacklist/ — invalidate refresh token (logout)
+ *   POST /api/auth/token/          — obtain JWT pair (sets cookies)
+ *   POST /api/auth/register/       — create account + set cookies
+ *   POST /api/auth/token/refresh/  — get new access token cookie
+ *   POST /api/auth/token/logout/   — clear cookies + blacklist refresh token
  *   GET  /api/v1/accounts/me/      — fetch authenticated user profile
  *   PATCH /api/v1/accounts/me/     — update editable profile fields
  */
@@ -36,21 +35,21 @@ export interface RegisterPayload {
 }
 
 export const authApi = {
-  /** POST /api/auth/token/ — exchange credentials for a JWT pair. */
+  /** POST /api/auth/token/ — exchange credentials for a JWT pair (cookies set by backend). */
   login: (credentials: { username: string; password: string }) =>
     apiClient.post<TokenPair>('/api/auth/token/', credentials),
 
-  /** POST /api/auth/register/ — create a new account and return a JWT pair. */
+  /** POST /api/auth/register/ — create a new account (cookies set by backend). */
   register: (data: RegisterPayload) =>
     apiClient.post<TokenPair>('/api/auth/register/', data),
 
-  /** POST /api/auth/token/refresh/ — get a new access token. */
-  refreshToken: (refresh: string) =>
-    apiClient.post<Pick<TokenPair, 'access'>>('/api/auth/token/refresh/', { refresh }),
+  /** POST /api/auth/token/refresh/ — refresh the access token cookie via refresh cookie. */
+  refreshToken: () =>
+    apiClient.post<Pick<TokenPair, 'access'>>('/api/auth/token/refresh/'),
 
-  /** POST /api/auth/token/blacklist/ — invalidate the refresh token on logout. */
-  logout: (refresh: string) =>
-    apiClient.post('/api/auth/token/blacklist/', { refresh }),
+  /** POST /api/auth/token/logout/ — clear cookies and blacklist refresh token. */
+  logout: () =>
+    apiClient.post('/api/auth/token/logout/'),
 
   /** GET /api/v1/accounts/me/ — return the authenticated user's profile. */
   getMe: () => apiClient.get<User>('/api/v1/accounts/me/'),

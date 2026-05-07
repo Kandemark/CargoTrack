@@ -3,11 +3,17 @@
  *
  * Axios instance for all API calls.
  *
- * - baseURL from VITE_API_URL (default: http://localhost:8000)
- * - Attaches JWT access token from localStorage on every request
- * - Intercepts 401: attempts one silent token refresh, retries the original
- *   request with the new token, and on refresh failure clears auth state and
- *   redirects to /login
+ * Authentication is handled via httpOnly cookies set by the Django backend:
+ *   - ct_access  — short-lived JWT access token cookie
+ *   - ct_refresh — longer-lived JWT refresh token cookie (restricted to /api/auth/token/refresh/)
+ *
+ * The browser sends these cookies automatically on every same-origin request.
+ * To enable cross-origin cookie sending (e.g. API on a different subdomain),
+ * set `withCredentials: true` and ensure CORS_ALLOW_CREDENTIALS=true on the backend.
+ *
+ * On 401, the interceptor calls POST /api/auth/token/refresh/ — the backend
+ * reads the refresh cookie, rotates tokens, and sets a new access cookie.
+ * If refresh also fails, the user is redirected to /login.
  */
 import axios, {
   type AxiosInstance,
@@ -17,28 +23,7 @@ import axios, {
 
 // Use relative URLs by default so all /api/... requests go through the Vite
 // proxy (dev) or are served by the same Django origin (production).
-// Set VITE_API_URL to an absolute URL only when the API is on a different host.
 export const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
-
-// ── Token storage ─────────────────────────────────────────────────────────────
-
-const KEYS = { access: 'ct_access', refresh: 'ct_refresh' } as const
-
-export const tokenStorage = {
-  getAccess:  (): string | null => localStorage.getItem(KEYS.access),
-  getRefresh: (): string | null => localStorage.getItem(KEYS.refresh),
-  set: (access: string, refresh: string): void => {
-    localStorage.setItem(KEYS.access, access)
-    localStorage.setItem(KEYS.refresh, refresh)
-  },
-  setAccess: (access: string): void => {
-    localStorage.setItem(KEYS.access, access)
-  },
-  clear: (): void => {
-    localStorage.removeItem(KEYS.access)
-    localStorage.removeItem(KEYS.refresh)
-  },
-}
 
 // ── Client ────────────────────────────────────────────────────────────────────
 
@@ -46,13 +31,7 @@ const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 15_000,
   headers: { 'Content-Type': 'application/json' },
-})
-
-// Attach access token on every request
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = tokenStorage.getAccess()
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
+  withCredentials: true,  // Send httpOnly cookies cross-origin
 })
 
 // ── 401 → refresh → retry ────────────────────────────────────────────────────
@@ -79,12 +58,11 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // If another refresh is already in flight, queue this request
     if (isRefreshing) {
       return new Promise<string>((resolve, reject) => {
         pendingQueue.push({ resolve, reject })
-      }).then((token) => {
-        original.headers.Authorization = `Bearer ${token}`
+      }).then(() => {
+        // Retry with fresh cookies (browser sends updated ct_access automatically)
         return apiClient(original)
       })
     }
@@ -92,26 +70,20 @@ apiClient.interceptors.response.use(
     original._retry = true
     isRefreshing = true
 
-    const refreshToken = tokenStorage.getRefresh()
-    if (!refreshToken) {
-      tokenStorage.clear()
-      window.location.href = '/login'
-      return Promise.reject(error)
-    }
-
     try {
-      // Use a plain axios call (not apiClient) to avoid interceptor re-entry
-      const { data } = await axios.post<{ access: string }>(
+      // The refresh endpoint reads the ct_refresh cookie and sets a new ct_access cookie.
+      await axios.post(
         `${BASE_URL}/api/auth/token/refresh/`,
-        { refresh: refreshToken },
+        {},
+        { withCredentials: true, timeout: 15_000 },
       )
-      tokenStorage.setAccess(data.access)
-      original.headers.Authorization = `Bearer ${data.access}`
-      drainQueue(null, data.access)
+      drainQueue(null, 'refreshed')
+      // Retry — browser now has the new ct_access cookie
       return apiClient(original)
     } catch (refreshError) {
       drainQueue(refreshError, null)
-      tokenStorage.clear()
+      // Clear cookies by calling logout endpoint
+      await axios.post(`${BASE_URL}/api/auth/token/logout/`, {}, { withCredentials: true }).catch(() => {})
       window.location.href = '/login'
       return Promise.reject(refreshError)
     } finally {

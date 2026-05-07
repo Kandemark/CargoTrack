@@ -25,12 +25,13 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.generic import TemplateView
 from rest_framework.throttling import ScopedRateThrottle
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
-    TokenVerifyView,
-    TokenBlacklistView,
+from rest_framework_simplejwt.views import TokenVerifyView
+from accounts.api_views import RegisterAPIView
+from cargotrack.auth_views import (
+    CookieTokenObtainPairView,
+    CookieTokenRefreshView,
+    CookieTokenLogoutView,
 )
-from accounts.api_views import RegisterAPIView, SecureTokenObtainPairView
 from cargotrack.health import HealthCheckView
 
 
@@ -42,17 +43,15 @@ class ThrottledRegisterAPIView(RegisterAPIView):
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    # ── JWT authentication ────────────────────────────────────────────────────
-    # These endpoints are intentionally outside the /api/<version>/ prefix so
-    # that the auth flow doesn't need to change when a new API version ships.
-    path('api/auth/token/',          SecureTokenObtainPairView.as_view(),  name='token_obtain_pair'),
-    path('api/auth/token/refresh/',  TokenRefreshView.as_view(),     name='token_refresh'),
-    path('api/auth/token/verify/',   TokenVerifyView.as_view(),      name='token_verify'),
-    # Logout: invalidates the refresh token so it cannot be used again.
-    # authStore.logout() POSTs to this endpoint before clearing local state.
-    path('api/auth/token/blacklist/', TokenBlacklistView.as_view(),  name='token_blacklist'),
+    # ── JWT authentication (cookie-based for web, header fallback for mobile) ──
+    path('api/auth/token/',          CookieTokenObtainPairView.as_view(),  name='token_obtain_pair'),
+    path('api/auth/token/refresh/',  CookieTokenRefreshView.as_view(),     name='token_refresh'),
+    path('api/auth/token/verify/',   TokenVerifyView.as_view(),            name='token_verify'),
+    path('api/auth/token/logout/',   CookieTokenLogoutView.as_view(),      name='token_logout'),
+    # Keep blacklist for backwards compat with mobile clients
+    path('api/auth/token/blacklist/', CookieTokenLogoutView.as_view(),     name='token_blacklist'),
     # AllowAny — registration is public so new users can sign up without a token.
-    path('api/auth/register/',       ThrottledRegisterAPIView.as_view(),      name='register'),
+    path('api/auth/register/',       ThrottledRegisterAPIView.as_view(),  name='register'),
     path('api/health/',              HealthCheckView.as_view(),      name='api-health'),
 
     # ── Versioned REST API ────────────────────────────────────────────────────

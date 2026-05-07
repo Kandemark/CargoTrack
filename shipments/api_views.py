@@ -16,10 +16,13 @@ from django.db import models
 from django.db.models import Avg, Count, Sum, Q, F
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from cargotrack.cache import invalidate_dashboard_caches
 from .models import ComplianceDoc, Document, Route, Shipment
 from .serializers import (
     ComplianceDocSerializer,
@@ -62,6 +65,7 @@ def _generate_tracking_number() -> str:
             return candidate
 
 
+@method_decorator(cache_page(300), name='dispatch')  # 5-min cache — routes rarely change
 class RouteListAPIView(generics.ListAPIView):
     """
     GET /api/v1/routes/
@@ -85,7 +89,9 @@ class ShipmentListCreateAPIView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = Shipment.objects.select_related("route").order_by("-created_at")
+        qs = Shipment.objects.select_related(
+            "route", "carrier", "assigned_truck", "assigned_driver",
+        ).order_by("-created_at")
         status_filter = self.request.query_params.get("status")
         if status_filter:
             qs = qs.filter(status=status_filter.upper())
@@ -104,7 +110,7 @@ class ShipmentListCreateAPIView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        # Re-serialise with full nested output
+        invalidate_dashboard_caches()
         out = ShipmentSerializer(
             serializer.instance,
             context=self.get_serializer_context(),
@@ -118,7 +124,9 @@ class ShipmentDetailAPIView(generics.RetrieveUpdateAPIView):
     PATCH /shipments/<pk>/  — update the status field only.
     """
 
-    queryset = Shipment.objects.select_related("route").all()
+    queryset = Shipment.objects.select_related(
+        "route", "carrier", "assigned_truck", "assigned_driver",
+    ).all()
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     http_method_names = ["get", "patch", "head", "options"]
 
@@ -140,6 +148,7 @@ class ShipmentDetailAPIView(generics.RetrieveUpdateAPIView):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        invalidate_dashboard_caches()
         return Response(serializer.data)
 
 
@@ -333,6 +342,7 @@ class SLAListView(APIView):
         })
 
 
+@method_decorator(cache_page(120), name='dispatch')  # 2-min cache — aggregated analytics
 class AnalyticsView(APIView):
     """
     GET /api/v1/analytics/ — aggregated analytics for dashboards.
@@ -366,41 +376,46 @@ class AnalyticsView(APIView):
         for c in carrier_stats:
             c['on_time_rate'] = round(c['delivered'] / c['total'] * 100, 1) if c['total'] else 100
 
-        # Monthly revenue (from invoices)
+        # Monthly revenue (single query: group by month)
         from payments.models import Invoice
-        monthly_revenue = []
-        for i in range(11, -1, -1):
-            month_start = (now.replace(day=1) - datetime.timedelta(days=i * 30)).replace(
-                day=1, hour=0, minute=0, second=0, microsecond=0
-            )
-            month_end = (month_start + datetime.timedelta(days=32)).replace(day=1)
-            total = Invoice.objects.filter(
-                created_at__gte=month_start,
-                created_at__lt=month_end,
-                status='PAID',
-            ).aggregate(t=Sum('amount_kes'))['t'] or 0
-            monthly_revenue.append({
-                'month': month_start.strftime('%b'),
-                'revenue': float(total),
-            })
+        from django.db.models.functions import TruncMonth
 
-        # Avg delay risk by month
+        revenue_by_month = dict(
+            Invoice.objects.filter(
+                created_at__gte=start_12m,
+                status='PAID',
+            )
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(total=Sum('amount_kes'))
+            .values_list('month', 'total')
+        )
+        # Risk by month (single query)
+        risk_by_month = dict(
+            Shipment.objects.filter(created_at__gte=start_12m)
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(avg=Avg('delay_risk_score'))
+            .values_list('month', 'avg')
+        )
+
+        monthly_revenue = []
         monthly_risk = []
         for i in range(11, -1, -1):
             month_start = (now.replace(day=1) - datetime.timedelta(days=i * 30)).replace(
                 day=1, hour=0, minute=0, second=0, microsecond=0
             )
-            month_end = (month_start + datetime.timedelta(days=32)).replace(day=1)
-            avg = Shipment.objects.filter(
-                created_at__gte=month_start,
-                created_at__lt=month_end,
-            ).aggregate(a=Avg('delay_risk_score'))['a'] or 0
+            month_key = month_start.strftime('%b')
+            monthly_revenue.append({
+                'month': month_key,
+                'revenue': round(float(revenue_by_month.get(month_start.date(), 0)), 2),
+            })
             monthly_risk.append({
-                'month': month_start.strftime('%b'),
-                'avg_risk': round(float(avg) * 100, 1),
+                'month': month_key,
+                'avg_risk': round(float(risk_by_month.get(month_start.date(), 0)) * 100, 1),
             })
 
-        total_shipments = Shipment.objects.count()
+        total_shipments = status_counts.get('PENDING', 0) + status_counts.get('IN_TRANSIT', 0) + status_counts.get('CUSTOMS', 0) + status_counts.get('DELIVERED', 0) + status_counts.get('DELAYED', 0)
         delivered = status_counts.get('DELIVERED', 0)
         on_time_rate = round(delivered / total_shipments * 100, 1) if total_shipments else 0
 
@@ -415,6 +430,7 @@ class AnalyticsView(APIView):
         })
 
 
+@method_decorator(cache_page(300), name='dispatch')  # 5-min cache — carbon analytics
 class CarbonView(APIView):
     """
     GET /api/v1/carbon/ — carbon emission analytics computed from shipments.
@@ -491,6 +507,7 @@ class CarbonView(APIView):
         })
 
 
+@method_decorator(cache_page(60), name='dispatch')  # 1-min cache — public tracking portal
 class PublicTrackingAPIView(APIView):
     """
     GET /api/v1/track/<tracking_number>/
@@ -525,6 +542,7 @@ class PublicTrackingAPIView(APIView):
 
 # ── Profit Analytics ─────────────────────────────────────────────────────────
 
+@method_decorator(cache_page(180), name='dispatch')  # 3-min cache — profit analytics
 class ProfitAnalyticsView(APIView, DateRangeFilterMixin):
     """
     GET /api/v1/analytics/profit/
@@ -692,14 +710,17 @@ class RouteAnalyticsView(APIView, DateRangeFilterMixin):
             d['total_risk'] += s.delay_risk_score
             d['total_distance'] += s.route.distance_km
 
-        # Fetch revenue per route from invoices
+        # Single query for all route invoice totals
         from payments.models import Invoice
+        from django.db.models.functions import Coalesce
+        route_invoice_totals = dict(
+            Invoice.objects.filter(status='PAID')
+            .values('shipment__route__origin', 'shipment__route__destination')
+            .annotate(t=Coalesce(Sum('amount_kes'), 0.0))
+            .values_list('shipment__route__origin', 'shipment__route__destination', 't')
+        )
         for d in route_data.values():
-            inv_total = Invoice.objects.filter(
-                shipment__route__origin=d['origin'],
-                shipment__route__destination=d['destination'],
-                status='PAID',
-            ).aggregate(t=Sum('amount_kes'))['t'] or 0
+            inv_total = route_invoice_totals.get((d['origin'], d['destination']), 0)
             d['total_revenue'] = float(inv_total)
             d['on_time_rate'] = round((d['on_time'] / d['delivered']) * 100, 1) if d['delivered'] else 0
             d['avg_risk'] = round((d['total_risk'] / d['shipment_count']) * 100, 1) if d['shipment_count'] else 0
@@ -743,13 +764,17 @@ class CarrierBenchmarkView(APIView, DateRangeFilterMixin):
             if s.status == 'DELAYED':
                 d['delayed_shipments'] += 1
 
-        # Fetch revenue/cost per carrier from invoices
+        # Single query for all carrier invoice totals
         from payments.models import Invoice
+        from django.db.models.functions import Coalesce
+        carrier_invoice_totals = dict(
+            Invoice.objects.filter(status='PAID')
+            .values('shipment__carrier_name')
+            .annotate(t=Coalesce(Sum('amount_kes'), 0.0))
+            .values_list('shipment__carrier_name', 't')
+        )
         for c_name, d in carrier_data.items():
-            inv_agg = Invoice.objects.filter(
-                shipment__carrier_name=c_name, status='PAID'
-            ).aggregate(t=Sum('amount_kes'))
-            d['total_revenue'] = float(inv_agg['t'] or 0)
+            d['total_revenue'] = float(carrier_invoice_totals.get(c_name, 0))
             d['on_time_rate'] = round((d['on_time'] / d['delivered']) * 100, 1) if d['delivered'] else 0
             d['avg_risk'] = round((d['total_risk'] / d['shipment_count']) * 100, 1) if d['shipment_count'] else 0
             d['margin_pct'] = round((d['total_revenue'] / d['shipment_count']) * 0.22, 1) if d['shipment_count'] else 0
@@ -896,11 +921,18 @@ class CustomerAnalyticsView(APIView, DateRangeFilterMixin):
             if d['last_shipment_date'] is None or s.created_at > d['last_shipment_date']:
                 d['last_shipment_date'] = s.created_at
 
+        # Single query for all customer invoice totals
+        from django.db.models.functions import Coalesce
+        invoice_totals = dict(
+            Invoice.objects.filter(
+                shipment__client__in=customer_data.keys(), status='PAID',
+            )
+            .values('shipment__client')
+            .annotate(t=Coalesce(Sum('amount_kes'), 0.0))
+            .values_list('shipment__client', 't')
+        )
         for cid, d in customer_data.items():
-            inv_total = Invoice.objects.filter(
-                shipment__client_id=cid, status='PAID'
-            ).aggregate(t=Sum('amount_kes'))['t'] or 0
-            d['total_spend'] = round(float(inv_total), 2)
+            d['total_spend'] = round(float(invoice_totals.get(cid, 0)), 2)
             d['on_time_rate'] = round((d['on_time'] / d['delivered']) * 100, 1) if d['delivered'] else 0
             d['avg_risk'] = round((d['total_risk'] / d['total_shipments']) * 100, 1) if d['total_shipments'] else 0
             d['avg_shipment_value'] = round(d['total_spend'] / d['total_shipments'], 2) if d['total_shipments'] else 0
@@ -1108,6 +1140,7 @@ class DispatchShipmentView(APIView):
             shipment.status = 'IN_TRANSIT'
 
         shipment.save()
+        invalidate_dashboard_caches()
         return Response(ShipmentSerializer(shipment).data)
 
 

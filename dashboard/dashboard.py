@@ -24,15 +24,7 @@ class LogisticsDashboard:
         """
         Compute fleet-wide summary statistics.
 
-        Returns:
-            dict with keys:
-                total_shipments      (int)   — all shipments in the system.
-                by_status            (dict)  — {status: count} breakdown.
-                avg_delay_risk       (float) — mean delay_risk_score, 3 d.p.
-                high_risk_count      (int)   — shipments with risk > 0.7.
-                unacknowledged_alerts(int)   — open (unacked) Alert records.
-                total_revenue_mtd    (float) — paid invoice revenue this month (KES).
-                total_cost_mtd       (float) — estimated cost this month (KES).
+        Single-aggregation query replaces 7 separate count/sum/avg calls.
         """
         from shipments.models import Shipment
         from alerts.models import Alert
@@ -40,22 +32,42 @@ class LogisticsDashboard:
         from payments.models import Invoice
         from carriers.models import RateCard
 
-        qs = Shipment.objects.all()
-        delivered = qs.filter(status='DELIVERED').count()
-        delayed = qs.filter(status='DELAYED').count()
-        active = qs.exclude(status='DELIVERED').count()
-        on_time = qs.filter(
-            status='DELIVERED',
-            actual_arrival__isnull=False,
-            actual_arrival__lte=models.F('scheduled_arrival'),
-        ).count()
-        on_time_rate = round((on_time / delivered) * 100, 1) if delivered else 100.0
-        carrier_count = qs.values('carrier_name').distinct().count()
+        # Combine 7 shipment queries into one aggregation
+        agg = Shipment.objects.aggregate(
+            total=Count('id'),
+            delivered=Count('id', filter=Q(status='DELIVERED')),
+            delayed=Count('id', filter=Q(status='DELAYED')),
+            on_time=Count(
+                'id',
+                filter=Q(
+                    status='DELIVERED',
+                    actual_arrival__isnull=False,
+                    actual_arrival__lte=models.F('scheduled_arrival'),
+                ),
+            ),
+            avg_delay_risk=Avg('delay_risk_score'),
+            high_risk_count=Count('id', filter=Q(delay_risk_score__gt=0.7)),
+        )
+        total = agg['total']
+        delivered = agg['delivered']
+        delayed = agg['delayed']
+        active = total - delivered
+        on_time_rate = round((agg['on_time'] / delivered) * 100, 1) if delivered else 100.0
+        carrier_count = Shipment.objects.values('carrier_name').distinct().count()
+
+        # Status breakdown (single group-by query)
+        by_status = dict(
+            Shipment.objects.values_list('status')
+            .annotate(c=Count('id'))
+            .values_list('status', 'c')
+        )
 
         # Revenue & cost MTD
         now = timezone.now()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        mtd_invoices = Invoice.objects.filter(status='PAID', created_at__gte=month_start).select_related('shipment__route')
+        mtd_invoices = Invoice.objects.filter(
+            status='PAID', created_at__gte=month_start,
+        ).select_related('shipment__route')
         total_revenue_mtd = float(sum(inv.amount_kes for inv in mtd_invoices))
 
         ratecards = list(RateCard.objects.filter(status='ACTIVE').select_related('carrier'))
@@ -85,7 +97,7 @@ class LogisticsDashboard:
             total_cost_mtd += cost
 
         return {
-            'total_shipments': qs.count(),
+            'total_shipments': total,
             'active_shipments': active,
             'delivered_shipments': delivered,
             'delayed_shipments': delayed,
@@ -93,15 +105,9 @@ class LogisticsDashboard:
             'exception_count': delayed,
             'carrier_count': carrier_count,
             'open_alerts': Alert.objects.filter(acknowledged=False).count(),
-            'by_status': dict(
-                qs.values_list('status')
-                  .annotate(c=Count('id'))
-                  .values_list('status', 'c')
-            ),
-            'avg_delay_risk': round(
-                qs.aggregate(a=Avg('delay_risk_score'))['a'] or 0, 3
-            ),
-            'high_risk_count': qs.filter(delay_risk_score__gt=0.7).count(),
+            'by_status': by_status,
+            'avg_delay_risk': round(agg['avg_delay_risk'] or 0, 3),
+            'high_risk_count': agg['high_risk_count'],
             'unacknowledged_alerts': Alert.objects.filter(acknowledged=False).count(),
             'total_revenue_mtd': round(total_revenue_mtd, 2),
             'total_cost_mtd': round(total_cost_mtd, 2),

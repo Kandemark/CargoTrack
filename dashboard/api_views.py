@@ -1,5 +1,8 @@
 """dashboard/api_views.py — DRF API views for the logistics dashboard."""
 from django.db import models as db_models
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_headers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,18 +16,28 @@ from .dashboard import LogisticsDashboard
 
 
 def _compute_kpis() -> dict:
-    total     = Shipment.objects.count()
-    active    = Shipment.objects.exclude(status__in=["DELIVERED"]).count()
-    delivered = Shipment.objects.filter(status="DELIVERED").count()
-    delayed   = Shipment.objects.filter(status="DELAYED").count()
+    # Single aggregation query instead of 8 separate count queries
+    agg = Shipment.objects.aggregate(
+        total=db_models.Count("id"),
+        delivered=db_models.Count("id", filter=db_models.Q(status="DELIVERED")),
+        delayed=db_models.Count("id", filter=db_models.Q(status="DELAYED")),
+        on_time=db_models.Count(
+            "id",
+            filter=db_models.Q(
+                status="DELIVERED",
+                actual_arrival__isnull=False,
+                actual_arrival__lte=db_models.F("scheduled_arrival"),
+            ),
+        ),
+    )
+    total = agg["total"]
+    delivered = agg["delivered"]
+    delayed = agg["delayed"]
 
-    on_time = Shipment.objects.filter(
-        status="DELIVERED",
-        actual_arrival__isnull=False,
-        actual_arrival__lte=db_models.F("scheduled_arrival"),
-    ).count()
-    on_time_rate = round((on_time / delivered * 100) if delivered else 100, 1)
+    active = total - delivered
+    on_time_rate = round((agg["on_time"] / delivered * 100) if delivered else 100, 1)
 
+    # Carrier count + alerts in parallel (still separate — different tables)
     carrier_count = Shipment.objects.values("carrier_name").distinct().count()
 
     return {
@@ -39,6 +52,7 @@ def _compute_kpis() -> dict:
     }
 
 
+@method_decorator(cache_page(60), name='dispatch')  # 1-min cache for KPI dashboard
 class KPIApiView(APIView):
     """GET /api/v1/dashboard/kpis/ — KPI summary for the React dashboard."""
     permission_classes = [IsAuthenticated]
@@ -148,6 +162,7 @@ class MapDataAPIView(APIView):
         })
 
 
+@method_decorator(cache_page(30), name='dispatch')  # 30s cache — main dashboard
 class DashboardAPIView(APIView):
     """
     GET /api/v1/dashboard/stats/
@@ -164,6 +179,7 @@ class DashboardAPIView(APIView):
         })
 
 
+@method_decorator(cache_page(120), name='dispatch')  # 2-min cache — public landing page
 class PublicLandingStatsView(APIView):
     """
     GET /api/v1/dashboard/public-stats/ — AllowAny
@@ -201,29 +217,40 @@ class PublicLandingStatsView(APIView):
     }
 
     def get(self, request, **kwargs):
-        active = Shipment.objects.filter(status='IN_TRANSIT').count()
-        total = Shipment.objects.count()
-        carriers = Carrier.objects.filter(status='ACTIVE').count()
-        trucks = Truck.objects.filter(status='ACTIVE').count()
-        on_time = Shipment.objects.filter(
-            status='DELIVERED',
-            actual_arrival__isnull=False,
-            actual_arrival__lte=db_models.F('scheduled_arrival'),
-        ).count()
-        delivered = Shipment.objects.filter(status='DELIVERED').count()
-        on_time_rate = round((on_time / delivered * 100), 1) if delivered else 100.0
+        # Single aggregation for all shipment stats
+        agg = Shipment.objects.aggregate(
+            total=db_models.Count("id"),
+            active=db_models.Count("id", filter=db_models.Q(status="IN_TRANSIT")),
+            delivered=db_models.Count("id", filter=db_models.Q(status="DELIVERED")),
+            delayed=db_models.Count("id", filter=db_models.Q(status="DELAYED")),
+            on_time=db_models.Count(
+                "id",
+                filter=db_models.Q(
+                    status="DELIVERED",
+                    actual_arrival__isnull=False,
+                    actual_arrival__lte=db_models.F("scheduled_arrival"),
+                ),
+            ),
+            total_weight=db_models.Sum("weight_kg"),
+        )
+        active = agg["active"]
+        total = agg["total"]
+        delivered = agg["delivered"]
+        delayed = agg["delayed"]
+        on_time = agg["on_time"]
 
-        # Social proof stats
-        total_weight = Shipment.objects.aggregate(
-            total=db_models.Sum('weight_kg')
-        )['total'] or 0
-        total_tonnes = round(total_weight / 1000, 1)
-        delayed = Shipment.objects.filter(status='DELAYED').count()
+        on_time_rate = round((on_time / delivered * 100), 1) if delivered else 100.0
+        total_tonnes = round((agg["total_weight"] or 0) / 1000, 1)
         delay_pct = round((delayed / total * 100), 1) if total else 0
+
+        # Carrier + truck counts in one DB round-trip per model
+        carriers = Carrier.objects.filter(status="ACTIVE").count()
+        trucks = Truck.objects.filter(status="ACTIVE").count()
+
         from fleet.models import Driver
         avg_rating = Driver.objects.aggregate(
-            avg=db_models.Avg('rating')
-        )['avg'] or 5.0
+            avg=db_models.Avg("rating")
+        )["avg"] or 5.0
 
         # Anonymized active shipment dots for mini map
         dots = []

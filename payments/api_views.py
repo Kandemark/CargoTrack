@@ -21,6 +21,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from cargotrack.cache import invalidate_dashboard_caches
 from .models import Invoice, Payment
 from .providers import get_provider
 from .serializers import InvoiceCreateSerializer, InvoiceSerializer, PayInitiateSerializer
@@ -42,6 +43,7 @@ class InvoiceListCreateAPIView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+        invalidate_dashboard_caches()
 
     def create(self, request, *args, **kwargs):
         ser = self.get_serializer(data=request.data)
@@ -159,6 +161,7 @@ def _process_webhook(provider_name: str, data: dict) -> None:
             invoice.status  = 'PAID'
             invoice.paid_at = datetime.utcnow()
             invoice.save(update_fields=['status', 'paid_at'])
+            invalidate_dashboard_caches()
     except Exception:
         logger.exception('%s webhook processing failed', provider_name)
 
