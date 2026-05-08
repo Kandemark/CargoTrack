@@ -1,28 +1,40 @@
 """
 cargotrack/api_urls.py — Versioned API Router.
+
 Mounted at /api/<version>/ by cargotrack/urls.py.
+
+All cross-cutting imports come through the domain layer (``domains.*``)
+rather than reaching directly into app internals.  Each domain module
+documents its scope, dependencies, and public API.
 """
-from django.urls import path, include
-from shipments.api_views import (
-    RouteListAPIView, ComplianceDocListCreateView, ComplianceDocDetailView,
-    SLAListView, AnalyticsView, CarbonView, ProfitAnalyticsView, RouteAnalyticsView,
+from django.urls import include, path
+
+from domains.analytics import (
+    AnalyticsExportView, AnalyticsView, BidAnalyticsView, CarbonView,
     CarrierBenchmarkView, CorridorAnalyticsView, CustomerAnalyticsView,
-    TemporalAnalyticsView, AnalyticsExportView, PerformanceAnalyticsView,
-    DriverLeaderboardView, BidAnalyticsView,
-    DocumentExtractionView, DocumentExtractionDetailView,
-    CustomsDeclarationView, CustomsStatusView, TariffLookupView, BorderCrossingInfoView,
-    RealTimeETAView, BatchETAView,
-    CurrencyConvertView, TaxSummaryView, InvoiceCalculateView,
-    RateLookupView, RateComparisonView,
-    DemurrageCalculateView, DemurragePortStatusView,
+    DriverLeaderboardView, PerformanceAnalyticsView, ProfitAnalyticsView,
+    RouteAnalyticsView, SLAListView, TemporalAnalyticsView,
 )
-from accounts.api_views import (
-    NotificationListView, NotificationMarkReadView, NotificationMarkAllReadView,
-    NotificationDismissView, AuditEntryListView, AuditEntryCreateView,
-    IntegrationListView, IntegrationDetailView,
+from domains.contracts import RateComparisonView, RateLookupView
+from domains.finance import (
+    CurrencyConvertView, InvoiceCalculateView, TaxSummaryView,
 )
+from domains.identity import (
+    AuditEntryCreateView, AuditEntryListView, IntegrationDetailView,
+    IntegrationListView, NotificationDismissView, NotificationListView,
+    NotificationMarkAllReadView, NotificationMarkReadView,
+)
+from domains.ports import DemurrageCalculateView, DemurragePortStatusView
+from domains.shipments import (
+    BorderCrossingInfoView, ComplianceDocDetailView,
+    ComplianceDocListCreateView, CustomsDeclarationView, CustomsStatusView,
+    DocumentExtractionDetailView, DocumentExtractionView, RouteListAPIView,
+    TariffLookupView,
+)
+from domains.shipments import BatchETAView, RealTimeETAView
 
 urlpatterns = [
+    # ── Django-app sub-routers ────────────────────────────────────────────
     path('accounts/',     include('accounts.api_urls')),
     path('routes/',       RouteListAPIView.as_view(),          name='v1-routes'),
     path('shipments/',    include('shipments.api_urls')),
@@ -38,7 +50,7 @@ urlpatterns = [
     path('coldchain/',    include('coldchain.urls')),
     path('predictions/', include('predictions.urls')),
 
-    # Analytics / SLA / Carbon / Profit / Routes / Carriers / Corridors / Customers / Temporal (computed from shipments)
+    # ── Analytics / SLA / Carbon ─────────────────────────────────────────
     path('analytics/',                     AnalyticsView.as_view(),            name='v1-analytics'),
     path('analytics/profit/',              ProfitAnalyticsView.as_view(),     name='v1-analytics-profit'),
     path('analytics/routes/',              RouteAnalyticsView.as_view(),      name='v1-analytics-routes'),
@@ -53,48 +65,48 @@ urlpatterns = [
     path('sla/',                           SLAListView.as_view(),             name='v1-sla'),
     path('carbon/',                        CarbonView.as_view(),              name='v1-carbon'),
 
-    # Customs declarations (EAC customs systems integration)
+    # ── Customs (EAC customs systems integration) ────────────────────────
     path('customs/declare/',       CustomsDeclarationView.as_view(),      name='v1-customs-declare'),
     path('customs/status/',        CustomsStatusView.as_view(),           name='v1-customs-status'),
     path('customs/tariff/',        TariffLookupView.as_view(),            name='v1-customs-tariff'),
     path('customs/borders/',       BorderCrossingInfoView.as_view(),      name='v1-customs-borders'),
 
-    # Real-time ETA
+    # ── Real-time ETA ────────────────────────────────────────────────────
     path('eta/',               RealTimeETAView.as_view(),             name='v1-eta'),
     path('eta/batch/',         BatchETAView.as_view(),                name='v1-eta-batch'),
 
-    # Multi-currency finance
+    # ── Multi-currency finance ───────────────────────────────────────────
     path('finance/convert/',   CurrencyConvertView.as_view(),         name='v1-finance-convert'),
     path('finance/taxes/',     TaxSummaryView.as_view(),              name='v1-finance-taxes'),
     path('finance/calculate/', InvoiceCalculateView.as_view(),        name='v1-finance-calculate'),
 
-    # Rates & contracts
+    # ── Rates & contracts ────────────────────────────────────────────────
     path('rates/',             RateLookupView.as_view(),              name='v1-rates-lookup'),
     path('rates/compare/',     RateComparisonView.as_view(),          name='v1-rates-compare'),
 
-    # Demurrage & detention
+    # ── Demurrage & detention ────────────────────────────────────────────
     path('demurrage/',            DemurrageCalculateView.as_view(),    name='v1-demurrage'),
     path('demurrage/port/',       DemurragePortStatusView.as_view(),   name='v1-demurrage-port'),
 
-    # Compliance documents
+    # ── Compliance documents ─────────────────────────────────────────────
     path('compliance/',            ComplianceDocListCreateView.as_view(),  name='v1-compliance-list'),
     path('compliance/<int:pk>/',   ComplianceDocDetailView.as_view(),      name='v1-compliance-detail'),
 
-    # Document OCR extraction
+    # ── Document OCR extraction ──────────────────────────────────────────
     path('documents/extract/',              DocumentExtractionView.as_view(),       name='v1-document-extract'),
     path('documents/<int:pk>/extraction/',  DocumentExtractionDetailView.as_view(), name='v1-document-extraction'),
 
-    # Notifications
+    # ── Notifications ────────────────────────────────────────────────────
     path('notifications/',                     NotificationListView.as_view(),        name='v1-notif-list'),
     path('notifications/mark-all-read/',       NotificationMarkAllReadView.as_view(), name='v1-notif-mark-all'),
     path('notifications/<int:pk>/read/',       NotificationMarkReadView.as_view(),    name='v1-notif-read'),
     path('notifications/<int:pk>/',            NotificationDismissView.as_view(),     name='v1-notif-dismiss'),
 
-    # Audit log
+    # ── Audit log ────────────────────────────────────────────────────────
     path('audit/',        AuditEntryListView.as_view(),        name='v1-audit-list'),
     path('audit/create/', AuditEntryCreateView.as_view(),      name='v1-audit-create'),
 
-    # Integrations
+    # ── Integrations ─────────────────────────────────────────────────────
     path('integrations/',            IntegrationListView.as_view(),   name='v1-integrations-list'),
     path('integrations/<int:pk>/',   IntegrationDetailView.as_view(), name='v1-integrations-detail'),
 ]
