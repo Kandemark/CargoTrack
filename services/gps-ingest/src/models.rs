@@ -17,6 +17,7 @@ pub struct Position {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct PositionBatch {
     pub positions: Vec<Position>,
 }
@@ -43,5 +44,6 @@ pub struct RawDevicePacket {
     pub device_id: String,
     pub protocol: String,
     pub payload: Vec<u8>,
+    #[allow(dead_code)]
     pub received_at: DateTime<Utc>,
 }

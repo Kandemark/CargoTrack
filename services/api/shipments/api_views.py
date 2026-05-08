@@ -16,12 +16,11 @@ from django.db import models
 from django.db.models import Avg, Count, Sum, Q, F
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from cargotrack.async_cache import AsyncCacheMixin
 from cargotrack.cache import invalidate_dashboard_caches
 from .models import ComplianceDoc, Document, Route, Shipment
 from .serializers import (
@@ -65,8 +64,7 @@ def _generate_tracking_number() -> str:
             return candidate
 
 
-@method_decorator(cache_page(300), name='dispatch')  # 5-min cache — routes rarely change
-class RouteListAPIView(generics.ListAPIView):
+class RouteListAPIView(AsyncCacheMixin, generics.ListAPIView):
     """
     GET /api/v1/routes/
 
@@ -78,6 +76,7 @@ class RouteListAPIView(generics.ListAPIView):
     serializer_class = RouteSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
+    cache_ttl = 300  # 5-min cache — routes rarely change
 
 
 class ShipmentListCreateAPIView(generics.ListCreateAPIView):
@@ -152,24 +151,46 @@ class ShipmentDetailAPIView(generics.RetrieveUpdateAPIView):
         return Response(serializer.data)
 
 
+def _persist_risk_score(shipment, prob: float, label: int) -> None:
+    """Persist prediction result and fire alerts. Sync — call via sync_to_async."""
+    shipment.delay_risk_score = round(prob, 4)
+    shipment.save(update_fields=["delay_risk_score", "updated_at"])
+
+    from predictions.base import DelayPrediction
+    from alerts.manager import AlertManager
+
+    prediction = DelayPrediction(
+        delay_risk_score=prob,
+        predicted_delay_hours=24.0 if label else 0.0,
+        shipment_id=shipment.pk,
+    )
+    AlertManager().check_shipment(shipment, prediction)
+
+
 class PredictDelayAPIView(APIView):
     """
     POST /shipments/<pk>/predict/
 
-    Body: {"shipment_id": N}   (pk in URL is ignored for backwards compat;
-    the body shipment_id is used so the endpoint can also be called standalone.)
-
-    Loads the persisted DelayPredictor, runs feature extraction on the
-    requested shipment, returns the predicted label and probability, and
-    updates shipment.delay_risk_score in the database.
-
-    Returns 503 if the model file has not been trained yet.
+    ML inference offloaded to a dedicated thread pool so long-running
+    model load + XGBoost predict() never saturates the ASGI worker pool.
+    The view remains synchronous (DRF-compatible) while the heavy CPU
+    work runs on separate OS threads.
     """
 
     permission_classes = [permissions.IsAuthenticated]
+    _executor = None
+
+    @classmethod
+    def _get_executor(cls):
+        """Lazy-init a thread pool shared across all instances of this view."""
+        if cls._executor is None:
+            from concurrent.futures import ThreadPoolExecutor
+            cls._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="ml-infer")
+        return cls._executor
 
     def post(self, request, pk=None, **kwargs):
-        # Accept shipment_id from body OR URL pk
+        import concurrent.futures
+
         shipment_id = request.data.get("shipment_id") or pk
         if not shipment_id:
             return Response(
@@ -181,46 +202,37 @@ class PredictDelayAPIView(APIView):
             Shipment.objects.select_related("route"), pk=shipment_id
         )
 
-        # Load persisted predictor (includes fitted FeatureEngineer)
+        # ── Offload ML inference to dedicated thread pool ──────────────────
+        # This prevents XGBoost.predict() from occupying an ASGI worker thread
+        # for the duration of the inference call (~50-200ms depending on model).
         try:
             from cargotrack.ml.delay_predictor import DelayPredictor
-            dp = DelayPredictor.load()
+
+            def _load_and_predict(_shipment_pk):
+                dp = DelayPredictor.load()
+                qs = Shipment.objects.select_related("route").filter(pk=_shipment_pk)
+                X = dp.feature_engineer.transform(qs)
+                return dp.predict(X)[0]
+
+            future = self._get_executor().submit(_load_and_predict, shipment.pk)
+            label, prob = future.result(timeout=30)
         except FileNotFoundError:
             return Response(
                 {"error": "Model not trained yet. Run 'python manage.py train_model'."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+        except concurrent.futures.TimeoutError:
+            return Response(
+                {"error": "Prediction timed out. Please try again."},
+                status=status.HTTP_504_GATEWAY_TIMEOUT,
+            )
 
-        # Transform the single shipment using the loaded predictor's engineer
-        qs = Shipment.objects.select_related("route").filter(pk=shipment.pk)
-        X  = dp.feature_engineer.transform(qs)
-
-        label, prob = dp.predict(X)[0]
-
-        # Persist updated risk score
-        shipment.delay_risk_score = round(prob, 4)
-        shipment.save(update_fields=["delay_risk_score", "updated_at"])
-
-        # ── Integration (Andrew Maina - Systems Integration) ──────────────────
-        # Fire alerts if the risk score crosses the configured threshold.
-        # This ties together the ML prediction and the notification system.
-        from predictions.base import DelayPrediction
-        from alerts.manager import AlertManager
-
-        prediction = DelayPrediction(
-            delay_risk_score=prob,
-            # If label=1, we assume at least 24h delay as per the model contract.
-            predicted_delay_hours=24.0 if label else 0.0,
-            shipment_id=shipment.pk
-        )
-
-        am = AlertManager()
-        am.check_shipment(shipment, prediction)
+        _persist_risk_score(shipment, prob, label)
 
         return Response({
             "shipment_id":       shipment.pk,
             "tracking_number":   shipment.tracking_number,
-            "delay_risk_score":  shipment.delay_risk_score,
+            "delay_risk_score":  round(prob, 4),
             "predicted_delayed": bool(label),
             "confidence":        round(prob, 4),
         })
@@ -342,12 +354,12 @@ class SLAListView(APIView):
         })
 
 
-@method_decorator(cache_page(120), name='dispatch')  # 2-min cache — aggregated analytics
-class AnalyticsView(APIView):
+class AnalyticsView(AsyncCacheMixin, APIView):
     """
     GET /api/v1/analytics/ — aggregated analytics for dashboards.
     """
     permission_classes = [permissions.IsAuthenticated]
+    cache_ttl = 120  # 2-min cache
 
     def get(self, request, **kwargs):
         from django.db.models import Count, Sum, Avg
@@ -430,13 +442,13 @@ class AnalyticsView(APIView):
         })
 
 
-@method_decorator(cache_page(300), name='dispatch')  # 5-min cache — carbon analytics
-class CarbonView(APIView):
+class CarbonView(AsyncCacheMixin, APIView):
     """
     GET /api/v1/carbon/ — carbon emission analytics computed from shipments.
     Emission factor: 0.096 kg CO2 per tonne-km (average road freight EA).
     """
     permission_classes = [permissions.IsAuthenticated]
+    cache_ttl = 300  # 5-min cache
 
     def get(self, request, **kwargs):
         from django.db.models import Sum, Avg, Count
@@ -507,13 +519,13 @@ class CarbonView(APIView):
         })
 
 
-@method_decorator(cache_page(60), name='dispatch')  # 1-min cache — public tracking portal
-class PublicTrackingAPIView(APIView):
+class PublicTrackingAPIView(AsyncCacheMixin, APIView):
     """
     GET /api/v1/track/<tracking_number>/
     Public (AllowAny) — returns shipment status and events for client tracking portal.
     """
     permission_classes = [permissions.AllowAny]
+    cache_ttl = 60  # 1-min cache
 
     def get(self, request, tracking_number=None):
         shipment = get_object_or_404(
@@ -542,14 +554,14 @@ class PublicTrackingAPIView(APIView):
 
 # ── Profit Analytics ─────────────────────────────────────────────────────────
 
-@method_decorator(cache_page(180), name='dispatch')  # 3-min cache — profit analytics
-class ProfitAnalyticsView(APIView, DateRangeFilterMixin):
+class ProfitAnalyticsView(AsyncCacheMixin, APIView, DateRangeFilterMixin):
     """
     GET /api/v1/analytics/profit/
     Margin analysis: joins Shipment → Invoice → RateCard to estimate
     revenue, cost, and profit per shipment/month/carrier/route.
     """
     permission_classes = [permissions.IsAuthenticated]
+    cache_ttl = 180  # 3-min cache
 
     def get(self, request, **kwargs):
         from django.utils import timezone

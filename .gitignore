@@ -206,3 +206,24 @@ services/notification/notification.exe
 services/notification/notification
 services/webhook-dispatcher/webhook-dispatcher.exe
 services/webhook-dispatcher/webhook-dispatcher
+
+# ── Rust ────────────────────────────────────────────────────────────────────────
+# Build output (all service crates)
+**/target/
+# Compiled binaries
+services/gps-ingest/gps-ingest.exe
+services/gps-ingest/gps-ingest
+services/route-optimizer/route-optimizer.exe
+services/route-optimizer/route-optimizer
+services/fuel-optimizer/fuel_optimizer_rs.dll
+services/fuel-optimizer/fuel_optimizer_rs.so
+services/fuel-optimizer/fuel_optimizer_rs.dylib
+services/container-matcher/container_matcher_rs.dll
+services/container-matcher/container_matcher_rs.so
+services/container-matcher/container_matcher_rs.dylib
+# Rust-generated files
+*.rs.bk
+# PyO3 extension modules copied into Django (built artifacts, not source)
+services/api/cargotrack/ml/*.pyd
+services/api/cargotrack/ml/*.so
+services/api/cargotrack/ml/*.dylib

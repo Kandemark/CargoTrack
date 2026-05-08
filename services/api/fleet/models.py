@@ -180,6 +180,59 @@ class ScaleTicket(models.Model):
         return f'Scale #{self.pk} — {self.weight_kg} kg @ {self.truck.fleet_id}'
 
 
+class DriverExpense(models.Model):
+    """Expense captured by driver on mobile during a trip."""
+    EXPENSE_TYPES = [
+        ('FUEL', 'Fuel'),
+        ('TOLL', 'Toll / Road Fee'),
+        ('BORDER', 'Border Crossing Fee'),
+        ('PARKING', 'Parking'),
+        ('REPAIR', 'Emergency Repair'),
+        ('TYRE', 'Tyre Replacement'),
+        ('MEAL', 'Meal Allowance'),
+        ('LODGING', 'Lodging / Overnight'),
+        ('BRIBE', 'Unofficial Payment'),
+        ('OTHER', 'Other'),
+    ]
+    CURRENCY_CHOICES = [
+        ('KES', 'Kenyan Shilling'),
+        ('USD', 'US Dollar'),
+        ('TZS', 'Tanzanian Shilling'),
+        ('UGX', 'Ugandan Shilling'),
+        ('RWF', 'Rwandan Franc'),
+    ]
+
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name='expenses')
+    shipment = models.ForeignKey(
+        'shipments.Shipment', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='driver_expenses',
+    )
+    expense_type = models.CharField(max_length=20, choices=EXPENSE_TYPES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='KES')
+    receipt_image = models.ImageField(upload_to='expense_receipts/%Y/%m/', blank=True)
+    description = models.TextField(blank=True)
+    location = models.CharField(max_length=200, blank=True)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    reimbursed = models.BooleanField(default=False)
+    reimbursed_at = models.DateTimeField(null=True, blank=True)
+    captured_at = models.DateTimeField(auto_now_add=True)
+    synced_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-captured_at']
+        verbose_name = 'Driver Expense'
+        verbose_name_plural = 'Driver Expenses'
+
+    def __str__(self):
+        try:
+            driver_label = str(self.driver)
+        except Exception:
+            driver_label = f'Driver#{self.driver_id}'
+        return f'{self.get_expense_type_display()} — {self.amount} {self.currency} — {driver_label}'
+
+
 class TruckMaintenanceLog(models.Model):
     """Service and repair history for a truck."""
     TYPES = [

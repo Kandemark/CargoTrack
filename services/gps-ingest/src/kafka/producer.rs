@@ -56,6 +56,7 @@ impl KafkaProducer {
     }
 
     /// Publish a batch of positions.
+    #[allow(dead_code)]
     pub async fn publish_batch(&self, positions: &[Position]) -> anyhow::Result<()> {
         for position in positions {
             self.publish_position(position).await?;

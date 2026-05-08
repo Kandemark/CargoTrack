@@ -28,6 +28,8 @@ urlpatterns = [
     path('',              include('carriers.api_urls')),
     path('chat/',         include('chats.api_urls')),
     path('marketplace/',  include('marketplace.api_urls')),
+    path('pod/',          include('pod.urls')),
+    path('coldchain/',    include('coldchain.urls')),
 
     # Analytics / SLA / Carbon / Profit / Routes / Carriers / Corridors / Customers / Temporal (computed from shipments)
     path('analytics/',                     AnalyticsView.as_view(),            name='v1-analytics'),

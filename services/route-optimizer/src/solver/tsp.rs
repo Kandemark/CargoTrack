@@ -13,8 +13,7 @@ impl super::Solver for TSPSolver {
         }
 
         let vehicle = &request.vehicles[0];
-        let mut unvisited: Vec<&Stop> = request.stops.iter().collect();
-        if unvisited.is_empty() {
+        if request.stops.is_empty() {
             return Ok(RouteSolution {
                 request_id: request.request_id.clone(),
                 routes: vec![],
@@ -26,14 +25,22 @@ impl super::Solver for TSPSolver {
             });
         }
 
+        // Build a lookup from stop_id to index for coordinate access during 2-opt
+        let stop_lookup: HashMap<&str, &Location> = request
+            .stops
+            .iter()
+            .map(|s| (s.id.as_str(), &s.location))
+            .collect();
+
         // Nearest-neighbor construction
-        let mut route = vec![];
+        let mut route: Vec<String> = vec![]; // stop_ids in order
         let mut current = Location {
             latitude: vehicle.start_location.latitude,
             longitude: vehicle.start_location.longitude,
             name: "depot".to_string(),
         };
         let mut total_dist = 0.0;
+        let mut unvisited: Vec<&Stop> = request.stops.iter().collect();
 
         while !unvisited.is_empty() {
             let (idx, _) = unvisited
@@ -46,31 +53,43 @@ impl super::Solver for TSPSolver {
             let stop = unvisited.remove(idx);
             let d = haversine_km(&current, &stop.location);
             total_dist += d;
+            route.push(stop.id.clone());
+            current = stop.location.clone();
+        }
 
-            route.push(RouteStop {
-                stop_id: stop.id.clone(),
+        // 2-opt improvement using actual stop coordinates
+        let _ = apply_2opt(&mut route, &stop_lookup, &vehicle.start_location, total_dist);
+
+        // Build RouteStop sequence (distances recalculated from optimised order)
+        let start_ref: &Location = &vehicle.start_location;
+        let mut sequence: Vec<RouteStop> = Vec::with_capacity(route.len());
+        let mut prev = start_ref;
+        let mut cumulative_dist = 0.0;
+        for stop_id in &route {
+            let loc = stop_lookup.get(stop_id.as_str()).copied().unwrap_or(start_ref);
+            let d = haversine_km(prev, loc);
+            cumulative_dist += d;
+            sequence.push(RouteStop {
+                stop_id: stop_id.clone(),
                 arrival_time: Utc::now(),
                 departure_time: Utc::now(),
                 distance_from_prev_km: d,
             });
-            current = stop.location.clone();
+            prev = loc;
         }
-
-        // 2-opt improvement
-        total_dist = apply_2opt(&mut route, total_dist);
 
         Ok(RouteSolution {
             request_id: request.request_id.clone(),
             routes: vec![VehicleRoute {
                 vehicle_id: vehicle.id.clone(),
-                stop_sequence: route,
-                distance_km: total_dist,
-                duration_h: total_dist / 60.0, // assume avg 60 km/h
+                stop_sequence: sequence,
+                distance_km: cumulative_dist,
+                duration_h: cumulative_dist / 60.0,
                 load_kg: request.stops.iter().map(|s| s.demand_kg).sum(),
-                cost: total_dist * vehicle.cost_per_km,
+                cost: cumulative_dist * vehicle.cost_per_km,
             }],
-            total_distance_km: total_dist,
-            total_cost: total_dist * vehicle.cost_per_km,
+            total_distance_km: cumulative_dist,
+            total_cost: cumulative_dist * vehicle.cost_per_km,
             unserved_stops: vec![],
             computed_at: Utc::now(),
             solver_metadata: {
@@ -82,10 +101,24 @@ impl super::Solver for TSPSolver {
     }
 }
 
-fn apply_2opt(route: &mut [RouteStop], current_dist: f64) -> f64 {
+fn apply_2opt(
+    route: &mut [String],
+    stop_lookup: &HashMap<&str, &Location>,
+    depot: &Location,
+    current_dist: f64,
+) -> f64 {
     let n = route.len();
     if n < 3 {
         return current_dist;
+    }
+
+    fn get_loc<'a>(
+        route: &[String],
+        idx: usize,
+        lookup: &HashMap<&str, &'a Location>,
+        depot: &'a Location,
+    ) -> &'a Location {
+        route.get(idx).and_then(|id| lookup.get(id.as_str())).copied().unwrap_or(depot)
     }
 
     let mut improved = true;
@@ -95,37 +128,15 @@ fn apply_2opt(route: &mut [RouteStop], current_dist: f64) -> f64 {
         improved = false;
         for i in 0..n - 1 {
             for j in i + 2..n {
-                // Skip adjacent edges
-                if j == i + 1 {
-                    continue;
-                }
+                let a = if i == 0 { depot } else { get_loc(route, i - 1, stop_lookup, depot) };
+                let b = get_loc(route, i, stop_lookup, depot);
+                let c = get_loc(route, j - 1, stop_lookup, depot);
+                let d = get_loc(route, j, stop_lookup, depot);
 
-                let old_dist = if i == 0 {
-                    0.0 // depot-to-first edge, unchanged by swap
-                } else {
-                    haversine_km(
-                        &get_stop_location(route, i - 1),
-                        &get_stop_location(route, i),
-                    )
-                } + haversine_km(
-                    &get_stop_location(route, j - 1),
-                    &get_stop_location(route, j),
-                );
-
-                let new_dist = if i == 0 {
-                    0.0
-                } else {
-                    haversine_km(
-                        &get_stop_location(route, i - 1),
-                        &get_stop_location(route, j - 1),
-                    )
-                } + haversine_km(
-                    &get_stop_location(route, i),
-                    &get_stop_location(route, j),
-                );
+                let old_dist = haversine_km(a, b) + haversine_km(c, d);
+                let new_dist = haversine_km(a, c) + haversine_km(b, d);
 
                 if new_dist < old_dist - 0.001 {
-                    // Reverse the segment between i and j-1
                     route[i..j].reverse();
                     best_dist = best_dist - old_dist + new_dist;
                     improved = true;
@@ -135,12 +146,4 @@ fn apply_2opt(route: &mut [RouteStop], current_dist: f64) -> f64 {
     }
 
     best_dist
-}
-
-fn get_stop_location(route: &[RouteStop], idx: usize) -> Location {
-    Location {
-        latitude: 0.0,
-        longitude: 0.0,
-        name: route[idx].stop_id.clone(),
-    }
 }

@@ -32,7 +32,8 @@ class CustomUser(AbstractUser):
         ADMIN           = "ADMIN",           "Administrator"
         LOGISTICS_MGR   = "LOGISTICS_MGR",   "Logistics Manager"
         CLIENT          = "CLIENT",          "Client / Shipper"
-        CARRIER         = "CARRIER",         "Carrier / Driver"
+        CARRIER         = "CARRIER",         "Carrier / Fleet Owner"
+        DRIVER          = "DRIVER",          "Driver"
         DISPATCHER      = "DISPATCHER",      "Dispatcher"
         CUSTOMS_BROKER  = "CUSTOMS_BROKER",  "Customs Broker"
         WAREHOUSE_MGR   = "WAREHOUSE_MGR",   "Warehouse Manager"
@@ -104,6 +105,11 @@ class CustomUser(AbstractUser):
         """Return True if user has FINANCE_OFFICER role."""
         return self.role == self.Role.FINANCE_OFFICER
 
+    @property
+    def is_driver(self) -> bool:
+        """Return True if user has DRIVER role."""
+        return self.role == self.Role.DRIVER
+
     def can_create_shipments(self) -> bool:
         """Return True if user is allowed to create shipments."""
         return self.role in (
@@ -115,7 +121,14 @@ class CustomUser(AbstractUser):
         """Return True if user is allowed to log tracking events."""
         return self.role in (
             self.Role.ADMIN, self.Role.LOGISTICS_MGR,
-            self.Role.CARRIER, self.Role.DISPATCHER, self.Role.PORT_AGENT,
+            self.Role.CARRIER, self.Role.DRIVER, self.Role.DISPATCHER, self.Role.PORT_AGENT,
+        )
+
+    def can_capture_pod(self) -> bool:
+        """Return True if user is allowed to capture proof of delivery."""
+        return self.role in (
+            self.Role.ADMIN, self.Role.DRIVER, self.Role.CARRIER,
+            self.Role.DISPATCHER, self.Role.WAREHOUSE_MGR,
         )
 
     def can_manage_finances(self) -> bool:

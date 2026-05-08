@@ -18,6 +18,12 @@ message Position {
   double hdop = 9;               // Horizontal dilution of precision
   google.protobuf.Timestamp device_time = 10;
   google.protobuf.Timestamp server_time = 11;
+
+  // Cold chain / environmental sensors (optional — only present on reefer / IoT devices)
+  optional double temperature_c = 12;
+  optional double humidity_pct = 13;
+  optional double battery_level = 14;
+  optional double signal_strength = 15;
 }
 
 message PositionBatch {

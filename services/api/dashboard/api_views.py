@@ -1,8 +1,5 @@
 """dashboard/api_views.py — DRF API views for the logistics dashboard."""
 from django.db import models as db_models
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
-from django.views.decorators.vary import vary_on_headers
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,6 +8,8 @@ from alerts.models import Alert
 from carriers.models import Carrier
 from fleet.models import Truck
 from shipments.models import Shipment
+
+from cargotrack.async_cache import AsyncCacheMixin
 
 from .dashboard import LogisticsDashboard
 
@@ -52,10 +51,10 @@ def _compute_kpis() -> dict:
     }
 
 
-@method_decorator(cache_page(60), name='dispatch')  # 1-min cache for KPI dashboard
-class KPIApiView(APIView):
+class KPIApiView(AsyncCacheMixin, APIView):
     """GET /api/v1/dashboard/kpis/ — KPI summary for the React dashboard."""
     permission_classes = [IsAuthenticated]
+    cache_ttl = 60  # 1-min cache
 
     def get(self, request, **kwargs):
         return Response(_compute_kpis())
@@ -162,13 +161,13 @@ class MapDataAPIView(APIView):
         })
 
 
-@method_decorator(cache_page(30), name='dispatch')  # 30s cache — main dashboard
-class DashboardAPIView(APIView):
+class DashboardAPIView(AsyncCacheMixin, APIView):
     """
     GET /api/v1/dashboard/stats/
     Returns summary stats, recent events, and per-carrier performance.
     """
     permission_classes = [IsAuthenticated]
+    cache_ttl = 30  # 30s cache — main dashboard
 
     def get(self, request, **kwargs):
         db = LogisticsDashboard()
@@ -179,14 +178,14 @@ class DashboardAPIView(APIView):
         })
 
 
-@method_decorator(cache_page(120), name='dispatch')  # 2-min cache — public landing page
-class PublicLandingStatsView(APIView):
+class PublicLandingStatsView(AsyncCacheMixin, APIView):
     """
     GET /api/v1/dashboard/public-stats/ — AllowAny
     Returns live aggregate stats and anonymized active shipment dots for the
     public landing page.
     """
     permission_classes = [AllowAny]
+    cache_ttl = 120  # 2-min cache
 
     CITY_COORDS: dict[str, tuple[float, float]] = {
         'Mombasa':         (-4.0435,  39.6682),

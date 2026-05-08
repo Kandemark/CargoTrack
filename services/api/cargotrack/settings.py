@@ -96,6 +96,8 @@ INSTALLED_APPS = [
     'carriers.apps.CarriersConfig',        # Carrier companies & rate cards
     'chats.apps.ChatsConfig',              # Real-time messaging & video calls
     'marketplace.apps.MarketplaceConfig',  # Freight marketplace & job board
+    'pod.apps.PodConfig',                  # Digital proof of delivery
+    'coldchain.apps.ColdchainConfig',      # Cold chain temperature monitoring
 ]
 
 # ── Middleware ────────────────────────────────────────────────────────────────
@@ -115,6 +117,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # N+1 query detection — warns when a request triggers excessive DB queries.
+    # Set QUERY_PROFILER_THRESHOLD in .env to adjust (default 50).
+    'cargotrack.query_profiler.QueryProfilerMiddleware',
 ]
 
 ROOT_URLCONF = 'cargotrack.urls'
@@ -290,6 +295,8 @@ SPECTACULAR_SETTINGS = {
         {"name": "predictions", "description": "ML prediction endpoints"},
         {"name": "chats", "description": "Real-time messaging"},
         {"name": "accounts", "description": "User profile & organizations"},
+        {"name": "pod", "description": "Digital proof of delivery"},
+        {"name": "coldchain", "description": "Cold chain temperature monitoring"},
     ],
 }
 

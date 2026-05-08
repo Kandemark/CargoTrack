@@ -2,6 +2,7 @@ use std::env;
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    #[allow(dead_code)]
     pub grpc_port: u16,
     pub cache_capacity: usize,
     pub log_json: bool,

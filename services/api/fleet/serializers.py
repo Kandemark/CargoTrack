@@ -2,7 +2,24 @@
 fleet/serializers.py — DRF serializers for Fleet domain.
 """
 from rest_framework import serializers
-from .models import Driver, DriverJobHistory, Truck, TruckMaintenanceLog
+from .models import Driver, DriverJobHistory, DriverExpense, Truck, TruckMaintenanceLog
+
+
+class DriverExpenseSerializer(serializers.ModelSerializer):
+    driver_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DriverExpense
+        fields = [
+            'id', 'driver', 'driver_name', 'shipment', 'expense_type',
+            'amount', 'currency', 'receipt_image', 'description',
+            'location', 'latitude', 'longitude', 'reimbursed',
+            'reimbursed_at', 'captured_at', 'synced_at',
+        ]
+        read_only_fields = ('id', 'driver_name', 'synced_at', 'reimbursed', 'reimbursed_at')
+
+    def get_driver_name(self, obj):
+        return obj.driver.full_name if obj.driver_id else None
 
 
 class TruckMaintenanceLogSerializer(serializers.ModelSerializer):

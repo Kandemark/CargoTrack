@@ -1,0 +1,14 @@
+[package]
+name = "fuel-optimizer"
+version = "0.1.0"
+edition = "2021"
+description = "Dynamic programming fuel stop optimizer for CargoTrack — Python binding via PyO3"
+
+[lib]
+name = "fuel_optimizer_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
