@@ -9,14 +9,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
-/**
- * Starts and manages shipment lifecycle process instances.
- */
 @Service
 public class ShipmentWorkflowService {
 
     private static final Logger log = LoggerFactory.getLogger(ShipmentWorkflowService.class);
-    private static final String PROCESS_KEY = "ShipmentLifecycle";
+    private static final String PROCESS_KEY = "shipment-lifecycle";
 
     private final RuntimeService runtimeService;
     private final KafkaEventPublisher eventPublisher;
@@ -26,56 +23,30 @@ public class ShipmentWorkflowService {
         this.eventPublisher = eventPublisher;
     }
 
-    /**
-     * Start a new shipment lifecycle process.
-     *
-     * @param shipmentId  the shipment to track
-     * @param variables   initial process variables (origin, destination, carrier, etc.)
-     * @return process instance ID
-     */
     public String startShipment(String shipmentId, Map<String, Object> variables) {
         var businessKey = "shipment:" + shipmentId;
         variables.put("shipmentId", shipmentId);
 
         ProcessInstance instance = runtimeService.startProcessInstanceByKey(
-                PROCESS_KEY,
-                businessKey,
-                variables
-        );
+                PROCESS_KEY, businessKey, variables);
 
         log.info("Started shipment lifecycle {} (processInstanceId={})", shipmentId, instance.getId());
         eventPublisher.publishStateChange(
-                shipmentId, "NONE", "CREATED", instance.getId(), variables
-        );
+                shipmentId, "NONE", "CREATED", instance.getId(), variables);
 
         return instance.getId();
     }
 
-    /**
-     * Signal a shipment process to advance to the next state.
-     * Called when an external event (document uploaded, customs cleared, etc.) occurs.
-     */
-    public void signalEvent(String processInstanceId, String eventName, Map<String, Object> variables) {
-        runtimeService.signal(
-                runtimeService.createSignalEvent(eventName)
-                        .processInstanceId(processInstanceId)
-                        .setVariables(variables)
-        );
+    public void signalEvent(String processInstanceId, String eventName,
+                            Map<String, Object> variables) {
+        var instance = runtimeService.createProcessInstanceQuery()
+                .processInstanceId(processInstanceId)
+                .singleResult();
+        if (instance == null) {
+            log.warn("No active process instance {} for signal {}", processInstanceId, eventName);
+            return;
+        }
+        runtimeService.signalEventReceived(eventName, instance.getId(), variables);
         log.info("Signaled {} on process {}", eventName, processInstanceId);
-    }
-
-    /**
-     * Evaluate customs risk using the DMN decision table.
-     */
-    public Map<String, Object> evaluateCustomsRisk(String shipmentId, Map<String, Object> input) {
-        var result = runtimeService
-                .createDecisionEvaluation()
-                .decisionDefinitionKey("customsRiskScoring")
-                .variables(input)
-                .evaluate();
-
-        log.info("Customs risk evaluated for {}: {}", shipmentId,
-                result.getSingleResult().getEntryMap());
-        return result.getSingleResult().getEntryMap();
     }
 }

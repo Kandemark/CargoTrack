@@ -1,26 +1,18 @@
 package com.cargotrack.edi.transform;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 
-/**
- * Parses ANSI X12 messages into structured JSON.
- *
- * Supported transaction sets:
- * - 204 (Motor Carrier Load Tender — shipment booking)
- * - 214 (Transportation Carrier Shipment Status — tracking)
- * - 301 (Confirmation — customs release)
- */
 @Component
 public class X12Parser {
 
     private static final Logger log = LoggerFactory.getLogger(X12Parser.class);
-    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     public record X12Message(
             String transactionSet,
@@ -33,9 +25,6 @@ public class X12Parser {
 
     public record X12Segment(String id, List<String> elements) {}
 
-    /**
-     * Parse a raw ANSI X12 message into structured segments.
-     */
     public X12Message parse(String rawMessage) throws X12Exception {
         String cleaned = rawMessage.replace("\r\n", "\n").replace("\r", "\n").trim();
         String[] lines = cleaned.split("~");
@@ -51,7 +40,6 @@ public class X12Parser {
             String trimmed = line.trim();
             if (trimmed.isEmpty()) continue;
 
-            // X12 segment: ID*elem1*elem2*elem3...
             String[] elements = trimmed.split("\\*");
             String segmentId = elements[0];
 
@@ -61,53 +49,41 @@ public class X12Parser {
             }
 
             switch (segmentId) {
-                case "ISA": // Interchange control header
+                case "ISA":
                     if (elements.length > 6) senderId = elements[6];
                     if (elements.length > 8) receiverId = elements[8];
                     if (elements.length > 9) date = elements[9];
                     break;
-
-                case "GS": // Functional group header
+                case "GS":
                     if (elements.length > 1) transactionSet = elements[1];
                     if (elements.length > 6) controlNumber = elements[6];
                     break;
-
-                case "ST": // Transaction set header
+                case "ST":
                     if (elements.length > 1) transactionSet = elements[1];
                     if (elements.length > 2) controlNumber = elements[2];
                     break;
-
-                case "B2": // Beginning segment (204)
-                    if (elements.length > 1) {
-                        elementList.add("scac=" + elements[1]); // carrier SCAC code
-                    }
+                case "B2":
+                    if (elements.length > 1) elementList.add("scac=" + elements[1]);
                     break;
-
-                case "N1": // Name
+                case "N1":
                     if (elements.length > 1) elementList.add("qualifier=" + elements[1]);
                     if (elements.length > 2) elementList.add("name=" + elements[2]);
                     break;
-
-                case "N3": // Address
+                case "N3":
                     if (elements.length > 1) elementList.add("address=" + elements[1]);
                     break;
-
-                case "N4": // City/State/Zip
+                case "N4":
                     if (elements.length > 1) elementList.add("city=" + elements[1]);
                     if (elements.length > 2) elementList.add("state=" + elements[2]);
                     if (elements.length > 3) elementList.add("zip=" + elements[3]);
                     break;
             }
-
             segments.add(new X12Segment(segmentId, elementList));
         }
 
         return new X12Message(transactionSet, senderId, receiverId, controlNumber, date, segments);
     }
 
-    /**
-     * Convert parsed X12 to a JSON string for Kafka publishing.
-     */
     public String toJson(X12Message msg) {
         Map<String, Object> envelope = new LinkedHashMap<>();
         envelope.put("standard", "ANSI_X12");
@@ -126,12 +102,15 @@ public class X12Parser {
         }
         envelope.put("segments", segList);
 
-        return gson.toJson(envelope);
+        try {
+            return mapper.writeValueAsString(envelope);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize X12 message", e);
+            return "{}";
+        }
     }
 
     public static class X12Exception extends Exception {
-        public X12Exception(String message) {
-            super(message);
-        }
+        public X12Exception(String message) { super(message); }
     }
 }

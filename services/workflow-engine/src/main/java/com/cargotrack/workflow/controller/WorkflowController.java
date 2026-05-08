@@ -1,148 +1,96 @@
 package com.cargotrack.workflow.controller;
 
-import com.cargotrack.workflow.service.ShipmentWorkflowService;
-import org.camunda.bpm.engine.HistoryService;
-import org.camunda.bpm.engine.RuntimeService;
-import org.camunda.bpm.engine.TaskService;
-import org.camunda.bpm.engine.history.HistoricProcessInstance;
-import org.camunda.bpm.engine.task.Task;
+import com.cargotrack.workflow.dto.ShipmentProcessRequest;
+import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.ProcessEngines;
+import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/workflows")
 public class WorkflowController {
 
-    private final ShipmentWorkflowService workflowService;
-    private final RuntimeService runtimeService;
-    private final TaskService taskService;
-    private final HistoryService historyService;
+    private static final Logger log = LoggerFactory.getLogger(WorkflowController.class);
+    public static final String SHIPMENT_LIFECYCLE = "shipment-lifecycle";
 
-    public WorkflowController(
-            ShipmentWorkflowService workflowService,
-            RuntimeService runtimeService,
-            TaskService taskService,
-            HistoryService historyService
-    ) {
-        this.workflowService = workflowService;
-        this.runtimeService = runtimeService;
-        this.taskService = taskService;
-        this.historyService = historyService;
-    }
-
-    /**
-     * Start a shipment lifecycle.
-     * POST /api/workflows/shipments
-     */
     @PostMapping("/shipments")
-    public ResponseEntity<Map<String, Object>> startShipment(@RequestBody Map<String, Object> request) {
-        String shipmentId = (String) request.get("shipment_id");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> variables = (Map<String, Object>) request.getOrDefault("variables", new HashMap<>());
+    public ResponseEntity<Map<String, Object>> startShipmentWorkflow(
+            @RequestBody ShipmentProcessRequest request) {
 
-        String instanceId = workflowService.startShipment(shipmentId, variables);
+        ProcessEngine engine = ProcessEngines.getDefaultProcessEngine();
+
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("shipmentId", request.shipmentId());
+        variables.put("origin", request.origin());
+        variables.put("destination", request.destination());
+        variables.put("cargoType", request.cargoType());
+        variables.put("declaredValueUsd", request.declaredValueUsd());
+        variables.put("carrierId", request.carrierId() != null ? request.carrierId() : "");
+        variables.put("shipperId", request.shipperId());
+
+        if (request.variables() != null) {
+            variables.putAll(request.variables());
+        }
+
+        ProcessInstance instance = engine.getRuntimeService()
+                .startProcessInstanceByKey(SHIPMENT_LIFECYCLE, request.shipmentId(), variables);
+
+        log.info("Started shipment lifecycle for {} — instanceId={}", request.shipmentId(), instance.getId());
 
         Map<String, Object> response = new HashMap<>();
-        response.put("process_instance_id", instanceId);
-        response.put("shipment_id", shipmentId);
-        response.put("status", "CREATED");
+        response.put("processInstanceId", instance.getId());
+        response.put("shipmentId", request.shipmentId());
+        response.put("status", "STARTED");
+
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Get all active shipment workflow instances.
-     * GET /api/workflows/shipments
-     */
-    @GetMapping("/shipments")
-    public ResponseEntity<List<Map<String, Object>>> getActiveShipments() {
-        var instances = runtimeService.createProcessInstanceQuery()
-                .processDefinitionKey("ShipmentLifecycle")
-                .active()
-                .list();
+    @GetMapping("/shipments/{shipmentId}")
+    public ResponseEntity<Map<String, Object>> getShipmentStatus(@PathVariable String shipmentId) {
+        ProcessEngine engine = ProcessEngines.getDefaultProcessEngine();
 
-        List<Map<String, Object>> result = instances.stream().map(pi -> {
-            Map<String, Object> m = new HashMap<>();
-            m.put("process_instance_id", pi.getId());
-            m.put("business_key", pi.getBusinessKey());
-            m.put("variables", runtimeService.getVariables(pi.getId()));
-            return m;
-        }).toList();
+        var query = engine.getRuntimeService()
+                .createProcessInstanceQuery()
+                .processInstanceBusinessKey(shipmentId)
+                .singleResult();
 
-        return ResponseEntity.ok(result);
+        Map<String, Object> response = new HashMap<>();
+        response.put("shipmentId", shipmentId);
+
+        if (query != null) {
+            response.put("active", true);
+            response.put("processInstanceId", query.getId());
+            var activities = engine.getRuntimeService()
+                    .getActiveActivityIds(query.getId());
+            response.put("activityNames", activities);
+        } else {
+            response.put("active", false);
+            // Check history
+            var historic = engine.getHistoryService()
+                    .createHistoricProcessInstanceQuery()
+                    .processInstanceBusinessKey(shipmentId)
+                    .singleResult();
+            response.put("completed", historic != null && historic.getEndTime() != null);
+            if (historic != null) {
+                response.put("durationMs",
+                        historic.getEndTime() != null ? historic.getDurationInMillis() : null);
+            }
+        }
+
+        return ResponseEntity.ok(response);
     }
 
-    /**
-     * Get active user tasks (documents to verify, approvals needed).
-     * GET /api/workflows/tasks
-     */
-    @GetMapping("/tasks")
-    public ResponseEntity<List<Map<String, Object>>> getTasks() {
-        List<Task> tasks = taskService.createTaskQuery().active().list();
-
-        List<Map<String, Object>> result = tasks.stream().map(t -> {
-            Map<String, Object> m = new HashMap<>();
-            m.put("task_id", t.getId());
-            m.put("name", t.getName());
-            m.put("process_instance_id", t.getProcessInstanceId());
-            m.put("assignee", t.getAssignee());
-            m.put("created", t.getCreateTime().toString());
-            return m;
-        }).toList();
-
-        return ResponseEntity.ok(result);
-    }
-
-    /**
-     * Complete a user task (e.g., verify documents, approve carrier).
-     * POST /api/workflows/tasks/{taskId}/complete
-     */
-    @PostMapping("/tasks/{taskId}/complete")
-    public ResponseEntity<Map<String, String>> completeTask(
-            @PathVariable String taskId,
-            @RequestBody Map<String, Object> variables
-    ) {
-        taskService.complete(taskId, variables);
-        return ResponseEntity.ok(Map.of("status", "completed", "task_id", taskId));
-    }
-
-    /**
-     * Get shipment workflow history.
-     * GET /api/workflows/shipments/{shipmentId}/history
-     */
-    @GetMapping("/shipments/{shipmentId}/history")
-    public ResponseEntity<List<Map<String, Object>>> getHistory(@PathVariable String shipmentId) {
-        List<HistoricProcessInstance> instances = historyService
-                .createHistoricProcessInstanceQuery()
-                .processInstanceBusinessKey("shipment:" + shipmentId)
-                .list();
-
-        List<Map<String, Object>> result = instances.stream().map(pi -> {
-            Map<String, Object> m = new HashMap<>();
-            m.put("process_instance_id", pi.getId());
-            m.put("start_time", pi.getStartTime().toString());
-            m.put("end_time", pi.getEndTime() != null ? pi.getEndTime().toString() : null);
-            m.put("state", pi.getState());
-            return m;
-        }).toList();
-
-        return ResponseEntity.ok(result);
-    }
-
-    /**
-     * Evaluate customs risk.
-     * POST /api/workflows/customs-risk
-     */
-    @PostMapping("/customs-risk")
-    public ResponseEntity<Map<String, Object>> evaluateCustomsRisk(@RequestBody Map<String, Object> request) {
-        String shipmentId = (String) request.get("shipment_id");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> input = (Map<String, Object>) request.getOrDefault("input", new HashMap<>());
-
-        Map<String, Object> result = workflowService.evaluateCustomsRisk(shipmentId, input);
-        return ResponseEntity.ok(result);
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, String>> health() {
+        Map<String, String> status = new HashMap<>();
+        status.put("status", "UP");
+        status.put("engine", ProcessEngines.getDefaultProcessEngine().getName());
+        return ResponseEntity.ok(status);
     }
 }

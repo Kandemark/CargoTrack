@@ -207,6 +207,15 @@ services/notification/notification
 services/webhook-dispatcher/webhook-dispatcher.exe
 services/webhook-dispatcher/webhook-dispatcher
 
+# ── Java / Maven ───────────────────────────────────────────────────────────────
+*.class
+*.jar
+*.war
+*.ear
+!.mvn/wrapper/maven-wrapper.jar
+# Maven wrapper downloads
+.mvn/wrapper/MavenWrapperDownloader.java
+
 # ── Rust ────────────────────────────────────────────────────────────────────────
 # Build output (all service crates)
 **/target/

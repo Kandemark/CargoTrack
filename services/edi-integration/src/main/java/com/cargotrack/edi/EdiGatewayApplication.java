@@ -4,9 +4,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class EdiIntegrationApplication {
+public class EdiGatewayApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(EdiIntegrationApplication.class, args);
+        SpringApplication.run(EdiGatewayApplication.class, args);
     }
 }

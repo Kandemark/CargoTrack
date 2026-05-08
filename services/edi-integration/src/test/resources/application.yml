@@ -1,0 +1,26 @@
+camel:
+  springboot:
+    main-run-controller: true
+
+edi:
+  sftp:
+    host: test-host
+    port: 22
+    user: testuser
+    username: testuser
+    password: testpass
+    pollDelayMs: 999999
+  error-dir: target/edi-errors
+
+kafka:
+  topic:
+    shipments: test.shipments
+    tracking: test.tracking
+    customs: test.customs
+    outbound: test.outbound
+  bootstrap-servers: localhost:9999
+
+logging:
+  level:
+    com.cargotrack: DEBUG
+    org.apache.camel: WARN

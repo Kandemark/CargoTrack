@@ -1,253 +1,188 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
-                  targetNamespace="http://cargotrack.io/bpmn"
-                  id="ShipmentLifecycleDefinitions">
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="shipment-lifecycle-process"
+                  targetNamespace="http://cargotrack.com/bpmn/shipment">
 
-  <bpmn:process id="ShipmentLifecycle" name="Shipment Lifecycle" isExecutable="true"
-                camunda:historyTimeToLive="P90D">
+  <bpmn:process id="shipment-lifecycle"
+                name="Shipment Lifecycle"
+                isExecutable="true"
+                camunda:historyTimeToLive="P30D">
 
-    <!-- Start Event -->
     <bpmn:startEvent id="StartEvent" name="Shipment Created">
-      <bpmn:outgoing>Flow_Created</bpmn:outgoing>
+      <bpmn:outgoing>Flow_created_to_docs</bpmn:outgoing>
     </bpmn:startEvent>
 
-    <!-- Script: emit state change to Kafka -->
-    <bpmn:sequenceFlow id="Flow_Created" sourceRef="StartEvent" targetRef="TaskEmitCreated"/>
+    <bpmn:sequenceFlow id="Flow_created_to_docs" sourceRef="StartEvent" targetRef="Task_verify_docs"/>
 
-    <bpmn:serviceTask id="TaskEmitCreated" name="Emit CREATED event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'NONE', 'CREATED', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToDocsVerify</bpmn:outgoing>
+    <!-- Document Verification -->
+    <bpmn:serviceTask id="Task_verify_docs"
+                      name="Verify Documents"
+                      camunda:delegateExpression="${documentVerification}">
+      <bpmn:incoming>Flow_created_to_docs</bpmn:incoming>
+      <bpmn:outgoing>Flow_docs_to_gateway</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- DOCUMENTS VERIFICATION (User Task) -->
-    <bpmn:sequenceFlow id="Flow_ToDocsVerify" sourceRef="TaskEmitCreated" targetRef="TaskVerifyDocs"/>
+    <bpmn:sequenceFlow id="Flow_docs_to_gateway" sourceRef="Task_verify_docs" targetRef="Gateway_docs_ok"/>
 
-    <bpmn:userTask id="TaskVerifyDocs" name="Verify Shipping Documents"
-                   camunda:assignee="${documentsVerifier}"
-                   camunda:candidateGroups="operations">
-      <bpmn:outgoing>Flow_DocsVerified</bpmn:outgoing>
-      <bpmn:outgoing>Flow_DocsRejected</bpmn:outgoing>
-    </bpmn:userTask>
-
-    <bpmn:sequenceFlow id="Flow_DocsVerified" name="Approved" sourceRef="TaskVerifyDocs" targetRef="GatewayDocsOk">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${documentsApproved == true}</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-
-    <bpmn:sequenceFlow id="Flow_DocsRejected" name="Rejected" sourceRef="TaskVerifyDocs" targetRef="TaskFixDocuments">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${documentsApproved == false}</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-
-    <bpmn:userTask id="TaskFixDocuments" name="Fix Document Issues" camunda:assignee="${documentsVerifier}">
-      <bpmn:outgoing>Flow_RetryDocs</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:sequenceFlow id="Flow_RetryDocs" sourceRef="TaskFixDocuments" targetRef="TaskVerifyDocs"/>
-
-    <!-- Gateway after docs verification -->
-    <bpmn:exclusiveGateway id="GatewayDocsOk">
-      <bpmn:outgoing>Flow_ToCarrierAssign</bpmn:outgoing>
+    <bpmn:exclusiveGateway id="Gateway_docs_ok" name="Documents OK?">
+      <bpmn:incoming>Flow_docs_to_gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_docs_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_docs_no</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- CARRIER ASSIGNMENT (User Task) -->
-    <bpmn:sequenceFlow id="Flow_ToCarrierAssign" sourceRef="GatewayDocsOk" targetRef="TaskAssignCarrier"/>
+    <bpmn:sequenceFlow id="Flow_docs_yes" sourceRef="Gateway_docs_ok" targetRef="Task_assign_carrier">
+      <bpmn:conditionExpression>${documentsVerified}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
 
-    <bpmn:userTask id="TaskAssignCarrier" name="Assign Carrier"
-                   camunda:assignee="${dispatcher}"
-                   camunda:candidateGroups="dispatchers">
-      <bpmn:outgoing>Flow_CarrierAssigned</bpmn:outgoing>
-    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_docs_no" sourceRef="Gateway_docs_ok" targetRef="Task_notify_doc_fail">
+      <bpmn:conditionExpression>${!documentsVerified}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
 
-    <bpmn:sequenceFlow id="Flow_CarrierAssigned" sourceRef="TaskAssignCarrier" targetRef="TaskEmitCarrierAssigned"/>
-
-    <bpmn:serviceTask id="TaskEmitCarrierAssigned" name="Emit CARRIER_ASSIGNED event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'DOCUMENTS_VERIFIED', 'CARRIER_ASSIGNED', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToDispatch</bpmn:outgoing>
+    <bpmn:serviceTask id="Task_notify_doc_fail"
+                      name="Notify Document Failure"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_docs_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_doc_fail_done</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- DISPATCHED -->
-    <bpmn:sequenceFlow id="Flow_ToDispatch" sourceRef="TaskEmitCarrierAssigned" targetRef="TaskDispatch"/>
+    <bpmn:endEvent id="End_doc_fail" name="Rejected">
+      <bpmn:incoming>Flow_doc_fail_done</bpmn:incoming>
+    </bpmn:endEvent>
 
-    <bpmn:userTask id="TaskDispatch" name="Confirm Dispatch"
-                   camunda:assignee="${dispatcher}"
-                   camunda:candidateGroups="dispatchers">
-      <bpmn:outgoing>Flow_Dispatched</bpmn:outgoing>
-    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_doc_fail_done" sourceRef="Task_notify_doc_fail" targetRef="End_doc_fail"/>
 
-    <bpmn:sequenceFlow id="Flow_Dispatched" sourceRef="TaskDispatch" targetRef="TaskEmitDispatched"/>
-
-    <bpmn:serviceTask id="TaskEmitDispatched" name="Emit DISPATCHED event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'CARRIER_ASSIGNED', 'DISPATCHED', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToDeparture</bpmn:outgoing>
+    <!-- Carrier Assignment -->
+    <bpmn:serviceTask id="Task_assign_carrier"
+                      name="Assign Carrier"
+                      camunda:delegateExpression="${carrierAssignment}">
+      <bpmn:incoming>Flow_docs_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_carrier_to_dispatch</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- DEPARTED (Signal from tracking event) -->
-    <bpmn:sequenceFlow id="Flow_ToDeparture" sourceRef="TaskEmitDispatched" targetRef="CatchDepartureSignal"/>
+    <bpmn:sequenceFlow id="Flow_carrier_to_dispatch" sourceRef="Task_assign_carrier" targetRef="Task_dispatch"/>
 
-    <bpmn:intermediateCatchEvent id="CatchDepartureSignal" name="Wait for Departure">
-      <bpmn:signalEventDefinition signalRef="departureDetected"/>
-      <bpmn:outgoing>Flow_Departed</bpmn:outgoing>
-    </bpmn:intermediateCatchEvent>
-
-    <bpmn:sequenceFlow id="Flow_Departed" sourceRef="CatchDepartureSignal" targetRef="TaskEmitDeparted"/>
-
-    <bpmn:serviceTask id="TaskEmitDeparted" name="Emit DEPARTED event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'DISPATCHED', 'DEPARTED', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToBorderCheck</bpmn:outgoing>
+    <!-- Dispatch -->
+    <bpmn:serviceTask id="Task_dispatch"
+                      name="Dispatch Shipment"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_carrier_to_dispatch</bpmn:incoming>
+      <bpmn:outgoing>Flow_dispatch_to_departure</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- BORDER CHECKPOINT + CUSTOMS RISK (DMN decision) -->
-    <bpmn:sequenceFlow id="Flow_ToBorderCheck" sourceRef="TaskEmitDeparted" targetRef="TaskBorderCheck"/>
+    <bpmn:sequenceFlow id="Flow_dispatch_to_departure" sourceRef="Task_dispatch" targetRef="Task_departure"/>
 
-    <bpmn:serviceTask id="TaskBorderCheck" name="Border Checkpoint"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'DEPARTED', 'BORDER_CHECKPOINT', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToCustomsRisk</bpmn:outgoing>
+    <!-- Departure -->
+    <bpmn:serviceTask id="Task_departure"
+                      name="Record Departure"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_dispatch_to_departure</bpmn:incoming>
+      <bpmn:outgoing>Flow_departure_to_border</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_ToCustomsRisk" sourceRef="TaskBorderCheck" targetRef="TaskCustomsRisk"/>
+    <bpmn:sequenceFlow id="Flow_departure_to_border" sourceRef="Task_departure" targetRef="Task_customs"/>
 
-    <bpmn:businessRuleTask id="TaskCustomsRisk" name="Evaluate Customs Risk"
-                           camunda:decisionRef="customsRiskScoring"
-                           camunda:mapDecisionResult="singleEntry"
-                           camunda:resultVariable="customsRiskResult">
-      <bpmn:outgoing>Flow_CustomsEvaluated</bpmn:outgoing>
-    </bpmn:businessRuleTask>
+    <!-- Customs Assessment -->
+    <bpmn:serviceTask id="Task_customs"
+                      name="Customs Assessment"
+                      camunda:delegateExpression="${customsAssessment}">
+      <bpmn:incoming>Flow_departure_to_border</bpmn:incoming>
+      <bpmn:outgoing>Flow_customs_to_gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_CustomsEvaluated" sourceRef="TaskCustomsRisk" targetRef="GatewayCustomsRisk"/>
+    <bpmn:sequenceFlow id="Flow_customs_to_gateway" sourceRef="Task_customs" targetRef="Gateway_customs_green"/>
 
-    <bpmn:exclusiveGateway id="GatewayCustomsRisk">
-      <bpmn:outgoing>Flow_GreenLane</bpmn:outgoing>
-      <bpmn:outgoing>Flow_RedLane</bpmn:outgoing>
+    <bpmn:exclusiveGateway id="Gateway_customs_green" name="Green Lane?">
+      <bpmn:incoming>Flow_customs_to_gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_green_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_green_no</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <bpmn:sequenceFlow id="Flow_GreenLane" name="Green Lane" sourceRef="GatewayCustomsRisk" targetRef="TaskCustomsClear">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${customsRiskResult.riskLevel == 'LOW'}</bpmn:conditionExpression>
+    <bpmn:sequenceFlow id="Flow_green_yes" sourceRef="Gateway_customs_green" targetRef="Task_in_transit">
+      <bpmn:conditionExpression>${greenLane}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
-    <bpmn:sequenceFlow id="Flow_RedLane" name="Red Lane — Physical Inspection" sourceRef="GatewayCustomsRisk" targetRef="TaskPhysicalInspection">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${customsRiskResult.riskLevel != 'LOW'}</bpmn:conditionExpression>
+    <bpmn:sequenceFlow id="Flow_green_no" sourceRef="Gateway_customs_green" targetRef="Task_physical_inspection">
+      <bpmn:conditionExpression>${!greenLane}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
-    <bpmn:userTask id="TaskPhysicalInspection" name="Physical Customs Inspection"
-                   camunda:candidateGroups="customs">
-      <bpmn:outgoing>Flow_InspectionDone</bpmn:outgoing>
-    </bpmn:userTask>
-    <bpmn:sequenceFlow id="Flow_InspectionDone" sourceRef="TaskPhysicalInspection" targetRef="TaskCustomsClear"/>
-
-    <!-- CUSTOMS CLEARED -->
-    <bpmn:serviceTask id="TaskCustomsClear" name="Customs Cleared"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'BORDER_CHECKPOINT', 'CUSTOMS_CLEARANCE', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToInTransit</bpmn:outgoing>
-    </bpmn:serviceTask>
-
-    <!-- IN TRANSIT (catch tracking events) -->
-    <bpmn:sequenceFlow id="Flow_ToInTransit" sourceRef="TaskCustomsClear" targetRef="CatchInTransitSignal"/>
-
-    <bpmn:intermediateCatchEvent id="CatchInTransitSignal" name="Wait for In Transit">
-      <bpmn:signalEventDefinition signalRef="inTransit"/>
-      <bpmn:outgoing>Flow_InTransit</bpmn:outgoing>
-    </bpmn:intermediateCatchEvent>
-
-    <bpmn:sequenceFlow id="Flow_InTransit" sourceRef="CatchInTransitSignal" targetRef="TaskEmitInTransit"/>
-
-    <bpmn:serviceTask id="TaskEmitInTransit" name="Emit IN_TRANSIT event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'CUSTOMS_CLEARANCE', 'IN_TRANSIT', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToLastMile</bpmn:outgoing>
-    </bpmn:serviceTask>
-
-    <!-- LAST MILE -->
-    <bpmn:sequenceFlow id="Flow_ToLastMile" sourceRef="TaskEmitInTransit" targetRef="CatchLastMileSignal"/>
-
-    <bpmn:intermediateCatchEvent id="CatchLastMileSignal" name="Wait for Last Mile">
-      <bpmn:signalEventDefinition signalRef="lastMile"/>
-      <bpmn:outgoing>Flow_LastMile</bpmn:outgoing>
-    </bpmn:intermediateCatchEvent>
-
-    <bpmn:sequenceFlow id="Flow_LastMile" sourceRef="CatchLastMileSignal" targetRef="TaskEmitLastMile"/>
-
-    <bpmn:serviceTask id="TaskEmitLastMile" name="Emit LAST_MILE event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'IN_TRANSIT', 'LAST_MILE', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToDelivered</bpmn:outgoing>
-    </bpmn:serviceTask>
-
-    <!-- DELIVERED -->
-    <bpmn:sequenceFlow id="Flow_ToDelivered" sourceRef="TaskEmitLastMile" targetRef="TaskDeliveryConfirm"/>
-
-    <bpmn:userTask id="TaskDeliveryConfirm" name="Confirm Delivery"
-                   camunda:assignee="${driver}"
-                   camunda:candidateGroups="drivers">
-      <bpmn:outgoing>Flow_Delivered</bpmn:outgoing>
+    <!-- Physical Inspection (non-green-lane) -->
+    <bpmn:userTask id="Task_physical_inspection"
+                   name="Physical Inspection"
+                   camunda:assignee="customs">
+      <bpmn:incoming>Flow_green_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_inspection_done</bpmn:outgoing>
     </bpmn:userTask>
 
-    <bpmn:sequenceFlow id="Flow_Delivered" sourceRef="TaskDeliveryConfirm" targetRef="TaskEmitDelivered"/>
+    <bpmn:sequenceFlow id="Flow_inspection_done" sourceRef="Task_physical_inspection" targetRef="Task_in_transit"/>
 
-    <bpmn:serviceTask id="TaskEmitDelivered" name="Emit DELIVERED event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'LAST_MILE', 'DELIVERED', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToInvoiced</bpmn:outgoing>
+    <!-- In Transit -->
+    <bpmn:serviceTask id="Task_in_transit"
+                      name="In Transit"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_green_yes</bpmn:incoming>
+      <bpmn:incoming>Flow_inspection_done</bpmn:incoming>
+      <bpmn:outgoing>Flow_transit_to_lastmile</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- INVOICED (automated) -->
-    <bpmn:sequenceFlow id="Flow_ToInvoiced" sourceRef="TaskEmitDelivered" targetRef="TaskEmitInvoiced"/>
+    <bpmn:sequenceFlow id="Flow_transit_to_lastmile" sourceRef="Task_in_transit" targetRef="Task_last_mile"/>
 
-    <bpmn:serviceTask id="TaskEmitInvoiced" name="Emit INVOICED event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'DELIVERED', 'INVOICED', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToPaid</bpmn:outgoing>
+    <!-- Last Mile -->
+    <bpmn:serviceTask id="Task_last_mile"
+                      name="Last Mile Delivery"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_transit_to_lastmile</bpmn:incoming>
+      <bpmn:outgoing>Flow_lastmile_to_delivered</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- PAID (signal from payment system) -->
-    <bpmn:sequenceFlow id="Flow_ToPaid" sourceRef="TaskEmitInvoiced" targetRef="CatchPaymentSignal"/>
+    <bpmn:sequenceFlow id="Flow_lastmile_to_delivered" sourceRef="Task_last_mile" targetRef="Task_delivered"/>
 
-    <bpmn:intermediateCatchEvent id="CatchPaymentSignal" name="Wait for Payment">
-      <bpmn:signalEventDefinition signalRef="paymentReceived"/>
-      <bpmn:outgoing>Flow_Paid</bpmn:outgoing>
-    </bpmn:intermediateCatchEvent>
-
-    <bpmn:sequenceFlow id="Flow_Paid" sourceRef="CatchPaymentSignal" targetRef="TaskEmitPaid"/>
-
-    <bpmn:serviceTask id="TaskEmitPaid" name="Emit PAID event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'INVOICED', 'PAID', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToClosed</bpmn:outgoing>
+    <!-- Delivered -->
+    <bpmn:serviceTask id="Task_delivered"
+                      name="Confirm Delivery"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_lastmile_to_delivered</bpmn:incoming>
+      <bpmn:outgoing>Flow_delivered_to_invoice</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- CLOSED -->
-    <bpmn:sequenceFlow id="Flow_ToClosed" sourceRef="TaskEmitPaid" targetRef="TaskEmitClosed"/>
+    <bpmn:sequenceFlow id="Flow_delivered_to_invoice" sourceRef="Task_delivered" targetRef="Task_invoiced"/>
 
-    <bpmn:serviceTask id="TaskEmitClosed" name="Emit CLOSED event"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, 'PAID', 'CLOSED', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    <!-- Invoiced -->
+    <bpmn:serviceTask id="Task_invoiced"
+                      name="Generate Invoice"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_delivered_to_invoice</bpmn:incoming>
+      <bpmn:outgoing>Flow_invoice_to_paid</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="TaskEmitClosed" targetRef="EndEvent"/>
+    <bpmn:sequenceFlow id="Flow_invoice_to_paid" sourceRef="Task_invoiced" targetRef="Task_paid"/>
 
-    <!-- End Event -->
-    <bpmn:endEvent id="EndEvent" name="Shipment Closed"/>
-
-    <!-- SLA Breach Boundary Event — if any task exceeds its SLA, fire escalation -->
-    <bpmn:boundaryEvent id="SLABreach" name="SLA Breach"
-                        attachedToRef="TaskDispatch"
-                        cancelActivity="false">
-      <bpmn:timerEventDefinition>
-        <bpmn:timeDuration>${slaDeadlineHours}</bpmn:timeDuration>
-      </bpmn:timerEventDefinition>
-      <bpmn:outgoing>Flow_SLABreach</bpmn:outgoing>
-    </bpmn:boundaryEvent>
-
-    <bpmn:sequenceFlow id="Flow_SLABreach" sourceRef="SLABreach" targetRef="TaskSLABreach"/>
-
-    <bpmn:serviceTask id="TaskSLABreach" name="Escalate SLA Breach"
-                      camunda:expression="${kafkaEventPublisher.publishStateChange(shipmentId, execution.getVariable('currentState'), 'SLA_BREACH', execution.processInstanceId, execution.variables)}">
-      <bpmn:outgoing>Flow_BackToMain</bpmn:outgoing>
+    <!-- Paid -->
+    <bpmn:serviceTask id="Task_paid"
+                      name="Payment Received"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_invoice_to_paid</bpmn:incoming>
+      <bpmn:outgoing>Flow_paid_to_closed</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="Flow_BackToMain" sourceRef="TaskSLABreach" targetRef="TaskDispatch"/>
+
+    <bpmn:sequenceFlow id="Flow_paid_to_closed" sourceRef="Task_paid" targetRef="End_closed"/>
+
+    <!-- Closed -->
+    <bpmn:endEvent id="End_closed" name="Closed">
+      <bpmn:incoming>Flow_paid_to_closed</bpmn:incoming>
+    </bpmn:endEvent>
 
   </bpmn:process>
 
-  <!-- Signal Definitions -->
-  <bpmn:signal id="departureDetected" name="departureDetected"/>
-  <bpmn:signal id="inTransit" name="inTransit"/>
-  <bpmn:signal id="lastMile" name="lastMile"/>
-  <bpmn:signal id="paymentReceived" name="paymentReceived"/>
+  <!-- BPMN Diagram (visual layout) -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_shipment-lifecycle">
+    <bpmndi:BPMNPlane id="BPMNPlane_shipment-lifecycle" bpmnElement="shipment-lifecycle">
+      <!-- Layout is auto-arranged by Camunda Modeler -->
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
 
 </bpmn:definitions>
