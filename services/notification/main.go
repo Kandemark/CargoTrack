@@ -9,6 +9,7 @@ import (
 	"github.com/cargotrack/notification/dispatcher"
 	"github.com/cargotrack/notification/providers"
 	"github.com/cargotrack/notification/ratelimit"
+	"github.com/cargotrack/notification/ussd"
 )
 
 func main() {
@@ -50,6 +51,26 @@ func main() {
 
 	if len(provs) == 0 {
 		log.Println("[WARN] No notification providers configured — service will be a no-op")
+	}
+
+	// ── Africa's Talking enhanced client (SMS bulk, USSD, Voice, Airtime) ──
+	var atClient *providers.AfricaSTalkingClient
+	if cfg.ATAPIKey != "" {
+		atClient = providers.NewAfricaSTalkingClient(
+			cfg.ATUsername, cfg.ATAPIKey, cfg.ATShortCode, cfg.ATSenderID,
+		)
+		log.Printf("[INFO] Africa's Talking client created (shortcode: %s)", cfg.ATShortCode)
+	}
+
+	// ── USSD server (driver self-service via *384# and similar shortcodes) ──
+	if atClient != nil && cfg.USSDAddr != "" {
+		ussdSrv := ussd.NewServer(atClient, cfg.USSDAddr)
+		go func() {
+			log.Printf("[INFO] USSD gateway starting on %s", cfg.USSDAddr)
+			if err := ussdSrv.Start(); err != nil {
+				log.Printf("[ERROR] USSD server: %v", err)
+			}
+		}()
 	}
 
 	// Template engine

@@ -1,0 +1,89 @@
+﻿syntax = "proto3";
+
+package cargotrack.route_optimizer.v1;
+
+// ── Service ────────────────────────────────────────────────────────────────
+
+service RouteOptimizer {
+  // Optimize a set of stops across a fleet of vehicles.
+  // Uses TSP for single-vehicle, MVRP for multi-vehicle problems.
+  rpc Optimize(OptimizeRequest) returns (OptimizeResponse);
+
+  // Health check for Kubernetes liveness/readiness probes.
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// ── Messages ───────────────────────────────────────────────────────────────
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool healthy = 1;
+  string version = 2;
+  uint32 cache_size = 3;
+}
+
+message GeoPoint {
+  double latitude = 1;
+  double longitude = 2;
+  string name = 3;
+}
+
+message TimeWindow {
+  string earliest = 1;  // ISO 8601
+  string latest = 2;    // ISO 8601
+}
+
+message Stop {
+  string id = 1;
+  GeoPoint location = 2;
+  optional TimeWindow time_window = 3;
+  double service_time_min = 4;
+  double demand_kg = 5;
+  optional string shipment_id = 6;
+}
+
+message Vehicle {
+  string id = 1;
+  GeoPoint start_location = 2;
+  optional GeoPoint end_location = 3;
+  double capacity_kg = 4;
+  optional string available_from = 5;   // ISO 8601
+  optional string available_until = 6;  // ISO 8601
+  double cost_per_km = 7;
+}
+
+message OptimizeRequest {
+  string request_id = 1;
+  GeoPoint depot = 2;
+  repeated Stop stops = 3;
+  repeated Vehicle vehicles = 4;
+  optional double max_distance_km = 5;
+  optional double max_duration_h = 6;
+}
+
+message RouteStop {
+  string stop_id = 1;
+  string arrival_time = 2;    // ISO 8601
+  string departure_time = 3;  // ISO 8601
+  double distance_from_prev_km = 4;
+}
+
+message VehicleRoute {
+  string vehicle_id = 1;
+  repeated RouteStop stop_sequence = 2;
+  double distance_km = 3;
+  double duration_h = 4;
+  double load_kg = 5;
+  double cost = 6;
+}
+
+message OptimizeResponse {
+  string request_id = 1;
+  repeated VehicleRoute routes = 2;
+  double total_distance_km = 3;
+  double total_cost = 4;
+  repeated string unserved_stops = 5;
+  string computed_at = 6;     // ISO 8601
+  map<string, string> solver_metadata = 7;
+}

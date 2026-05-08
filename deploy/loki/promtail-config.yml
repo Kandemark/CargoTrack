@@ -1,0 +1,54 @@
+﻿# Promtail — ships Docker container logs to Loki.
+# Scrapes all CargoTrack containers and attaches service/component labels.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+positions:
+  filename: /tmp/positions.yaml
+
+scrape_configs:
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+
+      # Extract service name from container label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/cargotrack-(.+)-\d+'
+        target_label: 'service'
+
+      # Filter to only CargoTrack containers
+      - source_labels: ['__meta_docker_container_name']
+        regex: '.*cargotrack.*'
+        action: keep
+
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'compose_service'
+
+  - job_name: journald
+    journal:
+      max_age: 12h
+      labels:
+        job: systemd-journal
+    relabel_configs:
+      - source_labels: ['__journal__systemd_unit']
+        target_label: 'unit'
+      - source_labels: ['__journal__hostname']
+        target_label: 'hostname'
+
+  - job_name: loki-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: loki
+          __path__: /var/log/loki/*.log

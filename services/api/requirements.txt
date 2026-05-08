@@ -3,6 +3,11 @@
 # Pin all versions to ensure reproducible builds.
 # Update with: pip-compile requirements.in  (if using pip-tools)
 
+# ── OCR / Document Processing ──────────────────────────────────────────────────
+pytesseract>=0.3,<0.4           # Tesseract OCR Python wrapper
+Pillow>=11.0,<13.0              # Image processing (grayscale, threshold, deskew)
+PyMuPDF>=1.25,<2.0              # PDF rasterization for OCR (fitz)
+
 # ── Core Django ───────────────────────────────────────────────────────────────
 Django==4.2.29                  # LTS release — supported until April 2026
 asgiref==3.11.1                 # ASGI utilities required by Django
@@ -57,6 +62,7 @@ protobuf==5.30.2                 # OTLP gRPC dependency
 
 # ── Security / encryption ──────────────────────────────────────────────────────
 cryptography==45.0.7             # AES-256 field-level encryption for PII (Fernet)
+mozilla-django-oidc>=4.0,<5.0   # OpenID Connect authentication via Keycloak
 pyotp==2.9.0                     # TOTP generation and verification for 2FA
 
 # ── Image handling ──────────────────────────────────────────────────────────────

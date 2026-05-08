@@ -1,0 +1,100 @@
+# CargoTrack OpenAPI Generator Configuration
+# Generates SDKs from the OpenAPI 3.1 schema served by drf-spectacular.
+#
+# Usage — fetch the schema first, then generate:
+#   curl http://localhost:8000/api/schema/ -o openapi.json
+#
+#   npx @openapitools/openapi-generator-cli generate \
+#       -i openapi.json \
+#       -g typescript-fetch \
+#       -c openapi-generator-config.yaml \
+#       -o libs/api-client/ts
+#
+#   npx @openapitools/openapi-generator-cli generate \
+#       -i openapi.json \
+#       -g python \
+#       -c openapi-generator-config.yaml \
+#       --additional-packageName=cargotrack_sdk \
+#       -o libs/api-client/python
+#
+#   npx @openapitools/openapi-generator-cli generate \
+#       -i openapi.json \
+#       -g java \
+#       -c openapi-generator-config.yaml \
+#       --additional-apiPackage=io.cargotrack.api \
+#       --additional-modelPackage=io.cargotrack.model \
+#       -o libs/api-client/java
+#
+#   npx @openapitools/openapi-generator-cli generate \
+#       -i openapi.json \
+#       -g kotlin \
+#       -c openapi-generator-config.yaml \
+#       --additional-artifactId=cargotrack-sdk \
+#       -o libs/api-client/kotlin
+
+# ── Global metadata ──────────────────────────────────────────────────────────
+packageName: cargotrack
+packageVersion: 1.0.0
+packageUrl: https://github.com/Kandemark/CargoTrack
+infoEmail: ops@cargotrack.io
+licenseName: Proprietary
+
+# ── Generator defaults ───────────────────────────────────────────────────────
+# These apply to all generators; override per-generator below.
+
+ensureUniqueParams: true
+allowUnicodeIdentifiers: false
+prependFormOrBodyParameters: false
+sortModelPropertiesByRequiredFlag: true
+sortParamsByRequiredFlag: true
+
+# ── TypeScript / Fetch ───────────────────────────────────────────────────────
+# Used by apps/web (React SPA) and apps/mobile (Expo)
+typescript-fetch:
+  npmName: "@cargotrack/api-client"
+  npmVersion: "1.0.0"
+  supportsES6: true
+  withInterfaces: true
+  withSeparateModelsAndApi: true
+  apiPackage: api
+  modelPackage: models
+  enumPropertyNaming: UPPERCASE
+  stringEnums: true
+  useSingleRequestParameter: true
+
+# ── Python ───────────────────────────────────────────────────────────────────
+# Used by internal scripts and ML pipelines
+python:
+  packageName: cargotrack_sdk
+  projectName: cargotrack-sdk
+  packageVersion: "1.0.0"
+  packageUrl: https://github.com/Kandemark/CargoTrack
+  useNose: false
+  pythonAttrNoneIfUnset: true
+
+# ── Java ─────────────────────────────────────────────────────────────────────
+# Used by workflow-engine (Camunda) and edi-integration (Camel)
+java:
+  groupId: io.cargotrack
+  artifactId: cargotrack-sdk
+  artifactVersion: "1.0.0"
+  library: okhttp-gson
+  serializationLibrary: gson
+  useJakartaEe: true
+  dateLibrary: java8
+  hideGenerationTimestamp: true
+  apiPackage: io.cargotrack.api
+  modelPackage: io.cargotrack.model
+  invokerPackage: io.cargotrack.client
+
+# ── Kotlin ───────────────────────────────────────────────────────────────────
+# Used by apps/mobile (Kotlin native)
+kotlin:
+  groupId: io.cargotrack
+  artifactId: cargotrack-sdk
+  artifactVersion: "1.0.0"
+  library: jvm-okhttp4
+  serializationLibrary: kotlinx-serialization
+  dateLibrary: kotlinx-datetime
+  enumPropertyNaming: UPPERCASE
+  useCoroutines: true

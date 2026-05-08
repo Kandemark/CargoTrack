@@ -1,15 +1,15 @@
-"""
+﻿"""
 Keycloak OIDC configuration for Django.
 
 With Keycloak as the identity provider, Django becomes a resource server —
 validating JWTs issued by Keycloak rather than generating its own tokens.
-SimpleJWT is kept for local development fallback when Keycloak is unavailable.
+SimpleJWT is kept for local development fallback (OIDC_ENABLED=false).
 """
 import os
 
 # Keycloak OIDC endpoints
 KEYCLOAK_SERVER_URL = os.getenv(
-    "KEYCLOAK_SERVER_URL", "http://localhost:8080"
+    "KEYCLOAK_SERVER_URL", "http://keycloak:8080"
 )
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "cargotrack")
 KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "cargotrack-api")
@@ -21,16 +21,14 @@ OIDC_TOKEN_URL = f"{OIDC_ISSUER}/protocol/openid-connect/token"
 OIDC_USERINFO_URL = f"{OIDC_ISSUER}/protocol/openid-connect/userinfo"
 OIDC_LOGOUT_URL = f"{OIDC_ISSUER}/protocol/openid-connect/logout"
 
-# Whether Keycloak OIDC is enabled. When disabled (e.g., local dev),
-# fall back to SimpleJWT token generation.
+# Feature flag: set OIDC_ENABLED=true to use Keycloak instead of SimpleJWT.
 OIDC_ENABLED = os.getenv("OIDC_ENABLED", "false").lower() in ("1", "true", "yes")
 
-# JWT validation: when OIDC is enabled, validate tokens against Keycloak's JWKS.
-# SimpleJWT settings act as fallback for local development.
+# When OIDC is enabled, validate tokens against Keycloak's JWKS.
 if OIDC_ENABLED:
     SIMPLE_JWT_OVERRIDE = {
-        "SIGNING_KEY": None,  # Not used — tokens are signed by Keycloak
-        "VERIFYING_KEY": None,  # JWKS fetched dynamically
+        "SIGNING_KEY": None,
+        "VERIFYING_KEY": None,
         "ALGORITHM": "RS256",
         "ISSUER": OIDC_ISSUER,
         "JWK_URL": OIDC_JWKS_URL,
@@ -40,15 +38,20 @@ if OIDC_ENABLED:
     }
 
 
-# ── Role Mapping ─────────────────────────────────────────────────────────────
+# ── Role Mapping ───────────────────────────────────────────────────────────
 
 # Map Keycloak realm roles to Django groups/permissions.
 # Keycloak roles are embedded in the JWT `realm_access.roles` claim.
+# Matches the 12 roles defined in deploy/keycloak/cargotrack-realm.json.
 KEYCLOAK_ROLE_MAPPING = {
     "admin": {
         "is_staff": True,
         "is_superuser": True,
         "django_groups": ["Administrators"],
+    },
+    "logistics_mgr": {
+        "is_staff": True,
+        "django_groups": ["LogisticsManagers"],
     },
     "dispatcher": {
         "is_staff": True,
@@ -57,27 +60,38 @@ KEYCLOAK_ROLE_MAPPING = {
     "driver": {
         "django_groups": ["Drivers"],
     },
-    "shipper": {
+    "client": {
         "django_groups": ["Shippers"],
     },
     "carrier": {
         "django_groups": ["Carriers"],
     },
-    "customs_officer": {
+    "customs_broker": {
         "is_staff": True,
-        "django_groups": ["CustomsOfficers"],
+        "django_groups": ["CustomsBrokers"],
     },
-    "finance": {
+    "warehouse_mgr": {
+        "is_staff": True,
+        "django_groups": ["WarehouseManagers"],
+    },
+    "port_agent": {
+        "is_staff": True,
+        "django_groups": ["PortAgents"],
+    },
+    "finance_officer": {
         "is_staff": True,
         "django_groups": ["Finance"],
     },
     "viewer": {
         "django_groups": ["Viewers"],
     },
+    "api_client": {
+        "django_groups": ["ApiClients"],
+    },
 }
 
 
-# ── OIDC Authentication Backend (when enabled) ───────────────────────────────
+# ── OIDC Authentication Backend ────────────────────────────────────────────
 
 def get_oidc_authentication_backends():
     """Return authentication backends list with OIDC if enabled."""

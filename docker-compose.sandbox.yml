@@ -53,6 +53,58 @@ services:
       - "1883:1883"
       - "18083:18083"
 
+  # ── Identity (Keycloak OIDC) ──────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    command:
+      - start
+      - --import-realm
+      - --http-port=8080
+      - --proxy=edge
+      - --hostname-strict=false
+      - --hostname-strict-https=false
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/cargotrack_sandbox
+      KC_DB_USERNAME: cargotrack
+      KC_DB_PASSWORD: sandbox
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./deploy/keycloak/cargotrack-realm.json:/opt/keycloak/data/import/realm.json:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; head -1 <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # ── API Gateway (Traefik) ─────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.4
+    ports:
+      - "80:80"
+      - "443:443"
+      - "50051:50051"
+    volumes:
+      - ./deploy/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./deploy/traefik/dynamic:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_certs:/letsencrypt
+    depends_on:
+      - backend
+      - keycloak
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Backend (Django) ─────────────────────────────────────────────────────
   backend:
     build:
@@ -63,6 +115,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      keycloak:
+        condition: service_healthy
     environment:
       DEBUG: "true"
       SECRET_KEY: sandbox-insecure-key-do-not-use-in-production
@@ -71,12 +125,14 @@ services:
       DB_PASSWORD: sandbox
       DB_NAME: cargotrack_sandbox
       REDIS_URL: redis://redis:6379/0
-      OIDC_ENABLED: "false"
+      OIDC_ENABLED: "true"
+      OIDC_RP_CLIENT_SECRET: cargotrack-api-secret-change-in-production
+      KEYCLOAK_SERVER_URL: http://keycloak:8080
       ALLOWED_HOSTS: "*"
     volumes:
       - ./services/api:/app
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     command: >
       sh -c "python manage.py migrate &&
              daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application"
@@ -94,14 +150,14 @@ services:
       - ./apps/web:/app
       - /app/node_modules
       - ./libs/shared-types:/app/shared
-    ports:
-      - "5173:5173"
+    expose:
+      - "5173"
 
-  # ── Observability (lightweight) ──────────────────────────────────────────
+  # ── Observability ─────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v3.2
-    ports:
-      - "9090:9090"
+    expose:
+      - "9090"
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
@@ -114,11 +170,62 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro
 
+  # ── Centralized Logging (Loki + Promtail) ─────────────────────────────────
+  loki:
+    image: grafana/loki:3.5
+    expose:
+      - "3100"
+    volumes:
+      - ./deploy/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/config.yml
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  promtail:
+    image: grafana/promtail:3.5
+    depends_on:
+      - loki
+    volumes:
+      - ./deploy/loki/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+
+  # ── Distributed Tracing (Jaeger) ──────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.66
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: badger
+      BADGER_EPHEMERAL: "true"
+      BADGER_DIRECTORY_VALUE: /badger/data
+      BADGER_DIRECTORY_KEY: /badger/key
+    expose:
+      - "6831"
+      - "6832"
+      - "14250"
+      - "14268"
+      - "16686"
+    volumes:
+      - jaeger_data:/badger
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   sandbox_pg_data:
+  traefik_certs:
+  loki_data:
+  jaeger_data:

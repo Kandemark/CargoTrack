@@ -297,6 +297,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "accounts", "description": "User profile & organizations"},
         {"name": "pod", "description": "Digital proof of delivery"},
         {"name": "coldchain", "description": "Cold chain temperature monitoring"},
+        {"name": "predictions", "description": "ML prediction endpoints (delay, demand, pricing, risk)"},
     ],
 }
 
@@ -318,6 +319,27 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
     'TOKEN_OBTAIN_SERIALIZER': 'rest_framework_simplejwt.serializers.TokenObtainPairSerializer',
 }
+
+# ── OIDC / Keycloak ────────────────────────────────────────────────────────────
+# Import OIDC configuration module. OIDC_ENABLED defaults to False so existing
+# auth (ModelBackend + HS256 SimpleJWT) continues to work unchanged.
+from . import oidc as oidc_settings  # noqa: E402
+
+AUTHENTICATION_BACKENDS = oidc_settings.get_oidc_authentication_backends()
+
+if oidc_settings.OIDC_ENABLED:
+    OIDC_RP_CLIENT_ID = oidc_settings.KEYCLOAK_CLIENT_ID
+    OIDC_RP_CLIENT_SECRET = config('OIDC_RP_CLIENT_SECRET', default='')
+    OIDC_OP_AUTHORIZATION_ENDPOINT = oidc_settings.OIDC_AUTHORIZATION_URL
+    OIDC_OP_TOKEN_ENDPOINT = oidc_settings.OIDC_TOKEN_URL
+    OIDC_OP_USER_ENDPOINT = oidc_settings.OIDC_USERINFO_URL
+    OIDC_OP_JWKS_ENDPOINT = oidc_settings.OIDC_JWKS_URL
+    OIDC_OP_LOGOUT_ENDPOINT = oidc_settings.OIDC_LOGOUT_URL
+    OIDC_RP_SIGN_ALGO = 'RS256'
+    OIDC_CREATE_USER = True
+    OIDC_STORE_ID_TOKEN = True
+
+    SIMPLE_JWT.update(oidc_settings.SIMPLE_JWT_OVERRIDE)
 
 # ── ML / Alert thresholds ─────────────────────────────────────────────────────
 # Single scalar threshold used by PredictDelayAPIView to decide whether to

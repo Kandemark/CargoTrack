@@ -9,6 +9,12 @@ from shipments.api_views import (
     CarrierBenchmarkView, CorridorAnalyticsView, CustomerAnalyticsView,
     TemporalAnalyticsView, AnalyticsExportView, PerformanceAnalyticsView,
     DriverLeaderboardView, BidAnalyticsView,
+    DocumentExtractionView, DocumentExtractionDetailView,
+    CustomsDeclarationView, CustomsStatusView, TariffLookupView, BorderCrossingInfoView,
+    RealTimeETAView, BatchETAView,
+    CurrencyConvertView, TaxSummaryView, InvoiceCalculateView,
+    RateLookupView, RateComparisonView,
+    DemurrageCalculateView, DemurragePortStatusView,
 )
 from accounts.api_views import (
     NotificationListView, NotificationMarkReadView, NotificationMarkAllReadView,
@@ -30,6 +36,7 @@ urlpatterns = [
     path('marketplace/',  include('marketplace.api_urls')),
     path('pod/',          include('pod.urls')),
     path('coldchain/',    include('coldchain.urls')),
+    path('predictions/', include('predictions.urls')),
 
     # Analytics / SLA / Carbon / Profit / Routes / Carriers / Corridors / Customers / Temporal (computed from shipments)
     path('analytics/',                     AnalyticsView.as_view(),            name='v1-analytics'),
@@ -46,9 +53,36 @@ urlpatterns = [
     path('sla/',                           SLAListView.as_view(),             name='v1-sla'),
     path('carbon/',                        CarbonView.as_view(),              name='v1-carbon'),
 
+    # Customs declarations (EAC customs systems integration)
+    path('customs/declare/',       CustomsDeclarationView.as_view(),      name='v1-customs-declare'),
+    path('customs/status/',        CustomsStatusView.as_view(),           name='v1-customs-status'),
+    path('customs/tariff/',        TariffLookupView.as_view(),            name='v1-customs-tariff'),
+    path('customs/borders/',       BorderCrossingInfoView.as_view(),      name='v1-customs-borders'),
+
+    # Real-time ETA
+    path('eta/',               RealTimeETAView.as_view(),             name='v1-eta'),
+    path('eta/batch/',         BatchETAView.as_view(),                name='v1-eta-batch'),
+
+    # Multi-currency finance
+    path('finance/convert/',   CurrencyConvertView.as_view(),         name='v1-finance-convert'),
+    path('finance/taxes/',     TaxSummaryView.as_view(),              name='v1-finance-taxes'),
+    path('finance/calculate/', InvoiceCalculateView.as_view(),        name='v1-finance-calculate'),
+
+    # Rates & contracts
+    path('rates/',             RateLookupView.as_view(),              name='v1-rates-lookup'),
+    path('rates/compare/',     RateComparisonView.as_view(),          name='v1-rates-compare'),
+
+    # Demurrage & detention
+    path('demurrage/',            DemurrageCalculateView.as_view(),    name='v1-demurrage'),
+    path('demurrage/port/',       DemurragePortStatusView.as_view(),   name='v1-demurrage-port'),
+
     # Compliance documents
     path('compliance/',            ComplianceDocListCreateView.as_view(),  name='v1-compliance-list'),
     path('compliance/<int:pk>/',   ComplianceDocDetailView.as_view(),      name='v1-compliance-detail'),
+
+    # Document OCR extraction
+    path('documents/extract/',              DocumentExtractionView.as_view(),       name='v1-document-extract'),
+    path('documents/<int:pk>/extraction/',  DocumentExtractionDetailView.as_view(), name='v1-document-extraction'),
 
     # Notifications
     path('notifications/',                     NotificationListView.as_view(),        name='v1-notif-list'),

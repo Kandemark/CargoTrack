@@ -1248,6 +1248,142 @@ class DriverLeaderboardView(APIView):
         return Response(leaderboard)
 
 
+# ── Document OCR Extraction ──────────────────────────────────────────────────
+
+class DocumentExtractionView(APIView):
+    """
+    POST /api/v1/documents/extract/ — Upload a document, run OCR pipeline, return extraction.
+
+    Request: multipart/form-data
+      - file: the image/PDF to process
+      - shipment_id: (optional) link to an existing shipment
+      - lang: (optional) Tesseract language, default "eng"
+
+    Response: JSON with document_type, confidence, raw_text, and extracted_fields.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = []  # use default multipart/form-data parser
+
+    def post(self, request):
+        uploaded_file = request.FILES.get("file")
+        if not uploaded_file:
+            return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        lang = request.data.get("lang", "eng")
+        shipment_id = request.data.get("shipment_id")
+
+        # Validate file type
+        allowed_types = {"image/png", "image/jpeg", "image/tiff", "application/pdf",
+                         "image/gif", "image/bmp", "image/webp"}
+        if uploaded_file.content_type not in allowed_types:
+            return Response(
+                {"error": f"Unsupported file type: {uploaded_file.content_type}. "
+                          f"Supported: PNG, JPEG, TIFF, PDF, GIF, BMP, WebP"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            from .ocr import OCRPipeline
+            pipeline = OCRPipeline(lang=lang)
+            image_data = uploaded_file.read()
+            result = pipeline.process(image_data, filename=uploaded_file.name)
+        except ImportError as e:
+            return Response(
+                {"error": f"OCR dependencies not installed: {e}. "
+                          "Install with: pip install pytesseract Pillow PyMuPDF"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"OCR processing failed: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # If shipment_id provided, save the document + extraction to DB
+        extraction_id = None
+        if shipment_id:
+            try:
+                from .models import Document, DocumentExtraction
+                shipment = get_object_or_404(Shipment, pk=shipment_id)
+                doc = Document.objects.create(
+                    shipment=shipment,
+                    file=uploaded_file,
+                    doc_type=result.document_type,
+                    filename=uploaded_file.name,
+                    uploaded_by=request.user,
+                )
+                extraction = DocumentExtraction.objects.create(
+                    document=doc,
+                    doc_type=result.document_type,
+                    type_confidence=result.type_confidence,
+                    ocr_confidence=result.ocr_confidence,
+                    raw_text=result.raw_text,
+                    extracted_fields=result.extracted_fields or {},
+                    suggested_review=result.suggested_review,
+                    matched_keywords=result.matched_keywords,
+                    processing_time_ms=result.processing_time_ms,
+                    word_count=result.word_count,
+                    page_count=result.page_count,
+                    preprocess_steps=result.preprocess_steps,
+                    tesseract_lang=lang,
+                )
+                extraction_id = extraction.pk
+            except Exception as e:
+                # Document save failed — still return OCR results
+                pass
+
+        response_data = {
+            "document_type": result.document_type,
+            "type_confidence": result.type_confidence,
+            "suggested_review": result.suggested_review,
+            "ocr_confidence": result.ocr_confidence,
+            "raw_text": result.raw_text[:2000],  # truncated for API response
+            "extracted_fields": result.extracted_fields,
+            "matched_keywords": result.matched_keywords,
+            "processing_time_ms": result.processing_time_ms,
+            "word_count": result.word_count,
+            "page_count": result.page_count,
+            "preprocess_steps": result.preprocess_steps,
+        }
+        if extraction_id:
+            response_data["extraction_id"] = extraction_id
+
+        return Response(response_data)
+
+
+class DocumentExtractionDetailView(APIView):
+    """
+    GET    /api/v1/documents/<pk>/extraction/ — get extraction for a document.
+    DELETE /api/v1/documents/<pk>/extraction/ — delete extraction (re-extract).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk):
+        from .models import DocumentExtraction
+        extraction = get_object_or_404(DocumentExtraction, document_id=pk)
+        return Response({
+            "id": extraction.pk,
+            "document_id": extraction.document_id,
+            "doc_type": extraction.doc_type,
+            "type_confidence": extraction.type_confidence,
+            "ocr_confidence": extraction.ocr_confidence,
+            "raw_text": extraction.raw_text[:2000],
+            "extracted_fields": extraction.extracted_fields,
+            "suggested_review": extraction.suggested_review,
+            "matched_keywords": extraction.matched_keywords,
+            "processing_time_ms": extraction.processing_time_ms,
+            "word_count": extraction.word_count,
+            "page_count": extraction.page_count,
+            "extracted_at": extraction.extracted_at,
+        })
+
+    def delete(self, request, pk):
+        from .models import DocumentExtraction
+        extraction = get_object_or_404(DocumentExtraction, document_id=pk)
+        extraction.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class BidAnalyticsView(APIView):
     """GET /api/v1/analytics/bid-analytics/ — bid trends and carrier success rates."""
     permission_classes = [permissions.IsAuthenticated]
@@ -1295,4 +1431,435 @@ class BidAnalyticsView(APIView):
             'carrier_performance': carrier_data,
             'daily_trend': trend,
             'total_bids': bids.count(),
+        })
+
+
+class CustomsDeclarationView(APIView):
+    """POST /api/v1/customs/declare/ — submit a customs declaration for a shipment."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, **kwargs):
+        from .customs import (
+            CustomsDeclaration, CustomsService, CustomsSystem,
+            DeclarationType, DeclarationLineItem, DeclarationStatus,
+            AssessmentChannel, customs_service, resolve_customs_system,
+        )
+        from decimal import Decimal
+
+        shipment_id = request.data.get('shipment_id')
+        declaration_type = request.data.get('declaration_type', 'EXPORT')
+        border_crossing = request.data.get('border_crossing', '')
+        country_code = request.data.get('country_code', '')
+
+        try:
+            shipment = Shipment.objects.select_related('assigned_truck', 'carrier', 'client').get(pk=shipment_id)
+        except Shipment.DoesNotExist:
+            return Response({'error': 'Shipment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        system, office = resolve_customs_system(border_crossing, country_code)
+
+        # Build line items from request or shipment data
+        line_items_data = request.data.get('line_items', [])
+        line_items = []
+        if line_items_data:
+            for li in line_items_data:
+                line_items.append(DeclarationLineItem(
+                    line_number=li.get('line_number', 1),
+                    hs_code=li.get('hs_code', ''),
+                    goods_description=li.get('goods_description', ''),
+                    quantity=Decimal(str(li.get('quantity', 1))),
+                    unit_of_measure=li.get('unit_of_measure', 'PKG'),
+                    gross_weight_kg=Decimal(str(li.get('gross_weight_kg', 0))),
+                    net_weight_kg=Decimal(str(li['net_weight_kg'])) if li.get('net_weight_kg') else None,
+                    item_value=Decimal(str(li.get('item_value', 0))),
+                    currency_code=li.get('currency_code', 'USD'),
+                    permits=li.get('permits', []),
+                ))
+        else:
+            line_items.append(DeclarationLineItem(
+                line_number=1,
+                hs_code=request.data.get('hs_code', '8704.22'),
+                goods_description=f'Shipment {shipment.tracking_number}',
+                gross_weight_kg=Decimal(str(shipment.weight_kg)),
+            ))
+
+        declaration = CustomsDeclaration(
+            declaration_type=DeclarationType[declaration_type.upper()],
+            customs_system=system,
+            customs_office=office or "DEFAULT",
+            declarant_tin=request.data.get('declarant_tin', ''),
+            declarant_name=request.data.get('declarant_name', ''),
+            importer_tin=request.data.get('importer_tin', ''),
+            importer_name=request.data.get('importer_name', ''),
+            exporter_tin=request.data.get('exporter_tin', ''),
+            exporter_name=request.data.get('exporter_name', ''),
+            country_of_origin=request.data.get('country_of_origin', 'KE'),
+            country_of_export=request.data.get('country_of_export', 'KE'),
+            country_of_destination=request.data.get('country_of_destination', 'UG'),
+            transport_mode=request.data.get('transport_mode', 'ROAD'),
+            vehicle_registration=getattr(getattr(shipment, 'assigned_truck', None), 'registration_number', ''),
+            border_crossing=border_crossing,
+            shipment_tracking_no=shipment.tracking_number,
+            regime_code=request.data.get('regime_code', ''),
+            total_customs_value=Decimal(str(request.data.get('total_customs_value', 0))),
+            currency_code=request.data.get('currency_code', 'USD'),
+            line_items=line_items,
+        )
+
+        try:
+            result = customs_service.submit_declaration(declaration)
+            return Response({
+                'declaration_id': result.get('declarationId', ''),
+                'status': result.get('status', 'SUBMITTED'),
+                'customs_system': system.value,
+                'customs_office': office,
+                'external_ref': result.get('externalRef', ''),
+            }, status=status.HTTP_202_ACCEPTED)
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class CustomsStatusView(APIView):
+    """GET /api/v1/customs/status/?id=<declaration_id>&system=<TRADENET|ASYCUDA|TANCIS>"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from .customs import customs_service, CustomsSystem
+
+        declaration_id = request.query_params.get('id', '')
+        system_name = request.query_params.get('system', 'ASYCUDA')
+
+        if not declaration_id:
+            return Response({'error': 'declaration_id required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            system = CustomsSystem[system_name.upper()]
+            result = customs_service.query_status(declaration_id, system)
+            return Response(result)
+        except KeyError:
+            return Response({'error': f'Unknown customs system: {system_name}'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class TariffLookupView(APIView):
+    """GET /api/v1/customs/tariff/?hs=<hs_code>&country=<KE|TZ|UG|RW|BI>"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from .customs import customs_service
+
+        hs_code = request.query_params.get('hs', '')
+        country_code = request.query_params.get('country', 'KE')
+
+        if not hs_code:
+            return Response({'error': 'hs_code required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = customs_service.lookup_tariff(hs_code, country_code.upper())
+            return Response(result)
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class BorderCrossingInfoView(APIView):
+    """GET /api/v1/customs/borders/ — list EAC border crossings and their customs systems."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from .customs import BORDER_CROSSING_SYSTEM
+
+        borders = []
+        for crossing, (system, office_code) in sorted(BORDER_CROSSING_SYSTEM.items()):
+            borders.append({
+                'name': crossing,
+                'customs_system': system.value,
+                'office_code': office_code,
+            })
+
+        return Response({
+            'border_crossings': borders,
+            'customs_systems': [
+                {'code': 'TRADENET', 'country': 'Kenya', 'description': 'Kenya Single Window (KenTrade)'},
+                {'code': 'ASYCUDA', 'country': 'EAC', 'description': 'UNCTAD ASYCUDA World (Uganda, Rwanda, Burundi, South Sudan, DRC)'},
+                {'code': 'TANCIS', 'country': 'Tanzania', 'description': 'Tanzania Customs Integrated System (TRA)'},
+            ],
+        })
+
+
+class RealTimeETAView(APIView):
+    """GET /api/v1/eta/?tracking=<tracking_number>&lat=<lat>&lon=<lon>&speed=<kmh>"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from .eta_engine import eta_engine
+        from .models import Shipment
+
+        tracking = request.query_params.get('tracking', '')
+        lat = request.query_params.get('lat')
+        lon = request.query_params.get('lon')
+        speed = request.query_params.get('speed', '0')
+        weather = request.query_params.get('weather', 'clear')
+
+        if not lat or not lon:
+            return Response({'error': 'lat and lon required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            lat_f = float(lat)
+            lon_f = float(lon)
+            speed_f = float(speed)
+        except (TypeError, ValueError):
+            return Response({'error': 'lat, lon, speed must be numbers'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Load shipment for route data
+        shipment = None
+        total_distance = 100.0  # default
+        origin = "Unknown"
+        destination = "Unknown"
+        departure = None
+
+        if tracking:
+            try:
+                shipment = Shipment.objects.select_related('route').get(tracking_number=tracking)
+                total_distance = shipment.route.distance_km
+                origin = shipment.route.origin
+                destination = shipment.route.destination
+                departure = shipment.scheduled_departure
+            except Shipment.DoesNotExist:
+                pass
+
+        eta = eta_engine.calculate(
+            tracking_number=tracking or 'unknown',
+            origin=origin,
+            destination=destination,
+            total_distance_km=total_distance,
+            current_lat=lat_f,
+            current_lon=lon_f,
+            current_speed_kmh=speed_f,
+            departure_time=departure,
+            weather=weather,
+        )
+
+        return Response({
+            'tracking_number': eta.tracking_number,
+            'origin': eta.origin,
+            'destination': eta.destination,
+            'total_distance_km': eta.total_distance_km,
+            'distance_remaining_km': eta.distance_remaining_km,
+            'distance_completed_km': eta.distance_completed_km,
+            'progress_pct': eta.progress_pct,
+            'estimated_arrival': eta.estimated_arrival.isoformat() if eta.estimated_arrival else None,
+            'estimated_remaining_hours': eta.estimated_remaining_hours,
+            'confidence_low': eta.confidence_low.isoformat() if eta.confidence_low else None,
+            'confidence_high': eta.confidence_high.isoformat() if eta.confidence_high else None,
+            'current_speed_kmh': eta.current_speed_kmh,
+            'current_position': {'lat': eta.current_position[0], 'lon': eta.current_position[1]},
+            'upcoming_border': eta.upcoming_border,
+            'border_wait_minutes': eta.border_wait_minutes,
+            'next_rest_break_at': eta.next_rest_break_at.isoformat() if eta.next_rest_break_at else None,
+            'last_updated': eta.last_updated.isoformat() if eta.last_updated else None,
+        })
+
+
+class BatchETAView(APIView):
+    """POST /api/v1/eta/batch/ — fleet-wide ETA calculation."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, **kwargs):
+        from .eta_engine import eta_engine
+
+        positions = request.data.get('positions', [])
+        results = []
+
+        for pos in positions:
+            try:
+                eta = eta_engine.calculate(
+                    tracking_number=pos.get('tracking', 'unknown'),
+                    origin=pos.get('origin', 'Unknown'),
+                    destination=pos.get('destination', 'Unknown'),
+                    total_distance_km=float(pos.get('total_distance_km', 100)),
+                    current_lat=float(pos['lat']),
+                    current_lon=float(pos['lon']),
+                    current_speed_kmh=float(pos.get('speed', 0)),
+                    weather=pos.get('weather', 'clear'),
+                )
+                results.append({
+                    'tracking_number': eta.tracking_number,
+                    'estimated_arrival': eta.estimated_arrival.isoformat() if eta.estimated_arrival else None,
+                    'estimated_remaining_hours': eta.estimated_remaining_hours,
+                    'progress_pct': eta.progress_pct,
+                })
+            except (KeyError, TypeError, ValueError) as exc:
+                results.append({'error': str(exc), 'tracking': pos.get('tracking', 'unknown')})
+
+        return Response({'results': results})
+
+
+class CurrencyConvertView(APIView):
+    """GET /api/v1/finance/convert/?from=USD&to=KES&amount=100"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from finance.services import get_exchange_rate, convert_currency
+        from decimal import Decimal
+
+        from_cur = request.query_params.get('from', 'USD').upper()
+        to_cur = request.query_params.get('to', 'KES').upper()
+        try:
+            amount = Decimal(request.query_params.get('amount', '1'))
+        except Exception:
+            return Response({'error': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            rate = get_exchange_rate(from_cur, to_cur)
+            converted = convert_currency(amount, from_cur, to_cur)
+            return Response({
+                'from_currency': from_cur,
+                'to_currency': to_cur,
+                'amount': str(amount),
+                'rate': str(rate),
+                'converted': str(converted),
+            })
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TaxSummaryView(APIView):
+    """GET /api/v1/finance/taxes/ — EAC tax rates summary"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from finance.services import get_eac_tax_summary
+        return Response({'countries': get_eac_tax_summary()})
+
+
+class InvoiceCalculateView(APIView):
+    """POST /api/v1/finance/calculate/ — calculate invoice with tax breakdown"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, **kwargs):
+        from finance.services import calculate_invoice_total
+        from decimal import Decimal
+
+        line_items = request.data.get('line_items', [])
+        currency = request.data.get('currency', 'USD')
+        country_code = request.data.get('country_code', 'KE')
+        include_vat = bool(request.data.get('include_vat', True))
+        include_wht = bool(request.data.get('include_wht', False))
+        include_fuel = bool(request.data.get('include_fuel_surcharge', False))
+        transport_cost = Decimal(str(request.data.get('transport_cost', 0)))
+
+        try:
+            result = calculate_invoice_total(
+                line_items=line_items,
+                currency=currency,
+                country_code=country_code,
+                include_vat=include_vat,
+                include_wht=include_wht,
+                include_fuel_surcharge=include_fuel,
+                transport_cost=transport_cost,
+            )
+            return Response(result)
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RateLookupView(APIView):
+    """GET /api/v1/rates/?origin=Mombasa&dest=Nairobi&weight=5000"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from contracts.services import match_rate, compare_contract_vs_spot
+        from decimal import Decimal
+
+        origin = request.query_params.get('origin', 'Mombasa')
+        dest = request.query_params.get('dest', 'Nairobi')
+        try:
+            weight_kg = Decimal(request.query_params.get('weight', '1000'))
+        except Exception:
+            return Response({'error': 'Invalid weight'}, status=status.HTTP_400_BAD_REQUEST)
+        vehicle = request.query_params.get('vehicle', '')
+
+        compare = request.query_params.get('compare', '') == '1'
+        if compare:
+            result = compare_contract_vs_spot(origin, dest, weight_kg, vehicle)
+        else:
+            result = match_rate(origin, dest, weight_kg, vehicle)
+
+        return Response(result)
+
+
+class RateComparisonView(APIView):
+    """GET /api/v1/rates/compare/?origin=Mombasa&dest=Nairobi&weight=5000"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from contracts.services import compare_contract_vs_spot
+        from decimal import Decimal
+
+        origin = request.query_params.get('origin', 'Mombasa')
+        dest = request.query_params.get('dest', 'Nairobi')
+        try:
+            weight_kg = Decimal(request.query_params.get('weight', '1000'))
+        except Exception:
+            return Response({'error': 'Invalid weight'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = compare_contract_vs_spot(origin, dest, weight_kg)
+        return Response(result)
+
+
+class DemurrageCalculateView(APIView):
+    """GET /api/v1/demurrage/?port=KEMBA&container_type=40FT_DRY&type=IMPORT&arrival=yyyy-mm-dd&return=yyyy-mm-dd"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from demurrage.calculator import calculate_demurrage, calculate_detention
+        from datetime import date as date_type
+
+        port = request.query_params.get('port', 'KEMBA')
+        container_type = request.query_params.get('container_type', '20FT_DRY')
+        shipment_type = request.query_params.get('type', 'IMPORT')
+        arrival_str = request.query_params.get('arrival')
+        return_str = request.query_params.get('return')
+
+        arrival = date_type.fromisoformat(arrival_str) if arrival_str else None
+        return_date = date_type.fromisoformat(return_str) if return_str else None
+
+        calc_type = request.query_params.get('calc', 'demurrage')
+
+        if calc_type == 'detention':
+            result = calculate_detention(
+                port_code=port, container_type=container_type,
+                pickup_date=arrival, return_date=return_date,
+            )
+        else:
+            result = calculate_demurrage(
+                port_code=port, container_type=container_type,
+                shipment_type=shipment_type,
+                arrival_date=arrival, return_date=return_date,
+            )
+
+        return Response(result)
+
+
+class DemurragePortStatusView(APIView):
+    """GET /api/v1/demurrage/port/?port=KEMBA"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        from demurrage.calculator import batch_port_status, PORT_FREE_DAYS
+
+        port = request.query_params.get('port', 'KEMBA').upper()
+        free_days = PORT_FREE_DAYS.get(port, {})
+        containers = batch_port_status(port)
+        total_accruing = sum(
+            float(c.get('total_demurrage_usd', 0)) for c in containers
+        )
+
+        return Response({
+            'port': port,
+            'free_days_config': free_days,
+            'containers': containers,
+            'total_containers': len(containers),
+            'total_demurrage_accruing_usd': str(round(total_accruing, 2)),
         })

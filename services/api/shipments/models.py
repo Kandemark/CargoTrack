@@ -183,3 +183,44 @@ class ComplianceDoc(models.Model):
 
     def __str__(self):
         return f'{self.get_doc_type_display()} — {self.shipment.tracking_number}'
+
+
+class DocumentExtraction(models.Model):
+    """
+    OCR extraction result for a shipment document.
+
+    Stores the raw OCR text, classified document type, confidence scores,
+    and structured extracted fields (JSON). Linked to the Document model
+    so extraction can be re-run without re-uploading.
+    """
+    document = models.OneToOneField(
+        Document, on_delete=models.CASCADE, related_name='extraction',
+    )
+    doc_type = models.CharField(max_length=20, choices=Document.DOC_TYPES)
+    type_confidence = models.FloatField(default=0.0)
+    ocr_confidence = models.FloatField(default=0.0)
+    raw_text = models.TextField(blank=True)
+    extracted_fields = models.JSONField(default=dict, blank=True)
+    suggested_review = models.BooleanField(default=False)
+    matched_keywords = models.JSONField(default=list, blank=True)
+    processing_time_ms = models.FloatField(default=0.0)
+    word_count = models.IntegerField(default=0)
+    page_count = models.IntegerField(default=1)
+    preprocess_steps = models.JSONField(default=list, blank=True)
+    error_message = models.TextField(blank=True)
+
+    # Allow re-extraction with different settings
+    tesseract_lang = models.CharField(max_length=20, default='eng')
+    extracted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-extracted_at']
+        verbose_name = 'Document Extraction'
+        verbose_name_plural = 'Document Extractions'
+
+    def __str__(self):
+        return f'OCR — {self.get_doc_type_display()} ({self.type_confidence:.0%})'
+
+    @property
+    def is_high_confidence(self) -> bool:
+        return self.type_confidence >= 0.7 and self.ocr_confidence >= 60

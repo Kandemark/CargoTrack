@@ -1,0 +1,144 @@
+# Rust GPS Telematics Ingestion — K8s Deployment + Service + HPA
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gps-ingest
+  namespace: cargotrack
+  labels:
+    app: gps-ingest
+    app.kubernetes.io/part-of: cargotrack
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gps-ingest
+  template:
+    metadata:
+      labels:
+        app: gps-ingest
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: gps-ingest
+      containers:
+        - name: gps-ingest
+          image: ghcr.io/kandemark/cargotrack-gps-ingest:${IMAGE_TAG}
+          ports:
+            - containerPort: 9091
+              name: metrics
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: cargotrack-config
+            - secretRef:
+                name: cargotrack-secrets
+          env:
+            - name: MQTT_HOST
+              value: emqx.cargotrack.svc.cluster.local
+            - name: MQTT_PORT
+              value: "1883"
+            - name: KAFKA_BROKERS
+              valueFrom:
+                secretKeyRef:
+                  name: cargotrack-secrets
+                  key: KAFKA_BROKERS
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9091
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 9091
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gps-ingest
+  namespace: cargotrack
+  labels:
+    app: gps-ingest
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9091
+      targetPort: 9091
+      protocol: TCP
+      name: metrics
+  selector:
+    app: gps-ingest
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gps-ingest-hpa
+  namespace: cargotrack
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gps-ingest
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120

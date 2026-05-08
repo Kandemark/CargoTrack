@@ -24,6 +24,7 @@ from cargotrack.encryption import EncryptedTextField, get_fernet
 FIELD_CATEGORIES = {
     "phone": "PII — Contact (Phone)",
     "phone_number": "PII — Contact (Phone)",
+    "received_by_phone": "PII — Contact (Phone)",
     "email": "PII — Contact (Email)",
     "tax_id": "PII — Financial (Tax ID)",
     "license_number": "PII — Government ID (Driver License)",

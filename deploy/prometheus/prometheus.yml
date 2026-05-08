@@ -81,3 +81,21 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["kafka:9093"]
+
+  # Keycloak Identity Provider (Java/Quarkus — built-in /metrics)
+  - job_name: keycloak
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["keycloak:8080"]
+
+  # Jaeger Distributed Tracing — collector metrics
+  - job_name: jaeger
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["jaeger:14269"]
+
+  # Loki Log Aggregation — readiness and storage metrics
+  - job_name: loki
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["loki:3100"]

@@ -1,0 +1,17 @@
+﻿target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.log
+*.tmp
+.classpath
+.project
+.settings/
+.vscode/
+.idea/
+*.iml
+.DS_Store
+dependency-reduced-pom.xml

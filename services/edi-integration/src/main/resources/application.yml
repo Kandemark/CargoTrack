@@ -1,37 +1,104 @@
-server:
-  port: 8084
+﻿server:
+  port: ${SERVER_PORT:8080}
 
 spring:
-  application.name: edi-integration
+  application:
+    name: cargotrack-edi-gateway
+  main:
+    banner-mode: off
 
+# ── Camel ────────────────────────────────────────────────────────────────
 camel:
   springboot:
+    name: CargoTrackEdiGateway
     main-run-controller: true
-    name: edi-integration
+  component:
+    kafka:
+      brokers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+      auto-register-new-schemas: true
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    http:
+      connection-request-timeout: 30000
+      connect-timeout: 30000
+      socket-timeout: 60000
+    resilience4j:
+      circuit-breaker:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30000
+  dataformat:
+    bindy:
+      type: fixed
+      locale: en
 
-edi:
-  sftp:
-    host: localhost
-    port: 22
-    user: cargotrack
-    username: cargotrack
-    password: ""
-    pollDelayMs: 60000
-  error-dir: /tmp/edi-errors
+# ── CargoTrack EDI Gateway ───────────────────────────────────────────────
+cargotrack:
+  edi:
+    callback-port: ${EDI_CALLBACK_PORT:9090}
+    dlq-dir: /tmp/cargotrack/edi/dlq
+    tancis-oauth-token: ${TANCIS_OAUTH_TOKEN:}
+    customs-systems:
+      tradenet:
+        name: TradeNet
+        country: KE
+        base-url: ${TRADENET_BASE_URL:https://tradenet.kentrade.go.ke/api/v2}
+        api-key: ${TRADENET_API_KEY:}
+        username: ${TRADENET_USERNAME:}
+        password: ${TRADENET_PASSWORD:}
+        connect-timeout-ms: 30000
+        read-timeout-ms: 60000
+        max-retries: 5
+        retry-backoff-ms: 2000
+        pollen-cron: "0 0 */4 * * ?"
+      asycuda:
+        name: ASYCUDA World
+        country: EAC
+        base-url: ${ASYCUDA_BASE_URL:}
+        sftp-host: ${ASYCUDA_SFTP_HOST:}
+        sftp-port: ${ASYCUDA_SFTP_PORT:22}
+        sftp-user: ${ASYCUDA_SFTP_USER:}
+        sftp-password: ${ASYCUDA_SFTP_PASSWORD:}
+        sftp-pickup-dir: ${ASYCUDA_SFTP_PICKUP_DIR:/inbox}
+        sftp-drop-dir: ${ASYCUDA_SFTP_DROP_DIR:/outbox}
+        as2-id: ${ASYCUDA_AS2_ID:}
+        as2-url: ${ASYCUDA_AS2_URL:}
+        as2-certificate: ${ASYCUDA_AS2_CERTIFICATE:}
+        as2-private-key: ${ASYCUDA_AS2_PRIVATE_KEY:}
+        max-retries: 3
+        retry-backoff-ms: 5000
+      tancis:
+        name: TANCIS
+        country: TZ
+        base-url: ${TANCIS_BASE_URL:https://tancis.tra.go.tz/api/v1}
+        api-key: ${TANCIS_API_KEY:}
+        username: ${TANCIS_USERNAME:}
+        password: ${TANCIS_PASSWORD:}
+        connect-timeout-ms: 30000
+        read-timeout-ms: 60000
+        max-retries: 5
+        retry-backoff-ms: 2000
+        pollen-cron: "0 0 */2 * * ?"
 
-kafka:
-  topic:
-    shipments: cargotrack.shipments.state
-    tracking: cargotrack.tracking.events
-    customs: cargotrack.customs.events
-    outbound: cargotrack.edi.outbound
-  bootstrap-servers: localhost:9092
+# ── Management / Health ──────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,camelroutes,camelhealth
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  health:
+    camel:
+      enabled: true
 
+# ── Logging ──────────────────────────────────────────────────────────────
 logging:
   level:
-    com.cargotrack: DEBUG
+    root: INFO
+    com.cargotrack.edi: DEBUG
     org.apache.camel: INFO
-
-management:
-  endpoints.web.exposure.include: health,info,camelroutes
-  endpoint.health.show-details: always
+    org.apache.kafka: WARN

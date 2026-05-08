@@ -1,0 +1,83 @@
+# Rust Route Optimizer — K8s Deployment + Service (batch/on-demand)
+# This is an on-demand optimization engine, not a continuously-scaled web service.
+# It exposes a gRPC endpoint for submitting optimization jobs and streaming results.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: route-optimizer
+  namespace: cargotrack
+  labels:
+    app: route-optimizer
+    app.kubernetes.io/part-of: cargotrack
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Single instance to avoid duplicate solve on same dataset
+  selector:
+    matchLabels:
+      app: route-optimizer
+  template:
+    metadata:
+      labels:
+        app: route-optimizer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9092"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: route-optimizer
+          image: ghcr.io/kandemark/cargotrack-route-optimizer:${IMAGE_TAG}
+          ports:
+            - containerPort: 50052
+              name: grpc
+              protocol: TCP
+            - containerPort: 9092
+              name: metrics
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: cargotrack-config
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 2Gi
+            limits:
+              cpu: 4000m
+              memory: 8Gi
+          livenessProbe:
+            grpc:
+              port: 50052
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          readinessProbe:
+            grpc:
+              port: 50052
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+      terminationGracePeriodSeconds: 120  # Allow in-flight solves to complete
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: route-optimizer
+  namespace: cargotrack
+  labels:
+    app: route-optimizer
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50052
+      targetPort: 50052
+      protocol: TCP
+      name: grpc
+    - port: 9092
+      targetPort: 9092
+      protocol: TCP
+      name: metrics
+  selector:
+    app: route-optimizer

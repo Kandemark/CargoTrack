@@ -1,19 +1,34 @@
-# ── Traefik static configuration ────────────────────────────────────────────────
-# CargoTrack API Gateway — TLS termination, rate limiting, routing
+﻿# Traefik API Gateway — Static Configuration
+# Unified ingress: REST, gRPC, WebSocket, MQTT.
+#
+# Sandbox:  docker compose -f docker-compose.sandbox.yml up traefik
+# Dashboard: http://localhost:8081/dashboard/
+#
+# Production TLS via Let's Encrypt; remove staging CA server.
 
 global:
   checkNewVersion: false
   sendAnonymousUsage: false
 
 log:
-  level: ${LOG_LEVEL:-INFO}
+  level: INFO
   format: json
+
+accessLog:
+  format: json
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: drop
+      names:
+        User-Agent: keep
+        X-Request-ID: keep
+        X-Correlation-ID: keep
 
 api:
   dashboard: true
-  insecure: false  # Set to true for local dev dashboard access
+  insecure: false
 
-# ── Entry Points ──────────────────────────────────────────────────────────────
 entryPoints:
   web:
     address: ":80"
@@ -29,40 +44,55 @@ entryPoints:
     http:
       tls:
         options: default
-        certResolver: letsencrypt
       middlewares:
         - security-headers@file
-        - rate-limit-global@file
+        - ratelimit-global@file
 
-  # gRPC entry point (internal)
   grpc:
     address: ":50051"
 
-# ── Let's Encrypt ─────────────────────────────────────────────────────────────
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: ${ACME_EMAIL:-ops@cargotrack.io}
-      storage: /letsencrypt/acme.json
-      httpChallenge:
-        entryPoint: web
-      # Staging server for testing — remove CA server line for production
-      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+  mqtt:
+    address: ":1883"
 
-# ── Providers ─────────────────────────────────────────────────────────────────
 providers:
-  docker:
-    endpoint: "unix:///var/run/docker.sock"
-    exposedByDefault: false
-    network: cargotrack
-    watch: true
-
   file:
     directory: /etc/traefik/dynamic
     watch: true
 
-# ── Metrics ───────────────────────────────────────────────────────────────────
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    watch: true
+
 metrics:
   prometheus:
     addEntryPointsLabels: true
+    addRoutersLabels: true
     addServicesLabels: true
+    buckets:
+      - 0.005
+      - 0.01
+      - 0.025
+      - 0.05
+      - 0.1
+      - 0.25
+      - 0.5
+      - 1.0
+      - 2.5
+      - 5.0
+      - 10.0
+
+tracing:
+  jaeger:
+    samplingServerURL: "http://jaeger:5778/sampling"
+    samplingType: const
+    samplingParam: 0.1
+    localAgentHostPort: "jaeger:6831"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ops@cargotrack.io
+      storage: /letsencrypt/acme.json
+      tlsChallenge: {}
+      caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"

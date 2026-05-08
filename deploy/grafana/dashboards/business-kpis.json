@@ -1,0 +1,342 @@
+{
+  "title": "CargoTrack — Business KPIs",
+  "uid": "cargotrack-business-kpis",
+  "tags": ["cargotrack", "business", "logistics"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Daily Revenue (USD)",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 6},
+      "targets": [
+        {
+          "expr": "sum(increase(payments_amount_usd_total[24h]))",
+          "legendFormat": "revenue"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0,
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 5000},
+              {"color": "green", "value": 20000}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Active Shipments",
+      "type": "stat",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 6},
+      "targets": [
+        {
+          "expr": "count(shipments_total{status!~\"DELIVERED|CLOSED|CANCELLED\"})",
+          "legendFormat": "active"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "steps": [
+              {"color": "yellow", "value": null},
+              {"color": "green", "value": 10}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "On-Time Delivery Rate (%)",
+      "type": "gauge",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 6},
+      "targets": [
+        {
+          "expr": "sum(rate(shipments_delivered_on_time_total[24h])) / sum(rate(shipments_delivered_total[24h])) * 100",
+          "legendFormat": "OTIF %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 80},
+              {"color": "green", "value": 90}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Fleet Utilization (%)",
+      "type": "gauge",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 6},
+      "targets": [
+        {
+          "expr": "sum(fleet_trucks_active_total) / sum(fleet_trucks_total) * 100",
+          "legendFormat": "utilization"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "green", "value": 75}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Shipments per Corridor (last 24h)",
+      "type": "barchart",
+      "gridPos": {"x": 0, "y": 6, "w": 12, "h": 9},
+      "targets": [
+        {
+          "expr": "sum(increase(shipments_total[24h])) by (corridor)",
+          "legendFormat": "{{corridor}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Revenue by Corridor (last 7d)",
+      "type": "piechart",
+      "gridPos": {"x": 12, "y": 6, "w": 12, "h": 9},
+      "targets": [
+        {
+          "expr": "sum(increase(payments_amount_usd_total[7d])) by (corridor)",
+          "legendFormat": "{{corridor}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Avg Transit Time by Corridor (hours)",
+      "type": "barchart",
+      "gridPos": {"x": 0, "y": 15, "w": 8, "h": 9},
+      "targets": [
+        {
+          "expr": "avg by (corridor) (shipment_transit_time_hours)",
+          "legendFormat": "{{corridor}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 24},
+              {"color": "red", "value": 48}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Border Crossing Delays (avg hours)",
+      "type": "timeseries",
+      "gridPos": {"x": 8, "y": 15, "w": 8, "h": 9},
+      "targets": [
+        {
+          "expr": "avg by (border) (border_crossing_delay_hours)",
+          "legendFormat": "{{border}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "custom": {"fillOpacity": 15, "lineWidth": 2},
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 12},
+              {"color": "red", "value": 24}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Shipments Delayed > 24h",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 15, "w": 4, "h": 4},
+      "targets": [
+        {
+          "expr": "count(shipments_total{delay_hours=\"24\"})",
+          "legendFormat": "delayed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 15}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Alerts Triggered (last 24h)",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 15, "w": 4, "h": 4},
+      "targets": [
+        {
+          "expr": "sum(increase(alerts_triggered_total[24h]))",
+          "legendFormat": "alerts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "red", "value": 100}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Alerts by Severity (last 24h)",
+      "type": "barchart",
+      "gridPos": {"x": 16, "y": 19, "w": 8, "h": 5},
+      "targets": [
+        {
+          "expr": "sum(increase(alerts_triggered_total[24h])) by (severity)",
+          "legendFormat": "{{severity}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Revenue Trend (daily, last 30d)",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(increase(payments_amount_usd_total[1d]))",
+          "legendFormat": "daily revenue"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {"fillOpacity": 20, "lineWidth": 2}
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Payment Method Split",
+      "type": "piechart",
+      "gridPos": {"x": 12, "y": 24, "w": 6, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(payments_total) by (method)",
+          "legendFormat": "{{method}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short"}
+      }
+    },
+    {
+      "id": 14,
+      "title": "Average Shipment Value (USD)",
+      "type": "stat",
+      "gridPos": {"x": 18, "y": 24, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "avg(shipments_declared_value_usd)",
+          "legendFormat": "avg value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Customs Clearance: Green Lane Rate (%)",
+      "type": "gauge",
+      "gridPos": {"x": 18, "y": 28, "w": 6, "h": 4},
+      "targets": [
+        {
+          "expr": "sum(rate(customs_green_lane_total[24h])) / sum(rate(customs_assessments_total[24h])) * 100",
+          "legendFormat": "green lane %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 60},
+              {"color": "green", "value": 80}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

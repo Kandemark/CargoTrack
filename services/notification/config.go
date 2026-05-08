@@ -25,6 +25,9 @@ type Config struct {
 	TwilioFromNumber   string
 	ATUsername         string // Africa's Talking
 	ATAPIKey           string
+	ATShortCode        string // USSD shortcode e.g. "*384#"
+	ATSenderID         string // Alphanumeric SMS sender ID
+	USSDAddr           string // USSD server listen address
 	WhatsAppToken      string
 	WhatsAppPhoneID    string
 	LogJSON            bool
@@ -50,6 +53,9 @@ func LoadConfig() *Config {
 		TwilioFromNumber:   os.Getenv("TWILIO_FROM_NUMBER"),
 		ATUsername:         os.Getenv("AFRICAS_TALKING_USERNAME"),
 		ATAPIKey:           os.Getenv("AFRICAS_TALKING_API_KEY"),
+		ATShortCode:        envOr("AFRICAS_TALKING_SHORTCODE", "38490"),
+		ATSenderID:         os.Getenv("AFRICAS_TALKING_SENDER_ID"),
+		USSDAddr:           envOr("USSD_ADDR", ":9091"),
 		WhatsAppToken:      os.Getenv("WHATSAPP_TOKEN"),
 		WhatsAppPhoneID:    os.Getenv("WHATSAPP_PHONE_ID"),
 		LogJSON:            os.Getenv("LOG_JSON") == "1" || os.Getenv("LOG_JSON") == "true",
