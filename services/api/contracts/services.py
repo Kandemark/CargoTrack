@@ -20,6 +20,8 @@ def match_rate(
     2. Rate card for the corridor
     3. Spot market estimate
     """
+    weight_kg = Decimal(str(weight_kg))
+
     # In production, this queries Contract/RateCard/RateLine models.
     # For now, use corridor-based rate estimates.
     corridor_key = f"{origin.lower().strip()}-{destination.lower().strip()}"
