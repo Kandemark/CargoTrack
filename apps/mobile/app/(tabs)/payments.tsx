@@ -5,6 +5,7 @@ import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { apiClient } from '@/lib/api'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { EmptyState, Button, GlassCard } from '@/components/ui'
 import type { Invoice, InvoiceStatus, PaymentProvider } from '@shared/api/types'
 
@@ -25,6 +26,7 @@ const PROVIDERS: { key: PaymentProvider; label: string; emoji: string; placehold
 // ── Pay Modal ─────────────────────────────────────────────────────────────────
 
 function PayModal({ invoice, onClose, onPaid }: { invoice: Invoice; onClose: () => void; onPaid: () => void }) {
+  const { colors, font, radius, isDark } = useAppTheme()
   const [selectedProvider, setProvider] = useState<PaymentProvider>('MPESA')
   const [input, setInput] = useState('')
   const [paying, setPaying] = useState(false)
@@ -57,13 +59,13 @@ function PayModal({ invoice, onClose, onPaid }: { invoice: Invoice; onClose: () 
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
-        <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-white dark:bg-ct-dark-bg">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: isDark ? colors.background : '#fff' }}>
           {/* Header */}
-          <View className="flex-row items-center justify-between px-5 py-3.5 border-b border-ct-border-light dark:border-ct-dark-border">
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
             <View>
-              <Text className="text-ct-base font-extrabold text-ct-text-primary dark:text-ct-dark-text">Pay Invoice</Text>
-              <Text className="text-ct-xs text-slate-400 mt-px">{invoice.invoice_number} · {Number(invoice.amount_kes).toLocaleString()} {invoice.currency}</Text>
+              <Text style={{ fontSize: font.size.base, fontWeight: font.weight.extrabold, color: colors.text }}>Pay Invoice</Text>
+              <Text style={{ fontSize: font.size.xs, color: '#94a3b8', marginTop: 1 }}>{invoice.invoice_number} · {Number(invoice.amount_kes).toLocaleString()} {invoice.currency}</Text>
             </View>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close-circle" size={26} color="#94a3b8" />
@@ -72,63 +74,70 @@ function PayModal({ invoice, onClose, onPaid }: { invoice: Invoice; onClose: () 
 
           <ScrollView contentContainerStyle={{ padding: 20 }}>
             {success ? (
-              <View className="items-center py-10">
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <Ionicons name="checkmark-circle" size={64} color="#10b981" />
-                <Text className="text-ct-lg font-extrabold text-ct-text-primary dark:text-ct-dark-text mt-3">Payment Initiated!</Text>
-                <Text className="text-ct-sm text-ct-text-muted dark:text-ct-dark-text-muted text-center mt-1.5 max-w-[260px]">Check your phone for the payment prompt. Enter your PIN to complete.</Text>
+                <Text style={{ fontSize: font.size.lg, fontWeight: font.weight.extrabold, color: colors.text, marginTop: 12 }}>Payment Initiated!</Text>
+                <Text style={{ fontSize: font.size.sm, color: colors.textMuted, textAlign: 'center', marginTop: 6, maxWidth: 260 }}>Check your phone for the payment prompt. Enter your PIN to complete.</Text>
               </View>
             ) : polling ? (
-              <View className="items-center py-10">
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                 <ActivityIndicator size="large" color="#0f2d5e" />
-                <Text className="text-ct-base font-bold text-ct-text-primary dark:text-ct-dark-text mt-4">Waiting for payment…</Text>
-                <Text className="text-ct-xs text-slate-400 text-center mt-1.5">Check your phone and enter your PIN</Text>
+                <Text style={{ fontSize: font.size.base, fontWeight: font.weight.bold, color: colors.text, marginTop: 16 }}>Waiting for payment…</Text>
+                <Text style={{ fontSize: font.size.xs, color: '#94a3b8', textAlign: 'center', marginTop: 6 }}>Check your phone and enter your PIN</Text>
               </View>
             ) : (
               <>
                 {/* Provider tabs */}
-                <Text className="text-ct-xs font-bold text-ct-text-muted dark:text-ct-dark-text-muted uppercase tracking-[0.5px] mb-2.5">Select Provider</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Select Provider</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                   {PROVIDERS.map((p) => (
                     <TouchableOpacity
                       key={p.key}
                       onPress={() => { setProvider(p.key); setInput(''); setErrMsg('') }}
-                      className={`mr-2 px-3.5 py-2 rounded-ct-md ${selectedProvider === p.key ? 'bg-ct-navy dark:bg-ct-orange' : 'bg-slate-100 dark:bg-slate-800'}`}
+                      style={{
+                        marginRight: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.md,
+                        backgroundColor: selectedProvider === p.key ? (isDark ? '#f5801e' : '#0f2d5e') : (isDark ? '#1e293b' : '#f1f5f9'),
+                      }}
                       activeOpacity={0.75}
                     >
-                      <Text className={`text-ct-sm font-bold ${selectedProvider === p.key ? 'text-white' : 'text-ct-text-muted dark:text-slate-300'}`}>{p.emoji} {p.label}</Text>
+                      <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.bold, color: selectedProvider === p.key ? '#fff' : colors.textMuted }}>{p.emoji} {p.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
 
                 {/* Input */}
-                <Text className="text-ct-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">{provider.inputLabel} *</Text>
+                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: isDark ? '#cbd5e1' : '#334155', marginBottom: 6 }}>{provider.inputLabel} *</Text>
                 <TextInput
                   value={input}
                   onChangeText={(t) => { setInput(t); setErrMsg('') }}
                   placeholder={provider.placeholder}
                   keyboardType="phone-pad"
-                  className="border-[1.5px] border-slate-200 dark:border-slate-700 rounded-ct-md px-3.5 py-3 text-ct-sm text-ct-text-primary dark:text-ct-dark-text bg-white dark:bg-ct-dark-surface mb-2"
+                  style={{ borderWidth: 1.5, borderColor: isDark ? '#334155' : '#e2e8f0', borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: font.size.sm, color: colors.text, backgroundColor: isDark ? colors.muted : '#fff', marginBottom: 8 }}
                 />
 
                 {errMsg ? (
-                  <View className="flex-row items-center bg-red-50 dark:bg-red-900/20 rounded-ct-md p-2.5 mb-2">
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(127,29,29,0.2)' : '#fef2f2', borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
                     <Ionicons name="alert-circle" size={14} color="#dc2626" />
-                    <Text className="text-ct-xs text-ct-danger ml-1.5 flex-1">{errMsg}</Text>
+                    <Text style={{ fontSize: font.size.xs, color: '#EF4444', marginLeft: 6, flex: 1 }}>{errMsg}</Text>
                   </View>
                 ) : null}
 
                 {selectedProvider === 'MPESA' && (
-                  <Text className="text-ct-xs text-slate-400 mb-4 leading-4">An STK push will be sent to your M-Pesa number. Enter your PIN when prompted.</Text>
+                  <Text style={{ fontSize: font.size.xs, color: '#94a3b8', marginBottom: 16, lineHeight: 16 }}>An STK push will be sent to your M-Pesa number. Enter your PIN when prompted.</Text>
                 )}
 
                 <TouchableOpacity
                   onPress={() => void pay()}
                   disabled={paying}
-                  className={`rounded-ct-md py-3.5 items-center mt-2 ${paying ? 'bg-slate-400 opacity-70' : 'bg-ct-navy dark:bg-ct-orange'}`}
+                  style={{
+                    borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 8,
+                    backgroundColor: paying ? '#94a3b8' : (isDark ? '#f5801e' : '#0f2d5e'),
+                    opacity: paying ? 0.7 : 1,
+                  }}
                   activeOpacity={0.8}
                 >
                   {paying ? <ActivityIndicator color="#fff" /> : (
-                    <Text className="text-ct-sm font-extrabold text-white">Pay {Number(invoice.amount_kes).toLocaleString()} {invoice.currency} via {provider.label}</Text>
+                    <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: '#fff' }}>Pay {Number(invoice.amount_kes).toLocaleString()} {invoice.currency} via {provider.label}</Text>
                   )}
                 </TouchableOpacity>
               </>
@@ -143,27 +152,32 @@ function PayModal({ invoice, onClose, onPaid }: { invoice: Invoice; onClose: () 
 // ── Invoice Row ───────────────────────────────────────────────────────────────
 
 function InvoiceRow({ invoice, onPay }: { invoice: Invoice; onPay: (inv: Invoice) => void }) {
+  const { colors, font, radius } = useAppTheme()
   const st = STATUS_CONFIG[invoice.status] ?? STATUS_CONFIG.PENDING
 
   return (
-    <View className="bg-ct-surface-card dark:bg-ct-dark-card mx-4 mb-2.5 rounded-ct-lg p-3.5 shadow-sm">
-      <View className="flex-row items-start justify-between mb-2">
-        <View className="flex-1 mr-2">
-          <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-ct-dark-text tabular-nums">{invoice.invoice_number}</Text>
-          <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">Shipment: {invoice.shipment_tracking}</Text>
+    <View style={{
+      backgroundColor: colors.card,
+      marginHorizontal: 16, marginBottom: 10, borderRadius: radius.lg, padding: 14,
+      shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 2,
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text, fontVariant: ['tabular-nums'] }}>{invoice.invoice_number}</Text>
+          <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>Shipment: {invoice.shipment_tracking}</Text>
         </View>
-        <View className="rounded-ct-sm px-2 py-[3px]" style={{ backgroundColor: st.bg }}>
-          <Text className="text-ct-xs font-bold" style={{ color: st.text }}>{st.label}</Text>
+        <View style={{ borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: st.bg }}>
+          <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: st.text }}>{st.label}</Text>
         </View>
       </View>
 
-      <View className="flex-row items-center justify-between">
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View>
-          <Text className="text-ct-lg font-extrabold text-ct-text-primary dark:text-ct-dark-text">
+          <Text style={{ fontSize: font.size.lg, fontWeight: font.weight.extrabold, color: colors.text }}>
             {Number(invoice.amount_kes).toLocaleString()}
-            <Text className="text-ct-sm text-ct-text-faint dark:text-slate-400 font-semibold"> {invoice.currency}</Text>
+            <Text style={{ fontSize: font.size.sm, color: colors.textFaint, fontWeight: font.weight.semibold }}> {invoice.currency}</Text>
           </Text>
-          <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">
+          <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>
             {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
           </Text>
         </View>
@@ -171,10 +185,10 @@ function InvoiceRow({ invoice, onPay }: { invoice: Invoice; onPay: (inv: Invoice
         {(invoice.status === 'PENDING' || invoice.status === 'FAILED') && (
           <TouchableOpacity
             onPress={() => onPay(invoice)}
-            className="bg-ct-orange rounded-ct-md px-4 py-2"
+            style={{ backgroundColor: '#f5801e', borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 8 }}
             activeOpacity={0.8}
           >
-            <Text className="text-ct-sm font-extrabold text-white">Pay Now</Text>
+            <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: '#fff' }}>Pay Now</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -185,6 +199,7 @@ function InvoiceRow({ invoice, onPay }: { invoice: Invoice; onPay: (inv: Invoice
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function PaymentsScreen() {
+  const { colors, font, radius, spacing, isDark } = useAppTheme()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -204,23 +219,23 @@ export default function PaymentsScreen() {
   useEffect(() => { void load() }, [load])
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-bg dark:bg-ct-dark-bg">
-      <View className="flex-1">
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ flex: 1 }}>
         {/* Glass header */}
-        <GlassCard variant="elevated" accentColor="#16a34a" accentPosition="left" className="mx-4 mt-ct-lg mb-2">
-          <View className="p-ct-lg">
-            <View className="flex-row items-center">
-              <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1" activeOpacity={0.7}>
+        <GlassCard variant="elevated" accentColor="#16a34a" accentPosition="left" style={{ marginHorizontal: 16, marginTop: spacing.lg, marginBottom: 8 }}>
+          <View style={{ padding: spacing.lg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12, padding: 4 }} activeOpacity={0.7}>
                 <Ionicons name="arrow-back" size={22} color="#e2e8f0" />
               </TouchableOpacity>
-              <Text className="text-ct-xl font-extrabold text-ct-text-primary dark:text-white flex-1">Payments</Text>
-              <Text className="text-ct-sm text-ct-text-muted dark:text-slate-300">{invoices.length} invoices</Text>
+              <Text style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: colors.text, flex: 1 }}>Payments</Text>
+              <Text style={{ fontSize: font.size.sm, color: colors.textMuted }}>{invoices.length} invoices</Text>
             </View>
           </View>
         </GlassCard>
 
         {loading ? (
-          <View className="flex-1 items-center justify-center">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator size="large" color="#f5801e" />
           </View>
         ) : (

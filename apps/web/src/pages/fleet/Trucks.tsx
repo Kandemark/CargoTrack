@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -281,7 +281,7 @@ export default function FleetTrucks() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
                     { label: 'Odometer',     value: `${(selected.odometer_km ?? 0).toLocaleString()} km`, icon: Gauge,    color: '#0f2d5e' },
-                    { label: 'Payload',      value: `${selected.payload_tonnes} t`,                 icon: Package,  color: '#f97316' },
+                    { label: 'Payload',      value: `${selected.payload_tonnes} t`,                 icon: Package,  color: '#f5801e' },
                     { label: 'Last Service', value: selected.last_service_date ? new Date(selected.last_service_date).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '—', icon: Wrench, color: '#22c55e' },
                     { label: 'Next Service', value: selected.next_service_date ? new Date(selected.next_service_date).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '—', icon: Calendar, color: '#8b5cf6' },
                   ].map(({ label, value, icon: Icon, color }) => (

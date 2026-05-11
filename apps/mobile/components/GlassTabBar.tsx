@@ -26,8 +26,19 @@ const TAB_ICONS: Record<string, { icon: React.ComponentProps<typeof Ionicons>['n
 function AlertBadge({ count }: { count: number }) {
   if (count <= 0) return null
   return (
-    <View className="absolute -top-1.5 -right-4 min-w-[18px] h-[18px] rounded-full bg-ct-orange items-center justify-center px-[3px]">
-      <Text className="text-[9px] font-extrabold text-white leading-[12px]">
+    <View style={{
+      position: 'absolute',
+      top: -6,
+      right: -16,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9999,
+      backgroundColor: '#f5801e',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 3,
+    }}>
+      <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', lineHeight: 12 }}>
         {count > 99 ? '99+' : count}
       </Text>
     </View>
@@ -68,7 +79,7 @@ export default function GlassTabBar(props: BottomTabBarProps) {
         pointerEvents="box-none"
       >
         <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={[styles.bar, { paddingBottom: bottomPad }]} className="bg-[#0a1929]/85">
+        <View style={[styles.bar, { paddingBottom: bottomPad, backgroundColor: 'rgba(10,25,41,0.85)' }]}>
 
           {visibleRoutes.map((route, idx) => {
             const isTrack = route.name === 'track'
@@ -95,8 +106,8 @@ export default function GlassTabBar(props: BottomTabBarProps) {
                       shadowOpacity: 0.45,
                       shadowRadius: 12,
                       elevation: 8,
+                      backgroundColor: '#f5801e',
                     }]}
-                    className="bg-ct-orange"
                   >
                     <Ionicons name="add" size={30} color="#fff" />
                   </TouchableOpacity>
@@ -134,8 +145,7 @@ export default function GlassTabBar(props: BottomTabBarProps) {
                     {route.name === 'alerts' ? <AlertBadge count={unreadCount} /> : null}
                   </View>
                   <Text
-                    className="text-[10px] font-bold mt-0.5"
-                    style={{ color, letterSpacing: 0.2 }}
+                    style={{ fontSize: 10, fontWeight: '700', marginTop: 2, color, letterSpacing: 0.2 }}
                   >
                     {descriptor.options.title ?? route.name}
                   </Text>

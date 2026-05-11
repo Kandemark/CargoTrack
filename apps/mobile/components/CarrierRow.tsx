@@ -1,26 +1,31 @@
 import { View, Text } from 'react-native'
 import { riskLevel } from '@shared/utils/statusColors'
 import type { CarrierPerformance } from '@shared/api/types'
+import { useAppTheme } from '@/lib/useAppTheme'
 
 export default function CarrierRow({ c }: { c: CarrierPerformance }) {
+  const { colors, font, isDark } = useAppTheme()
   const highRisk = c.avg_risk > 0.5
 
   return (
-    <View
-      className={`flex-row py-2 px-2.5 rounded-ct-sm mb-0.5 ${
-        highRisk ? 'bg-red-50 dark:bg-red-900/20' : ''
-      }`}
-    >
-      <Text className="flex-[2] text-ct-sm font-bold text-ct-text-primary dark:text-ct-dark-text" numberOfLines={1}>
+    <View style={{
+      flexDirection: 'row',
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      marginBottom: 2,
+      backgroundColor: highRisk ? (isDark ? 'rgba(239,68,68,0.2)' : '#FEF2F2') : 'transparent',
+    }}>
+      <Text style={{ flex: 2, fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.text }} numberOfLines={1}>
         {c.carrier_name}
       </Text>
-      <Text className="flex-1 text-ct-sm text-ct-text-muted dark:text-ct-dark-text-muted text-center">
+      <Text style={{ flex: 1, fontSize: font.size.sm, color: colors.textMuted, textAlign: 'center' }}>
         {c.shipment_count}
       </Text>
-      <Text className="flex-1 text-ct-sm font-bold text-center" style={{ color: riskLevel(c.avg_risk).color }}>
+      <Text style={{ flex: 1, fontSize: font.size.sm, fontWeight: font.weight.bold, textAlign: 'center', color: riskLevel(c.avg_risk).color }}>
         {Math.round(c.avg_risk * 100)}%
       </Text>
-      <Text className="flex-1 text-ct-sm text-ct-text-muted dark:text-ct-dark-text-muted text-right">
+      <Text style={{ flex: 1, fontSize: font.size.sm, color: colors.textMuted, textAlign: 'right' }}>
         {c.on_time}
       </Text>
     </View>

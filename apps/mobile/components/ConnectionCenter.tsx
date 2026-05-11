@@ -4,11 +4,13 @@ import { Ionicons } from '@expo/vector-icons'
 import { checkApiHealth, getCurrentApiBaseUrl, resetApiBaseUrl, updateApiBaseUrl } from '@/lib/api'
 import { getSuggestedApiBaseUrls } from '@/lib/runtime-config'
 import { Card, Button } from '@/components/ui'
+import { useAppTheme } from '@/lib/useAppTheme'
 
 export default function ConnectionCenter() {
   const [value, setValue] = useState(getCurrentApiBaseUrl())
   const [status, setStatus] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const { colors, font, isDark } = useAppTheme()
 
   async function testCurrent() {
     setSaving(true)
@@ -49,65 +51,114 @@ export default function ConnectionCenter() {
 
   return (
     <Card>
-      <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-ct-dark-text">Connection center</Text>
-      <Text className="text-ct-xs text-ct-text-secondary dark:text-ct-dark-text-muted mt-1 leading-[18px]">
+      <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }}>
+        Connection center
+      </Text>
+      <Text style={{ fontSize: font.size.xs, color: colors.textSecondary, marginTop: 4, lineHeight: 18 }}>
         Use the API address your phone can actually reach. Physical devices usually need your computer's LAN IP, not `localhost`.
       </Text>
 
-      <View className="flex-row items-center border-[1.5px] border-blue-100 dark:border-blue-900 rounded-ct-md px-3 py-2.5 bg-slate-50 dark:bg-ct-dark-surface mt-3">
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: isDark ? '#1e3a5f' : '#dbeafe',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: colors.muted,
+        marginTop: 12,
+      }}>
         <Ionicons name="server-outline" size={16} color="#64748b" style={{ marginRight: 8 }} />
         <TextInput
           value={value}
           onChangeText={setValue}
           autoCapitalize="none"
           autoCorrect={false}
-          className="flex-1 text-ct-sm text-ct-text-primary dark:text-ct-dark-text"
+          style={{ flex: 1, fontSize: font.size.sm, color: colors.text }}
         />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-2.5">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
         {getSuggestedApiBaseUrls().map((item) => (
           <TouchableOpacity
             key={item}
             onPress={() => setValue(item)}
-            className="mr-2 px-2.5 py-[7px] rounded-full bg-slate-200 dark:bg-slate-700"
+            style={{
+              marginRight: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 7,
+              borderRadius: 9999,
+              backgroundColor: isDark ? '#334155' : '#E5E7EB',
+            }}
             activeOpacity={0.75}
           >
-            <Text className="text-ct-xs font-bold text-slate-700 dark:text-slate-300">{item.replace('http://', '')}</Text>
+            <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#cbd5e1' : '#374151' }}>
+              {item.replace('http://', '')}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
       {status ? (
-        <View className="mt-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-ct-md p-2.5">
-          <Text className="text-ct-xs text-blue-900 dark:text-blue-200 leading-[17px]">{status}</Text>
+        <View style={{
+          marginTop: 10,
+          backgroundColor: isDark ? 'rgba(59,130,246,0.2)' : '#EFF6FF',
+          borderRadius: 12,
+          padding: 10,
+        }}>
+          <Text style={{ fontSize: font.size.xs, color: isDark ? '#bfdbfe' : '#1e3a8a', lineHeight: 17 }}>
+            {status}
+          </Text>
         </View>
       ) : null}
 
-      <View className="flex-row gap-2 mt-3">
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         <TouchableOpacity
           onPress={() => void testCurrent()}
-          className="flex-1 bg-white dark:bg-ct-dark-card border border-slate-300 dark:border-slate-600 rounded-ct-md items-center py-3"
+          style={{
+            flex: 1,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: isDark ? '#475569' : '#d1d5db',
+            borderRadius: 12,
+            alignItems: 'center',
+            paddingVertical: 12,
+          }}
           activeOpacity={0.8}
         >
-          <Text className="text-ct-xs font-bold text-slate-700 dark:text-slate-300">Test</Text>
+          <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#cbd5e1' : '#374151' }}>Test</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => void reset()}
-          className="flex-1 bg-white dark:bg-ct-dark-card border border-slate-300 dark:border-slate-600 rounded-ct-md items-center py-3"
+          style={{
+            flex: 1,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: isDark ? '#475569' : '#d1d5db',
+            borderRadius: 12,
+            alignItems: 'center',
+            paddingVertical: 12,
+          }}
           activeOpacity={0.8}
         >
-          <Text className="text-ct-xs font-bold text-slate-700 dark:text-slate-300">Reset</Text>
+          <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#cbd5e1' : '#374151' }}>Reset</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => void save()}
-          className="flex-1 bg-ct-navy dark:bg-ct-orange rounded-ct-md items-center py-3"
+          style={{
+            flex: 1,
+            backgroundColor: isDark ? '#f5801e' : '#0f2d5e',
+            borderRadius: 12,
+            alignItems: 'center',
+            paddingVertical: 12,
+          }}
           activeOpacity={0.8}
         >
           {saving ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Text className="text-ct-xs font-extrabold text-white">Save</Text>
+            <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.extrabold, color: '#fff' }}>Save</Text>
           )}
         </TouchableOpacity>
       </View>

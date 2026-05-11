@@ -1,13 +1,25 @@
-import { Text } from 'react-native'
-import { cn } from '@/lib/utils'
+import { Text, type TextProps } from 'react-native'
+import { useAppTheme } from '@/lib/useAppTheme'
 
-export default function SectionLabel({ label, className }: { label: string; className?: string }) {
+interface SectionLabelProps {
+  label: string
+  style?: TextProps['style']
+}
+
+export default function SectionLabel({ label, style }: SectionLabelProps) {
+  const { font, colors } = useAppTheme()
+
   return (
     <Text
-      className={cn(
-        'text-ct-xs text-ct-text-faint font-heading font-bold uppercase tracking-[0.8px] mb-ct-md',
-        className,
-      )}
+      style={[{
+        fontSize: font.size.xs,
+        color: colors.textFaint,
+        fontFamily: 'SpaceGrotesk',
+        fontWeight: font.weight.bold,
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        marginBottom: 12,
+      }, style]}
     >
       {label}
     </Text>

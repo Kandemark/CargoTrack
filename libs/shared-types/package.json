@@ -1,5 +1,5 @@
 {
-  "name": "@cargotrack/shared",
+  "name": "@cargotrack/shared-types",
   "version": "1.0.0",
   "private": true,
   "description": "Shared API types and client factories for CargoTrack web and mobile",

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Documents.tsx — Enterprise document management with folder view, search, filter.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -22,7 +22,7 @@ import type { Document as ShipDoc, DocType, ShipmentListItem } from '@/types'
 const DOC_CFG: Record<DocType, { icon: React.ElementType; label: string; color: string; bg: string }> = {
   BOL:       { icon: FileText,    label: 'Bill of Lading',      color: '#0f2d5e', bg: 'bg-blue-50 dark:bg-blue-900/20'    },
   CUSTOMS:   { icon: Shield,      label: 'Customs Declaration', color: '#8b5cf6', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-  PACKING:   { icon: Package,     label: 'Packing List',        color: '#f97316', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+  PACKING:   { icon: Package,     label: 'Packing List',        color: '#f5801e', bg: 'bg-orange-50 dark:bg-orange-900/20' },
   INSURANCE: { icon: FileCog,     label: 'Insurance Cert.',     color: '#22c55e', bg: 'bg-emerald-50 dark:bg-emerald-900/20'},
   OTHER:     { icon: FileArchive, label: 'Other',               color: '#94a3b8', bg: 'bg-gray-100 dark:bg-white/8'        },
 }

@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react'
-import { View, Text, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import axios from 'axios'
 import { authApi } from '@/lib/api'
 import { Button, Input } from '@/components/ui'
+import { useAppTheme } from '@/lib/useAppTheme'
 import type { RegisterPayload } from '@shared/api/auth'
 
 type FieldErrors = Partial<Record<keyof RegisterPayload | 'non_field_errors', string>>
@@ -46,6 +47,7 @@ export default function RegisterScreen() {
   const [fieldErrors, setFE] = useState<FieldErrors>({})
   const [generalError, setGE] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const { colors, font, spacing, radius, isDark } = useAppTheme()
 
   function set<K extends keyof RegisterPayload>(key: K, value: RegisterPayload[K]) {
     setForm((p) => ({ ...p, [key]: value }))
@@ -70,47 +72,125 @@ export default function RegisterScreen() {
   }
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-ct-navy" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#0f2d5e' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
         {/* Hero */}
-        <SafeAreaView edges={['top']} className="bg-ct-navy overflow-hidden">
+        <SafeAreaView edges={['top']} style={{ backgroundColor: '#0f2d5e', overflow: 'hidden' }}>
           {/* Decorative rings */}
-          <View pointerEvents="none" className="absolute w-[240px] h-[240px] rounded-full border-[44px] border-white/[0.07] -top-[90px] -right-[70px]" />
-          <View pointerEvents="none" className="absolute w-[150px] h-[150px] rounded-full border-[28px] border-white/[0.05] top-5 right-5" />
-          <View pointerEvents="none" className="absolute w-[110px] h-[110px] rounded-full border-[22px] border-white/[0.06] -bottom-[30px] -left-[30px]" />
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              width: 240,
+              height: 240,
+              borderRadius: 9999,
+              borderWidth: 44,
+              borderColor: 'rgba(255,255,255,0.07)',
+              top: -90,
+              right: -70,
+            }}
+          />
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              width: 150,
+              height: 150,
+              borderRadius: 9999,
+              borderWidth: 28,
+              borderColor: 'rgba(255,255,255,0.05)',
+              top: 20,
+              right: 20,
+            }}
+          />
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              width: 110,
+              height: 110,
+              borderRadius: 9999,
+              borderWidth: 22,
+              borderColor: 'rgba(255,255,255,0.06)',
+              bottom: -30,
+              left: -30,
+            }}
+          />
 
-          <View className="px-7 pt-ct-lg pb-9">
-            <View className="w-[52px] h-[52px] rounded-ct-lg bg-ct-orange items-center justify-center mb-ct-lg"
-              style={{ shadowColor: '#f5801e', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 4 }, shadowRadius: 12, elevation: 6 }}>
+          <View style={{ paddingHorizontal: 28, paddingTop: spacing.lg, paddingBottom: 36 }}>
+            <View
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: radius.lg,
+                backgroundColor: '#f5801e',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: spacing.lg,
+                shadowColor: '#f5801e',
+                shadowOpacity: 0.4,
+                shadowOffset: { width: 0, height: 4 },
+                shadowRadius: 12,
+                elevation: 6,
+              }}
+            >
               <Ionicons name="cube" size={26} color="#fff" />
             </View>
-            <Text className="text-ct-2xl font-extrabold text-white tracking-tight">CargoTrack</Text>
-            <Text className="text-ct-sm font-medium text-ct-text-brand mt-0.5">East Africa Logistics Intelligence</Text>
-            <View className="w-8 h-[3px] rounded-sm bg-ct-orange mt-5 mb-ct-lg" />
-            <Text className="text-ct-3xl font-extrabold text-white tracking-tight">Create account</Text>
-            <Text className="text-ct-base text-ct-text-brand mt-1 leading-5">Join the Northern Corridor network</Text>
+            <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: '#ffffff', letterSpacing: -0.25 }}>
+              CargoTrack
+            </Text>
+            <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.medium, color: colors.textBrand, marginTop: 2 }}>
+              East Africa Logistics Intelligence
+            </Text>
+            <View style={{ width: 32, height: 3, borderRadius: 2, backgroundColor: '#f5801e', marginTop: 20, marginBottom: spacing.lg }} />
+            <Text style={{ fontSize: font.size['3xl'], fontWeight: font.weight.extrabold, color: '#ffffff', letterSpacing: -0.25 }}>
+              Create account
+            </Text>
+            <Text style={{ fontSize: font.size.base, color: colors.textBrand, marginTop: 4, lineHeight: 20 }}>
+              Join the Northern Corridor network
+            </Text>
           </View>
         </SafeAreaView>
 
         {/* Form card */}
-        <View className="flex-1 bg-ct-surface-card dark:bg-ct-dark-card rounded-t-ct-2xl -mt-[22px] px-6 pt-8 pb-12">
+        <View style={{
+          flex: 1,
+          backgroundColor: colors.card,
+          borderTopLeftRadius: radius['2xl'],
+          borderTopRightRadius: radius['2xl'],
+          marginTop: -22,
+          paddingHorizontal: 24,
+          paddingTop: 32,
+          paddingBottom: 48,
+        }}>
           {generalError && (
-            <View className="flex-row items-center bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-ct-md p-ct-md mb-5">
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: isDark ? 'rgba(127,29,29,0.2)' : '#fef2f2',
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: isDark ? '#991b1b' : '#fecaca',
+              borderRadius: radius.md,
+              padding: spacing.md,
+              marginBottom: 20,
+            }}>
               <Ionicons name="alert-circle-outline" size={16} color="#b91c1c" style={{ marginRight: 8 }} />
-              <Text className="flex-1 text-ct-sm text-red-700 dark:text-red-200 leading-[18px]">{generalError}</Text>
+              <Text style={{ flex: 1, fontSize: font.size.sm, color: isDark ? '#fecaca' : '#b91c1c', lineHeight: 18 }}>
+                {generalError}
+              </Text>
             </View>
           )}
 
           {/* Name row */}
-          <View className="flex-row gap-2.5 mb-[18px]">
-            <View className="flex-1">
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
+            <View style={{ flex: 1 }}>
               <Input
                 label="First name" icon="person-outline" placeholder="Jane"
                 value={form.first_name} error={fieldErrors.first_name}
                 onChangeText={(v) => set('first_name', v)} autoCapitalize="words" returnKeyType="next"
               />
             </View>
-            <View className="flex-1">
+            <View style={{ flex: 1 }}>
               <Input
                 label="Last name" icon="person-outline" placeholder="Mwangi"
                 value={form.last_name} error={fieldErrors.last_name}
@@ -123,19 +203,20 @@ export default function RegisterScreen() {
             label="Email address" icon="mail-outline" placeholder="jane@company.com"
             value={form.email} error={fieldErrors.email}
             onChangeText={(v) => set('email', v)} keyboardType="email-address"
-            autoCapitalize="none" autoCorrect={false} className="mb-[18px]"
+            autoCapitalize="none" autoCorrect={false}
+            containerStyle={{ marginBottom: 18 }}
           />
 
           {/* Org + Phone row */}
-          <View className="flex-row gap-2.5 mb-[18px]">
-            <View className="flex-1">
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
+            <View style={{ flex: 1 }}>
               <Input
                 label="Organization" icon="briefcase-outline" placeholder="Acme Freight"
                 value={form.org_name ?? ''} error={fieldErrors.org_name}
                 onChangeText={(v) => set('org_name', v)} autoCapitalize="words"
               />
             </View>
-            <View className="flex-1">
+            <View style={{ flex: 1 }}>
               <Input
                 label="Phone" icon="call-outline" placeholder="+254 700 000 000"
                 value={form.phone} error={fieldErrors.phone}
@@ -145,59 +226,107 @@ export default function RegisterScreen() {
           </View>
 
           {/* Role selector */}
-          <View className="mb-[18px]">
-            <Text className="text-ct-sm font-heading font-bold text-ct-text-secondary dark:text-ct-dark-text-muted mb-2 uppercase tracking-wider">Account type</Text>
-            <View className="flex-row flex-wrap gap-2">
+          <View style={{ marginBottom: 18 }}>
+            <Text style={{
+              fontSize: font.size.sm,
+              fontFamily: font.family.heading,
+              fontWeight: font.weight.bold,
+              color: colors.textSecondary,
+              marginBottom: 8,
+              textTransform: 'uppercase',
+              letterSpacing: 0.8,
+            }}>
+              Account type
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {ROLES.map((opt) => {
                 const selected = form.role === opt.value
                 return (
                   <TouchableOpacity
                     key={opt.value} onPress={() => set('role', opt.value)} activeOpacity={0.75}
-                    className={`w-[31%] items-center rounded-ct-md p-2.5 border-[1.5px] ${
-                      selected
-                        ? 'border-ct-navy bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-ct-border-light dark:border-ct-dark-border bg-ct-surface-muted dark:bg-ct-dark-surface'
-                    }`}
+                    style={{
+                      width: '31%',
+                      alignItems: 'center',
+                      borderRadius: radius.md,
+                      padding: 10,
+                      borderWidth: 1.5,
+                      borderColor: selected
+                        ? '#0f2d5e'
+                        : colors.border,
+                      backgroundColor: selected
+                        ? (isDark ? 'rgba(30,58,138,0.2)' : '#eff6ff')
+                        : colors.muted,
+                    }}
                   >
-                    <Ionicons name={opt.icon} size={18} color={selected ? '#0f2d5e' : '#9ca3af'} style={{ marginBottom: 4 }} />
-                    <Text className={`text-ct-xs font-bold text-center ${selected ? 'text-ct-navy dark:text-blue-300' : 'text-ct-text-secondary dark:text-ct-dark-text-muted'}`}>
+                    <Ionicons
+                      name={opt.icon}
+                      size={18}
+                      color={selected ? '#0f2d5e' : '#9ca3af'}
+                      style={{ marginBottom: 4 }}
+                    />
+                    <Text style={{
+                      fontSize: font.size.xs,
+                      fontWeight: font.weight.bold,
+                      textAlign: 'center',
+                      color: selected
+                        ? (isDark ? '#93c5fd' : '#0f2d5e')
+                        : colors.textSecondary,
+                    }}>
                       {opt.label}
                     </Text>
-                    <Text className={`text-[10px] text-center mt-0.5 leading-[13px] ${selected ? 'text-blue-500 dark:text-blue-400' : 'text-ct-text-faint'}`}>
+                    <Text style={{
+                      fontSize: 10,
+                      textAlign: 'center',
+                      marginTop: 2,
+                      lineHeight: 13,
+                      color: selected
+                        ? (isDark ? '#60a5fa' : '#3b82f6')
+                        : colors.textFaint,
+                    }}>
                       {opt.sub}
                     </Text>
                   </TouchableOpacity>
                 )
               })}
             </View>
-            {fieldErrors.role && <Text className="text-ct-xs text-ct-danger mt-1.5">{fieldErrors.role}</Text>}
+            {fieldErrors.role && (
+              <Text style={{ fontSize: font.size.xs, color: '#EF4444', marginTop: 6 }}>
+                {fieldErrors.role}
+              </Text>
+            )}
           </View>
 
           <Input
             label="Password" icon="lock-closed-outline" placeholder="Min. 10 characters, 1 upper, 1 digit, 1 symbol"
             value={form.password} error={fieldErrors.password}
-            onChangeText={(v) => set('password', v)} secureTextEntry className="mb-[18px]"
+            onChangeText={(v) => set('password', v)} secureTextEntry
+            containerStyle={{ marginBottom: 18 }}
           />
 
           <Input
             label="Confirm password" icon="lock-closed-outline" placeholder="Repeat password"
             value={form.password2} error={fieldErrors.password2}
             onChangeText={(v) => set('password2', v)} secureTextEntry
-            returnKeyType="done" onSubmitEditing={handleSubmit} className="mb-7"
+            returnKeyType="done" onSubmitEditing={handleSubmit}
+            containerStyle={{ marginBottom: 28 }}
           />
 
-          <Button variant="primary" size="lg" loading={loading} onPress={handleSubmit} className="w-full">
+          <Button variant="primary" size="lg" loading={loading} onPress={handleSubmit} style={{ width: '100%' }}>
             Create account
           </Button>
 
-          <TouchableOpacity onPress={() => router.replace('/(auth)/login')} className="mt-5 items-center" activeOpacity={0.7}>
-            <Text className="text-ct-base text-ct-text-muted dark:text-ct-dark-text-muted">
+          <TouchableOpacity
+            onPress={() => router.replace('/(auth)/login')}
+            style={{ marginTop: 20, alignItems: 'center' }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: font.size.base, color: colors.textMuted }}>
               Already have an account?{' '}
-              <Text className="text-ct-navy dark:text-ct-orange font-bold">Sign in</Text>
+              <Text style={{ color: isDark ? '#f5801e' : '#0f2d5e', fontWeight: font.weight.bold }}>Sign in</Text>
             </Text>
           </TouchableOpacity>
 
-          <Text className="mt-6 text-center text-ct-xs text-gray-300 dark:text-gray-600">
+          <Text style={{ marginTop: 24, textAlign: 'center', fontSize: font.size.xs, color: isDark ? '#4b5563' : '#d1d5db' }}>
             {new Date().getFullYear()} CargoTrack Ltd
           </Text>
         </View>

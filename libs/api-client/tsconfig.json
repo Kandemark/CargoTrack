@@ -15,7 +15,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@cargotrack/shared": ["../shared-types"]
+      "@cargotrack/shared-types": ["../shared-types"]
     }
   },
   "include": ["src"],

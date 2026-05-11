@@ -1,5 +1,3 @@
-import '../global.css'
-
 import { useEffect, useState } from 'react'
 import { View } from 'react-native'
 import { Stack } from 'expo-router'
@@ -31,7 +29,7 @@ function ThemeWrapper({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <View className={`flex-1 ${resolved === 'dark' ? 'dark' : ''}`}>
+    <View style={{ flex: 1 }}>
       <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
       {ready ? children : null}
     </View>

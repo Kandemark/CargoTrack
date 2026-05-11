@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, FlatList, RefreshControl, TouchableOpacity } from 'react-native'
+import { View, Text, FlatList, RefreshControl, TouchableOpacity, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { shipmentsApi } from '@/lib/api'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { SHIPMENT_STATUS_COLORS } from '@shared/utils/statusColors'
 import ShipmentCard from '@/components/ShipmentCard'
 import { FilterPills, Input, EmptyState, Skeleton, GlassCard } from '@/components/ui'
-import { cn } from '@/lib/utils'
 import type { ShipmentListItem, ShipmentStatus } from '@shared/api/types'
 
 type FilterKey = 'ALL' | ShipmentStatus
@@ -29,6 +29,7 @@ const SORT_OPTIONS: { key: SortKey; label: string; icon: React.ComponentProps<ty
 const PAGE_SIZE = 15
 
 export default function ShipmentsScreen() {
+  const { colors, font, spacing, radius, isDark } = useAppTheme()
   const [shipments, setShipments]     = useState<ShipmentListItem[]>([])
   const [search, setSearch]           = useState('')
   const [statusFilter, setStatus]     = useState<FilterKey>('ALL')
@@ -98,18 +99,18 @@ export default function ShipmentsScreen() {
   const canLoadMore = !search && hasNext && !loadingMore
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-bg dark:bg-ct-dark-bg">
-      <View className="flex-1">
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={s.flex1}>
         {/* Glass header */}
-        <GlassCard variant="elevated" accentColor="#3b82f6" accentPosition="left" className="mx-4 mt-ct-lg mb-2">
-          <View className="p-ct-lg">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-ct-xl font-extrabold text-ct-text-primary dark:text-white">Shipments</Text>
-              <Text className="text-ct-sm text-ct-text-muted dark:text-slate-300">{totalCount} total</Text>
+        <GlassCard variant="elevated" accentColor="#3b82f6" accentPosition="left" style={{ marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 8 }}>
+          <View style={{ padding: spacing.lg }}>
+            <View style={[s.rowSpaceBetween, { marginBottom: 12 }]}>
+              <Text style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: colors.text }}>Shipments</Text>
+              <Text style={{ fontSize: font.size.sm, color: colors.textMuted }}>{totalCount} total</Text>
             </View>
 
             {/* Search */}
-            <View className="mb-2.5">
+            <View style={{ marginBottom: 10 }}>
               <Input
                 icon="search"
                 placeholder="Search tracking, carrier, route…"
@@ -128,7 +129,7 @@ export default function ShipmentsScreen() {
             </View>
 
             {/* Sort */}
-            <View className="flex-row">
+            <View style={s.row}>
               {SORT_OPTIONS.map((opt) => {
                 const active = sort === opt.key
                 return (
@@ -136,13 +137,16 @@ export default function ShipmentsScreen() {
                     key={opt.key}
                     onPress={() => setSort(opt.key)}
                     activeOpacity={0.75}
-                    className={cn(
-                      'flex-row items-center mr-2.5 px-2.5 py-1.5 rounded-full',
-                      active ? 'bg-ct-orange' : 'bg-white/10',
-                    )}
+                    style={[
+                      s.sortPill,
+                      { marginRight: 10 },
+                      active
+                        ? { backgroundColor: '#f5801e' }
+                        : { backgroundColor: 'rgba(255,255,255,0.1)' },
+                    ]}
                   >
                     <Ionicons name={opt.icon} size={11} color={active ? '#fff' : '#94a3b8'} />
-                    <Text className={cn('text-ct-xs font-bold ml-1', active ? 'text-white' : 'text-slate-300')}>
+                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, marginLeft: 4, color: active ? '#ffffff' : '#cbd5e1' }}>
                       {opt.label}
                     </Text>
                   </TouchableOpacity>
@@ -153,7 +157,7 @@ export default function ShipmentsScreen() {
         </GlassCard>
 
         {/* Status filter pills */}
-        <View className="mx-4 bg-black/20 rounded-ct-lg px-3 py-2 mb-2">
+        <View style={{ marginHorizontal: spacing.lg, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}>
           <FilterPills
             options={STATUS_PILLS.map((p) => {
               const c = p.key !== 'ALL' ? SHIPMENT_STATUS_COLORS[p.key as ShipmentStatus] : null
@@ -174,7 +178,7 @@ export default function ShipmentsScreen() {
 
         {/* List */}
         {loading ? (
-          <View className="flex-1 px-4 pt-4">
+          <View style={[s.flex1, { paddingHorizontal: spacing.lg, paddingTop: spacing.lg }]}>
             <Skeleton variant="card" />
             <Skeleton variant="card" />
             <Skeleton variant="card" />
@@ -206,7 +210,7 @@ export default function ShipmentsScreen() {
             onEndReachedThreshold={0.3}
             ListFooterComponent={
               loadingMore ? (
-                <View className="py-4 items-center">
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
                   <Skeleton variant="rect" />
                 </View>
               ) : null
@@ -217,3 +221,10 @@ export default function ShipmentsScreen() {
     </SafeAreaView>
   )
 }
+
+const s = StyleSheet.create({
+  flex1: { flex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  rowSpaceBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sortPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9999 },
+})

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @route /predictions  @auth IsAuthenticated
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -257,7 +257,7 @@ export default function Predictions() {
           { label: 'High Risk',     value: stats.high,           icon: AlertTriangle, color: '#ef4444', bg: 'bg-red-50 dark:bg-red-900/15'      },
           { label: 'Medium Risk',   value: stats.medium,         icon: TrendingUp, color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-900/15'     },
           { label: 'Low Risk',      value: stats.low,            icon: Shield,     color: '#22c55e', bg: 'bg-emerald-50 dark:bg-emerald-900/15'  },
-          { label: 'Predicted Late',value: stats.predictedDelayed, icon: Target,   color: '#f97316', bg: 'bg-orange-50 dark:bg-orange-900/15'   },
+          { label: 'Predicted Late',value: stats.predictedDelayed, icon: Target,   color: '#f5801e', bg: 'bg-orange-50 dark:bg-orange-900/15'   },
         ].map(({ label, value, icon: Icon, color, bg }, i) => (
           <motion.div key={label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
             className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-4 shadow-card hover:shadow-elevated hover:-translate-y-0.5 transition-all">

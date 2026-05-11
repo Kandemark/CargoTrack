@@ -1,10 +1,16 @@
-import { View } from 'react-native'
-import { cn } from '@/lib/utils'
+import { View, type ViewProps } from 'react-native'
+import { useAppTheme } from '@/lib/useAppTheme'
 
-export default function SheetHandle({ className }: { className?: string }) {
+interface SheetHandleProps {
+  style?: ViewProps['style']
+}
+
+export default function SheetHandle({ style }: SheetHandleProps) {
+  const { colors } = useAppTheme()
+
   return (
-    <View className={cn('items-center pt-ct-sm pb-ct-md', className)}>
-      <View className="w-10 h-1 rounded-full bg-ct-border-mid dark:bg-ct-dark-border" />
+    <View style={[{ alignItems: 'center', paddingTop: 8, paddingBottom: 12 }, style]}>
+      <View style={{ width: 40, height: 4, borderRadius: 9999, backgroundColor: colors.borderMid }} />
     </View>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -259,7 +259,7 @@ export default function Payments() {
     )
   }
 
-  const PROVIDER_COLORS = ['#0f2d5e', '#f97316', '#22c55e', '#8b5cf6', '#ef4444']
+  const PROVIDER_COLORS = ['#0f2d5e', '#f5801e', '#22c55e', '#8b5cf6', '#ef4444']
 
   return (
     <div className="space-y-5 pb-4">
@@ -333,8 +333,8 @@ export default function Payments() {
                   <stop offset="95%" stopColor="#0f2d5e" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gPayExp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#f5801e" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#f5801e" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -343,7 +343,7 @@ export default function Payments() {
               <Tooltip content={<ChartTooltip />} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
               <Area type="monotone" dataKey="income" name="Income" stroke="#0f2d5e" fill="url(#gPayInc)" strokeWidth={2.5} dot={false} />
-              <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f97316" fill="url(#gPayExp)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f5801e" fill="url(#gPayExp)" strokeWidth={2} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </motion.div>

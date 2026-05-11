@@ -10,6 +10,7 @@ import {
   Animated,
   Alert,
   Modal,
+  StyleSheet,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
@@ -34,6 +35,7 @@ import {
   enrollBiometricCredentials,
 } from '@/lib/biometrics'
 import { Button, Input, Toast } from '@/components/ui'
+import { useAppTheme } from '@/lib/useAppTheme'
 
 // ── Server settings modal ────────────────────────────────────────────────────────
 function ServerSettingsModal({
@@ -46,6 +48,7 @@ function ServerSettingsModal({
   const [baseUrl, setBaseUrl] = useState(getCurrentApiBaseUrl())
   const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
+  const { colors, font, spacing, radius, isDark } = useAppTheme()
 
   useEffect(() => {
     if (visible) {
@@ -105,11 +108,24 @@ function ServerSettingsModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-card dark:bg-ct-dark-card">
-        <View className="flex-row items-center justify-between px-5 py-ct-lg border-b border-ct-border-light dark:border-ct-dark-border">
-          <View className="flex-row items-center">
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.card }}>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 20,
+          paddingVertical: spacing.lg,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="server-outline" size={20} color="#0f2d5e" style={{ marginRight: 8 }} />
-            <Text className="text-ct-lg font-heading font-bold text-ct-text-primary dark:text-ct-dark-text">
+            <Text style={{
+              fontSize: font.size.lg,
+              fontFamily: font.family.heading,
+              fontWeight: font.weight.bold,
+              color: colors.text,
+            }}>
               Server Settings
             </Text>
           </View>
@@ -119,13 +135,29 @@ function ServerSettingsModal({
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-          <Text className="text-ct-base text-ct-text-muted dark:text-ct-dark-text-muted mb-ct-lg leading-5">
+          <Text style={{
+            fontSize: font.size.base,
+            color: colors.textMuted,
+            marginBottom: spacing.lg,
+            lineHeight: 20,
+          }}>
             The app auto-discovers the server on startup. Use this screen only if automatic discovery fails.
           </Text>
 
-          <View className="flex-row bg-blue-50 dark:bg-blue-900/20 rounded-ct-md p-ct-md mb-5">
+          <View style={{
+            flexDirection: 'row',
+            backgroundColor: isDark ? 'rgba(30,58,138,0.2)' : '#eff6ff',
+            borderRadius: radius.md,
+            padding: spacing.md,
+            marginBottom: 20,
+          }}>
             <Ionicons name="bulb-outline" size={16} color="#0f2d5e" style={{ marginRight: 8, marginTop: 2 }} />
-            <Text className="flex-1 text-ct-sm text-blue-900 dark:text-blue-200 leading-[19px]">
+            <Text style={{
+              flex: 1,
+              fontSize: font.size.sm,
+              color: isDark ? '#bfdbfe' : '#1e3a8a',
+              lineHeight: 19,
+            }}>
               Make sure Docker is running (.\scripts\dev.ps1 up) and your device is on the same WiFi network.
             </Text>
           </View>
@@ -142,24 +174,38 @@ function ServerSettingsModal({
           />
 
           {/* URL suggestions */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-ct-md mb-ct-lg">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: spacing.md, marginBottom: spacing.lg }}
+          >
             {getSuggestedApiBaseUrls().slice(0, 10).map((url) => (
               <TouchableOpacity
                 key={url}
                 onPress={() => setBaseUrl(url)}
                 activeOpacity={0.75}
-                className={`mr-2 px-ct-md py-ct-sm rounded-full border ${
-                  baseUrl === url
-                    ? 'bg-blue-50 dark:bg-blue-900/30 border-ct-navy dark:border-blue-400'
-                    : 'bg-ct-surface-muted dark:bg-ct-dark-surface border-ct-border-light dark:border-ct-dark-border'
-                }`}
+                style={{
+                  marginRight: 8,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm,
+                  borderRadius: 9999,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  backgroundColor: baseUrl === url
+                    ? (isDark ? 'rgba(30,58,138,0.3)' : '#eff6ff')
+                    : colors.muted,
+                  borderColor: baseUrl === url
+                    ? (isDark ? '#60a5fa' : '#0f2d5e')
+                    : colors.border,
+                }}
               >
                 <Text
-                  className={`text-ct-sm font-bold ${
-                    baseUrl === url
-                      ? 'text-ct-navy dark:text-blue-300'
-                      : 'text-ct-text-muted dark:text-ct-dark-text-muted'
-                  }`}
+                  style={{
+                    fontSize: font.size.sm,
+                    fontWeight: font.weight.bold,
+                    color: baseUrl === url
+                      ? (isDark ? '#93c5fd' : '#0f2d5e')
+                      : colors.textMuted,
+                  }}
                 >
                   {url.replace('http://', '')}
                 </Text>
@@ -169,9 +215,16 @@ function ServerSettingsModal({
 
           {status && (
             <View
-              className={`flex-row items-center rounded-ct-md p-ct-md mb-ct-lg ${
-                status.ok ? 'bg-green-50 dark:bg-green-900/20' : 'bg-blue-50 dark:bg-blue-900/20'
-              }`}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                borderRadius: radius.md,
+                padding: spacing.md,
+                marginBottom: spacing.lg,
+                backgroundColor: status.ok
+                  ? (isDark ? 'rgba(20,83,45,0.2)' : '#f0fdf4')
+                  : (isDark ? 'rgba(30,58,138,0.2)' : '#eff6ff'),
+              }}
             >
               <Ionicons
                 name={status.ok ? 'checkmark-circle' : 'information-circle'}
@@ -180,23 +233,28 @@ function ServerSettingsModal({
                 style={{ marginRight: 8 }}
               />
               <Text
-                className={`flex-1 text-ct-sm leading-[18px] ${
-                  status.ok ? 'text-green-800 dark:text-green-200' : 'text-blue-900 dark:text-blue-200'
-                }`}
+                style={{
+                  flex: 1,
+                  fontSize: font.size.sm,
+                  lineHeight: 18,
+                  color: status.ok
+                    ? (isDark ? '#bbf7d0' : '#166534')
+                    : (isDark ? '#bfdbfe' : '#1e3a8a'),
+                }}
               >
                 {status.text}
               </Text>
             </View>
           )}
 
-          <View className="flex-row gap-2">
-            <Button variant="outline" size="md" onPress={() => handleTest()} disabled={busy} className="flex-1">
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button variant="outline" size="md" onPress={() => handleTest()} disabled={busy} style={{ flex: 1 }}>
               Test
             </Button>
-            <Button variant="outline" size="md" onPress={() => handleReset()} disabled={busy} className="flex-1">
+            <Button variant="outline" size="md" onPress={() => handleReset()} disabled={busy} style={{ flex: 1 }}>
               Reset
             </Button>
-            <Button variant="primary" size="md" onPress={() => handleSave()} loading={busy} className="flex-1">
+            <Button variant="primary" size="md" onPress={() => handleSave()} loading={busy} style={{ flex: 1 }}>
               Save
             </Button>
           </View>
@@ -224,6 +282,7 @@ export default function LoginScreen() {
 
   const fadeAnim = useRef(new Animated.Value(0)).current
   const { setTokens, setUser, setBiometricEnabled } = useAuthStore()
+  const { colors, font, spacing, radius, isDark } = useAppTheme()
 
   const showError = useCallback((msg: string) => {
     setToastMessage(msg)
@@ -362,71 +421,165 @@ export default function LoginScreen() {
   }
 
   return (
-    <View className="flex-1 bg-ct-navy">
+    <View style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
       <Toast message={toastMessage} visible={toastVisible} type={toastType} onDismiss={() => setToastVisible(false)} />
       <ServerSettingsModal visible={serverModalVisible} onClose={() => setServerModalVisible(false)} />
 
-      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="always"
           showsVerticalScrollIndicator={false}
         >
           {/* Hero header */}
-          <SafeAreaView edges={['top']} className="bg-ct-navy overflow-hidden">
+          <SafeAreaView edges={['top']} style={{ backgroundColor: '#0f2d5e', overflow: 'hidden' }}>
             {/* Connection badge */}
             <TouchableOpacity
               onPress={() => setServerModalVisible(true)}
               activeOpacity={0.7}
-              className="absolute top-6 right-5 flex-row items-center px-2.5 py-1.5 rounded-full bg-white/12 z-10"
+              style={{
+                position: 'absolute',
+                top: 24,
+                right: 20,
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 9999,
+                backgroundColor: 'rgba(255,255,255,0.12)',
+                zIndex: 10,
+              }}
             >
               <View
-                className={`w-2 h-2 rounded-full ${
-                  serverOnline === true ? 'bg-green-500' : serverOnline === false ? 'bg-amber-500' : 'bg-gray-400'
-                }`}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 9999,
+                  backgroundColor: serverOnline === true
+                    ? '#22c55e'
+                    : serverOnline === false
+                      ? '#f59e0b'
+                      : '#9ca3af',
+                }}
               />
               <Ionicons name="settings-outline" size={14} color="rgba(255,255,255,0.7)" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
 
             {/* Decorative rings */}
-            <View pointerEvents="none" className="absolute w-[260px] h-[260px] rounded-full border-[32px] border-white/[0.06] -top-[100px] -right-20" />
-            <View pointerEvents="none" className="absolute w-[160px] h-[160px] rounded-full border-[32px] border-white/[0.04] top-10 right-[50px]" />
-            <View pointerEvents="none" className="absolute w-[120px] h-[120px] rounded-full border-[32px] border-white/[0.05] -bottom-[30px] -left-[30px]" />
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                width: 260,
+                height: 260,
+                borderRadius: 9999,
+                borderWidth: 32,
+                borderColor: 'rgba(255,255,255,0.06)',
+                top: -100,
+                right: -80,
+              }}
+            />
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                width: 160,
+                height: 160,
+                borderRadius: 9999,
+                borderWidth: 32,
+                borderColor: 'rgba(255,255,255,0.04)',
+                top: 40,
+                right: 50,
+              }}
+            />
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                width: 120,
+                height: 120,
+                borderRadius: 9999,
+                borderWidth: 32,
+                borderColor: 'rgba(255,255,255,0.05)',
+                bottom: -30,
+                left: -30,
+              }}
+            />
 
-            <View className="px-7 pt-5 pb-11">
-              <View className="w-14 h-14 rounded-ct-xl bg-ct-orange items-center justify-center mb-[18px]"
+            <View style={{ paddingHorizontal: 28, paddingTop: 20, paddingBottom: 44 }}>
+              <View
                 style={{
-                  shadowColor: '#f5801e', shadowOpacity: 0.4,
-                  shadowOffset: { width: 0, height: 6 }, shadowRadius: 14, elevation: 8,
+                  width: 56,
+                  height: 56,
+                  borderRadius: radius.xl,
+                  backgroundColor: '#f5801e',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 18,
+                  shadowColor: '#f5801e',
+                  shadowOpacity: 0.4,
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowRadius: 14,
+                  elevation: 8,
                 }}
               >
                 <Ionicons name="cube" size={28} color="#fff" />
               </View>
 
-              <Text className="text-2xl font-extrabold text-white tracking-tight mb-0.5">CargoTrack</Text>
-              <Text className="text-ct-xs font-medium text-ct-text-brand">East Africa Logistics Intelligence</Text>
+              <Text style={{ fontSize: 24, fontWeight: font.weight.extrabold, color: '#ffffff', letterSpacing: -0.25, marginBottom: 2 }}>
+                CargoTrack
+              </Text>
+              <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.medium, color: colors.textBrand }}>
+                East Africa Logistics Intelligence
+              </Text>
 
-              <View className="w-9 h-[3px] rounded-sm bg-ct-orange mt-[22px] mb-ct-lg" />
+              <View style={{ width: 36, height: 3, borderRadius: 2, backgroundColor: '#f5801e', marginTop: 22, marginBottom: spacing.lg }} />
 
-              <Text className="text-ct-3xl font-extrabold text-white tracking-tight">Welcome back</Text>
-              <Text className="text-ct-md text-ct-text-brand mt-1 leading-[22px]">Sign in to your account</Text>
+              <Text style={{ fontSize: font.size['3xl'], fontWeight: font.weight.extrabold, color: '#ffffff', letterSpacing: -0.25 }}>
+                Welcome back
+              </Text>
+              <Text style={{ fontSize: font.size.md, color: colors.textBrand, marginTop: 4, lineHeight: 22 }}>
+                Sign in to your account
+              </Text>
             </View>
           </SafeAreaView>
 
           {/* Form card */}
           <Animated.View
-            className="flex-1 bg-ct-surface-card dark:bg-ct-dark-card rounded-t-ct-2xl -mt-[22px] px-6 pt-8 pb-10"
-            style={{ opacity: fadeAnim }}
+            style={[
+              {
+                flex: 1,
+                backgroundColor: colors.card,
+                borderTopLeftRadius: radius['2xl'],
+                borderTopRightRadius: radius['2xl'],
+                marginTop: -22,
+                paddingHorizontal: 24,
+                paddingTop: 32,
+                paddingBottom: 40,
+              },
+              { opacity: fadeAnim },
+            ]}
           >
             {/* Server down banner */}
             {serverOnline === false && (
               <TouchableOpacity
-                className="flex-row items-center bg-amber-50 dark:bg-amber-900/20 rounded-ct-md p-ct-md mb-5 border border-amber-200 dark:border-amber-800"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: isDark ? 'rgba(120,53,15,0.2)' : '#fffbeb',
+                  borderRadius: radius.md,
+                  padding: spacing.md,
+                  marginBottom: 20,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: isDark ? '#92400e' : '#fde68a',
+                }}
                 onPress={() => setServerModalVisible(true)}
                 activeOpacity={0.8}
               >
                 <Ionicons name="cloud-offline-outline" size={16} color="#b45309" style={{ marginRight: 8 }} />
-                <Text className="flex-1 text-ct-sm font-medium text-amber-800 dark:text-amber-200">Server not reachable. Tap to configure.</Text>
+                <Text style={{ flex: 1, fontSize: font.size.sm, fontWeight: font.weight.medium, color: isDark ? '#fde68a' : '#92400e' }}>
+                  Server not reachable. Tap to configure.
+                </Text>
                 <Ionicons name="chevron-forward" size={14} color="#b45309" />
               </TouchableOpacity>
             )}
@@ -438,7 +591,17 @@ export default function LoginScreen() {
                   onPress={handleBiometricLogin}
                   disabled={bioBusy}
                   activeOpacity={0.8}
-                  className="flex-row items-center justify-center py-[15px] rounded-ct-md border-[1.5px] border-ct-navy bg-blue-50 dark:bg-blue-900/20 mb-ct-lg"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingVertical: 15,
+                    borderRadius: radius.md,
+                    borderWidth: 1.5,
+                    borderColor: '#0f2d5e',
+                    backgroundColor: isDark ? 'rgba(30,58,138,0.2)' : '#eff6ff',
+                    marginBottom: spacing.lg,
+                  }}
                 >
                   <Ionicons
                     name={bioBusy ? 'hourglass-outline' : 'finger-print-outline'}
@@ -446,15 +609,17 @@ export default function LoginScreen() {
                     color="#0f2d5e"
                     style={{ marginRight: 8 }}
                   />
-                  <Text className="text-ct-md font-bold text-ct-navy dark:text-blue-300">
+                  <Text style={{ fontSize: font.size.md, fontWeight: font.weight.bold, color: isDark ? '#93c5fd' : '#0f2d5e' }}>
                     {bioBusy ? 'Verifying...' : `Sign in with ${bioLabel}`}
                   </Text>
                 </TouchableOpacity>
 
-                <View className="flex-row items-center mb-5">
-                  <View className="flex-1 h-px bg-ct-border-light dark:bg-ct-dark-border" />
-                  <Text className="mx-ct-md text-ct-sm font-medium text-ct-text-faint">or use password</Text>
-                  <View className="flex-1 h-px bg-ct-border-light dark:bg-ct-dark-border" />
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                  <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />
+                  <Text style={{ marginHorizontal: spacing.md, fontSize: font.size.sm, fontWeight: font.weight.medium, color: colors.textFaint }}>
+                    or use password
+                  </Text>
+                  <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />
                 </View>
               </>
             )}
@@ -468,7 +633,7 @@ export default function LoginScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="next"
-              className="mb-[18px]"
+              containerStyle={{ marginBottom: 18 }}
             />
 
             <Input
@@ -480,25 +645,25 @@ export default function LoginScreen() {
               secureTextEntry
               returnKeyType="done"
               onSubmitEditing={handleLogin}
-              className="mb-7"
+              containerStyle={{ marginBottom: 28 }}
             />
 
-            <Button variant="primary" size="lg" loading={loading} onPress={handleLogin} className="w-full">
+            <Button variant="primary" size="lg" loading={loading} onPress={handleLogin} style={{ width: '100%' }}>
               Sign in
             </Button>
 
             <TouchableOpacity
               onPress={() => router.navigate('/(auth)/register')}
-              className="mt-5 items-center"
+              style={{ marginTop: 20, alignItems: 'center' }}
               activeOpacity={0.7}
             >
-              <Text className="text-ct-base text-ct-text-muted dark:text-ct-dark-text-muted">
+              <Text style={{ fontSize: font.size.base, color: colors.textMuted }}>
                 Don't have an account?{' '}
-                <Text className="text-ct-navy dark:text-ct-orange font-bold">Create one</Text>
+                <Text style={{ color: isDark ? '#f5801e' : '#0f2d5e', fontWeight: font.weight.bold }}>Create one</Text>
               </Text>
             </TouchableOpacity>
 
-            <Text className="mt-[22px] text-center text-ct-xs text-gray-300 dark:text-gray-600 leading-[17px]">
+            <Text style={{ marginTop: 22, textAlign: 'center', fontSize: font.size.xs, color: isDark ? '#4b5563' : '#d1d5db', lineHeight: 17 }}>
               {bioAvailable && !bioEnabled ? 'Sign in to enable biometric access.\n' : ''}
               {new Date().getFullYear()} CargoTrack Ltd
             </Text>

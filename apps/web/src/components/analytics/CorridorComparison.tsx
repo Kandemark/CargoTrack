@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+﻿import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { cn } from '@/lib/utils'
 import type { CorridorAnalytics } from '@/api/analytics'
 
@@ -8,7 +8,7 @@ interface Props {
 }
 
 const CORRIDOR_COLORS = {
-  'Northern Corridor': '#f97316',
+  'Northern Corridor': '#f5801e',
   'Central Corridor':  '#60a5fa',
   'LAPSSET Corridor':  '#34d399',
 }
@@ -46,7 +46,7 @@ export default function CorridorComparison({ corridors, className }: Props) {
               }}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Volume (tonnes)" fill="#f97316" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Volume (tonnes)" fill="#f5801e" radius={[4, 4, 0, 0]} />
             <Bar dataKey="On-Time %" fill="#22c55e" radius={[4, 4, 0, 0]} />
             <Bar dataKey="Delay Risk %" fill="#ef4444" radius={[4, 4, 0, 0]} />
           </BarChart>

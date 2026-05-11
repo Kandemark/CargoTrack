@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AdminDashboard.tsx — System administrator dashboard with analytics & user management.
  *
  * @route /admin/dashboard
@@ -21,7 +21,7 @@ import type { DashboardSummary } from '@/types'
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: '#0f2d5e',
-  LOGISTICS_MGR: '#f97316',
+  LOGISTICS_MGR: '#f5801e',
   CARRIER: '#3b82f6',
   CLIENT: '#22c55e',
   DISPATCHER: '#8b5cf6',
@@ -230,7 +230,7 @@ export default function AdminDashboard() {
           <>
             <KPICard label="Total Users" value={users.length} sub={`${activeUsers} active`} icon={Users} color="#3b82f6" delay={0} />
             <KPICard label="Active Today" value={last24h} sub="last 24 hours" icon={Activity} color="#22c55e" delay={0.03} />
-            <KPICard label="Total Shipments" value={summary?.total_shipments ?? '—'} sub="all time" icon={Package} color="#f97316" delay={0.06} />
+            <KPICard label="Total Shipments" value={summary?.total_shipments ?? '—'} sub="all time" icon={Package} color="#f5801e" delay={0.06} />
             <KPICard label="In Transit" value={summary?.active_shipments ?? '—'} sub="currently active" icon={Globe2} color="#8b5cf6" delay={0.09} />
             <KPICard label="Open Alerts" value={summary?.open_alerts ?? '—'} sub="needs attention" icon={AlertTriangle} color="#ef4444" delay={0.12} />
             <KPICard label="On-Time Rate" value={summary ? `${summary.on_time_rate.toFixed(1)}%` : '—'} sub="last 30 days" icon={TrendingUp} color="#14b8a6" delay={0.15} />
@@ -298,7 +298,7 @@ export default function AdminDashboard() {
             { label: 'Active Shipments', value: summary.active_shipments, color: '#3b82f6' },
             { label: 'Delayed', value: summary.delayed_shipments, color: '#ef4444' },
             { label: 'Delivered', value: summary.delivered_shipments, color: '#22c55e' },
-            { label: 'Carriers Active', value: summary.carrier_count, color: '#f97316' },
+            { label: 'Carriers Active', value: summary.carrier_count, color: '#f5801e' },
           ].map(({ label, value, color }) => (
             <div key={label} className="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-white/8 px-5 py-4 flex items-center gap-4">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />

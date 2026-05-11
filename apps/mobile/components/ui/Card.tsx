@@ -1,12 +1,12 @@
-import { TouchableOpacity, View } from 'react-native'
-import { cn } from '@/lib/utils'
+import { TouchableOpacity, View, type ViewProps } from 'react-native'
+import { useAppTheme } from '@/lib/useAppTheme'
 
 interface CardProps {
   variant?: 'default' | 'gradient' | 'outlined'
   accentColor?: string
   accentPosition?: 'top' | 'left'
   onPress?: () => void
-  className?: string
+  style?: ViewProps['style']
   children: React.ReactNode
 }
 
@@ -15,20 +15,22 @@ export default function Card({
   accentColor,
   accentPosition = 'top',
   onPress,
-  className,
+  style,
   children,
 }: CardProps) {
+  const { colors, radius } = useAppTheme()
   const Container = onPress ? TouchableOpacity : View
 
   const accentBar = accentColor ? (
     <View
-      className={cn(
-        'absolute z-10',
-        accentPosition === 'top'
-          ? 'top-0 left-0 right-0 h-[3px] rounded-t-ct-lg'
-          : 'top-0 left-0 bottom-0 w-[3px] rounded-l-ct-lg',
-      )}
-      style={{ backgroundColor: accentColor }}
+      style={{
+        position: 'absolute',
+        zIndex: 10,
+        backgroundColor: accentColor,
+        ...(accentPosition === 'top'
+          ? { top: 0, left: 0, right: 0, height: 3, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }
+          : { top: 0, left: 0, bottom: 0, width: 3, borderTopLeftRadius: radius.lg, borderBottomLeftRadius: radius.lg }),
+      }}
     />
   ) : null
 
@@ -36,22 +38,22 @@ export default function Card({
     <Container
       onPress={onPress}
       activeOpacity={onPress ? 0.85 : 1}
-      className={cn(
-        'relative bg-ct-surface-card dark:bg-ct-dark-card rounded-ct-lg',
-        'shadow-sm shadow-black/5',
-        variant === 'outlined' && 'border border-ct-border-light dark:border-ct-dark-border',
-        variant === 'gradient' && 'overflow-hidden',
-        className,
-      )}
-      style={{
+      style={[{
+        position: 'relative',
+        backgroundColor: colors.card,
+        borderRadius: radius.lg,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.06,
         shadowRadius: 4,
         elevation: 2,
-      }}
+        ...(variant === 'outlined' && {
+          borderWidth: 1,
+          borderColor: colors.border,
+        }),
+        ...(variant === 'gradient' && { overflow: 'hidden' }),
+      }, style]}
     >
-      {variant === 'gradient' && accentBar}
-      {variant === 'default' && accentBar}
+      {(variant === 'gradient' || variant === 'default') && accentBar}
       {children}
     </Container>
   )

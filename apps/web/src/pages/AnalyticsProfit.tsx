@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -110,7 +110,7 @@ export default function AnalyticsProfit() {
                 <Tooltip contentStyle={{ background: '#111c2d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12, color: '#fff' }} />
                 <Bar dataKey="margin_pct" name="Margin %" radius={[0, 4, 4, 0]}>
                   {data.by_carrier.map((_, i) => (
-                    <rect key={i} fill={['#22c55e', '#3b82f6', '#f97316', '#a78bfa', '#ef4444'][i % 5]} />
+                    <rect key={i} fill={['#22c55e', '#3b82f6', '#f5801e', '#a78bfa', '#ef4444'][i % 5]} />
                   ))}
                 </Bar>
               </BarChart>

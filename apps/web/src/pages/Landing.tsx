@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import {
@@ -53,7 +53,7 @@ const ALL_FEATURES = [
   {
     icon: Warehouse, title: 'Port & Warehouse Ops',
     description: 'Container gate-in/gate-out tracking, storage days calculation, demurrage alerts, and customs release monitoring at Mombasa and Dar es Salaam.',
-    gradient: 'from-orange-500 to-red-400', color: '#f97316',
+    gradient: 'from-orange-500 to-red-400', color: '#f5801e',
   },
   {
     icon: Route, title: 'Fleet Optimization',
@@ -475,7 +475,7 @@ export default function Landing() {
             className="relative bg-[#0f2d5e] rounded-3xl overflow-hidden"
           >
             <div className="absolute inset-0 opacity-[0.03]"
-              style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #f97316 0%, transparent 50%), radial-gradient(circle at 70% 20%, #3b82f6 0%, transparent 40%)' }} />
+              style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #f5801e 0%, transparent 50%), radial-gradient(circle at 70% 20%, #3b82f6 0%, transparent 40%)' }} />
             <div className="relative px-8 py-12 lg:px-16">
               <div className="text-center mb-10">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/8 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-4 border border-white/10">
@@ -495,7 +495,7 @@ export default function Landing() {
                 {[
                   { icon: Package, label: 'Active Shipments', value: landingStats?.active_shipments ?? 0, color: '#3b82f6' },
                   { icon: Activity, label: 'On-Time Rate', value: landingStats?.on_time_rate ?? 97, suffix: '%', color: '#22c55e' },
-                  { icon: Users, label: 'Active Carriers', value: landingStats?.active_carriers ?? 0, color: '#f97316' },
+                  { icon: Users, label: 'Active Carriers', value: landingStats?.active_carriers ?? 0, color: '#f5801e' },
                   { icon: Truck, label: 'Active Trucks', value: landingStats?.active_trucks ?? 0, color: '#8b5cf6' },
                 ].map((m, i) => (
                   <motion.div
@@ -543,7 +543,7 @@ export default function Landing() {
       {/* ═══ Pricing ═══ */}
       <section id="pricing" className="py-28 bg-[#0f2d5e] relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full opacity-[0.05] blur-[120px]"
-          style={{ background: 'radial-gradient(circle, #f97316 0%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, #f5801e 0%, transparent 70%)' }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full opacity-[0.04] blur-[100px]"
           style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }} />
 
@@ -594,7 +594,7 @@ export default function Landing() {
               <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-6">Serving East African corridors</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
                 {[
-                  { name: 'Northern Corridor', color: '#f97316' },
+                  { name: 'Northern Corridor', color: '#f5801e' },
                   { name: 'Central Corridor', color: '#3b82f6' },
                   { name: 'LAPSSET Corridor', color: '#10b981' },
                   { name: 'Lake Victoria Ring', color: '#8b5cf6' },

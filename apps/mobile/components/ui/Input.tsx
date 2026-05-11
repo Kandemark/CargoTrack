@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, Appearance } from 'react-native'
-import type { TextInputProps } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, type TextInputProps, type ViewProps } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { cn } from '@/lib/utils'
+import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 
 interface InputProps extends TextInputProps {
   label?: string
   icon?: React.ComponentProps<typeof Ionicons>['name']
   error?: string
   rightSlot?: React.ReactNode
+  containerStyle?: ViewProps['style']
 }
 
 export default function Input({
@@ -16,42 +17,44 @@ export default function Input({
   icon,
   error,
   rightSlot,
-  className,
+  containerStyle,
   secureTextEntry,
   ...rest
 }: InputProps) {
   const [focused, setFocused] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const isPassword = secureTextEntry
-  const isDark = Appearance.getColorScheme() === 'dark'
+  const { colors, font, radius, isDark } = useAppTheme()
 
-  const placeholderColor = isDark ? '#64748b' : '#9ca3af'
-
-  const iconColor = focused
-    ? (isDark ? '#f5801e' : '#0f2d5e')
-    : (isDark ? '#64748b' : '#9ca3af')
+  const placeholderColor = colors.textFaint
+  const iconColor = focused ? (isDark ? T.color.brand.accent : T.color.brand.primary) : colors.textFaint
+  const focusBorder = focused ? (isDark ? T.color.brand.accent : T.color.brand.primary) : undefined
 
   return (
-    <View className="w-full">
+    <View style={[{ width: '100%' }, containerStyle]}>
       {label && (
-        <Text className="text-ct-xs font-heading font-bold text-ct-text-secondary dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+        <Text style={{
+          fontSize: font.size.xs,
+          fontFamily: 'SpaceGrotesk',
+          fontWeight: font.weight.bold,
+          color: colors.textSecondary,
+          marginBottom: 6,
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+        }}>
           {label}
         </Text>
       )}
-      <View
-        className={cn(
-          'flex-row items-center rounded-ct-lg bg-white dark:bg-slate-800',
-          'border-[1.5px]',
-          focused
-            ? 'border-ct-navy dark:border-ct-orange'
-            : error
-              ? 'border-red-400 dark:border-red-500'
-              : 'border-slate-200 dark:border-slate-700',
-          'min-h-[52px]',
-          error && 'bg-red-50 dark:bg-red-900/10',
-          className,
-        )}
-      >
+      <View style={[{
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: radius.lg,
+        backgroundColor: colors.card,
+        borderWidth: 1.5,
+        borderColor: focusBorder ?? (error ? T.color.ui.danger : colors.border),
+        minHeight: 52,
+        ...(error && { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2' }),
+      }]}>
         {icon && (
           <Ionicons
             name={icon}
@@ -72,30 +75,42 @@ export default function Input({
             rest.onBlur?.(e)
           }}
           placeholderTextColor={placeholderColor}
-          className={cn(
-            'flex-1 py-3.5 px-3 font-body text-ct-base text-ct-text-primary dark:text-white',
-            !icon && 'pl-4',
-            (isPassword || !!rightSlot) && 'pr-0',
-          )}
-          style={{ minHeight: 48 }}
+          style={[{
+            flex: 1,
+            paddingVertical: 14,
+            paddingHorizontal: 12,
+            fontFamily: 'DMSans',
+            fontSize: font.size.base,
+            color: colors.text,
+            minHeight: 48,
+            paddingLeft: icon ? undefined : 16,
+            paddingRight: (isPassword || !!rightSlot) ? 0 : undefined,
+          }, rest.style]}
         />
         {isPassword && (
           <TouchableOpacity
             onPress={() => setShowPassword((v) => !v)}
-            className="px-3 h-full justify-center"
+            style={{ paddingHorizontal: 12, height: '100%', justifyContent: 'center' }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
               size={20}
-              color={isDark ? '#64748b' : '#9ca3af'}
+              color={colors.textFaint}
             />
           </TouchableOpacity>
         )}
         {rightSlot}
       </View>
       {error && (
-        <Text className="text-ct-xs text-red-600 dark:text-red-400 mt-1.5 ml-1">{error}</Text>
+        <Text style={{
+          fontSize: font.size.xs,
+          color: T.color.ui.danger,
+          marginTop: 6,
+          marginLeft: 4,
+        }}>
+          {error}
+        </Text>
       )}
     </View>
   )

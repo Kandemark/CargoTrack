@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @route /alerts  @auth IsAuthenticated
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -262,7 +262,7 @@ export default function Alerts() {
             <button key={s} onClick={() => { setSevFilter(s); setPage(1) }}
               className={cn('px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors',
                 sevFilter === s ? 'text-white' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-white/8')}
-              style={sevFilter === s ? { background: s === 'CRITICAL' ? '#ef4444' : s === 'HIGH' ? '#f97316' : s === 'MEDIUM' ? '#f59e0b' : s === 'LOW' ? '#3b82f6' : 'var(--ct-navy)' } : {}}>
+              style={sevFilter === s ? { background: s === 'CRITICAL' ? '#ef4444' : s === 'HIGH' ? '#f5801e' : s === 'MEDIUM' ? '#f59e0b' : s === 'LOW' ? '#3b82f6' : 'var(--ct-navy)' } : {}}>
               {s === 'ALL' ? 'All' : SEV_CFG[s].label}
             </button>
           ))}

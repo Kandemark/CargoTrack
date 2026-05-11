@@ -1,4 +1,4 @@
-/**
+﻿/**
  * coords.ts — Shared East African city coordinates and corridor definitions.
  *
  * Single source of truth for map coordinates used across LiveMap, RoutePolyline,
@@ -55,7 +55,7 @@ export interface Corridor {
 export const CORRIDORS: Corridor[] = [
   {
     name: 'Northern Corridor',
-    color: '#f97316',
+    color: '#f5801e',
     coords: [CITY_COORDS.Mombasa, CITY_COORDS.Nairobi, CITY_COORDS.Nakuru, CITY_COORDS.Eldoret, CITY_COORDS.Kampala, CITY_COORDS.Kigali],
   },
   {

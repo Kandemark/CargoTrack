@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity, Dimensions } from 'react-native'
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity, Dimensions, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { apiClient, dashboardApi, shipmentsApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { ALERT_SEVERITY_COLORS } from '@shared/utils/statusColors'
 import { timeAgo } from '@shared/utils/formatters'
 import {
@@ -52,6 +53,7 @@ interface PageData {
 
 export default function DashboardScreen() {
   const { user } = useAuthStore()
+  const { colors, font, spacing, radius, isDark } = useAppTheme()
   const [data, setData] = useState<PageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -126,35 +128,35 @@ export default function DashboardScreen() {
     : null
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-bg dark:bg-ct-dark-bg">
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+        style={s.flex1}
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#f5801e" />}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Glass greeting header ──────────────────────────────────── */}
-        <GlassCard variant="elevated" accentColor="#f5801e" accentPosition="left" className="mt-ct-lg mb-ct-lg">
-          <View className="p-ct-lg">
-            <View className="flex-row items-center mb-ct-md">
-              <LiveDot className="mr-2" />
-              <Text className="text-ct-sm font-bold text-ct-text-brand dark:text-slate-300">{greeting}</Text>
+        <GlassCard variant="elevated" accentColor="#f5801e" accentPosition="left" style={{ marginTop: spacing.lg, marginBottom: spacing.lg }}>
+          <View style={{ padding: spacing.lg }}>
+            <View style={[s.row, { marginBottom: spacing.md }]}>
+              <LiveDot style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.textBrand }}>{greeting}</Text>
             </View>
-            <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white tracking-tight">{firstName}</Text>
+            <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text, letterSpacing: -0.25 }}>{firstName}</Text>
 
             {!!data && (
-              <View className="flex-row mt-ct-lg gap-2">
-                <View className="flex-1 bg-blue-500/15 dark:bg-blue-500/10 rounded-ct-md p-2.5">
-                  <Text className="text-[10px] font-bold text-blue-700 dark:text-blue-300">IN TRANSIT</Text>
-                  <AnimatedKpiValue value={data.summary.active_shipments} className="text-ct-xl font-extrabold text-blue-800 dark:text-blue-200" />
+              <View style={[s.row, { marginTop: spacing.lg, gap: 8 }]}>
+                <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.15)', borderRadius: radius.md, padding: 10 }}>
+                  <Text style={{ fontSize: 10, fontWeight: font.weight.bold, color: isDark ? '#93c5fd' : '#1d4ed8' }}>IN TRANSIT</Text>
+                  <AnimatedKpiValue value={data.summary.active_shipments} style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: isDark ? '#bfdbfe' : '#1e40af' }} />
                 </View>
-                <View className="flex-1 bg-red-100 dark:bg-red-500/15 rounded-ct-md p-2.5">
-                  <Text className="text-[10px] font-bold text-red-700 dark:text-red-300">DELAYED</Text>
-                  <AnimatedKpiValue value={data.summary.delayed_shipments} className="text-ct-xl font-extrabold text-red-800 dark:text-red-200" />
+                <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : '#fee2e2', borderRadius: radius.md, padding: 10 }}>
+                  <Text style={{ fontSize: 10, fontWeight: font.weight.bold, color: isDark ? '#fca5a5' : '#b91c1c' }}>DELAYED</Text>
+                  <AnimatedKpiValue value={data.summary.delayed_shipments} style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: isDark ? '#fecaca' : '#991b1b' }} />
                 </View>
-                <View className="flex-1 bg-orange-100 dark:bg-ct-orange/15 rounded-ct-md p-2.5">
-                  <Text className="text-[10px] font-bold text-orange-700 dark:text-orange-300">ALERTS</Text>
-                  <AnimatedKpiValue value={data.summary.open_alerts} className="text-ct-xl font-extrabold text-orange-800 dark:text-orange-200" />
+                <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(245,128,30,0.15)' : '#ffedd5', borderRadius: radius.md, padding: 10 }}>
+                  <Text style={{ fontSize: 10, fontWeight: font.weight.bold, color: isDark ? '#fdba74' : '#c2410c' }}>ALERTS</Text>
+                  <AnimatedKpiValue value={data.summary.open_alerts} style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: isDark ? '#fed7aa' : '#9a3412' }} />
                 </View>
               </View>
             )}
@@ -164,19 +166,19 @@ export default function DashboardScreen() {
         {/* Loading */}
         {loading && (
           <>
-            <Skeleton variant="kpi-glass-row" className="mb-ct-lg" />
-            <Skeleton variant="card" className="h-[180px] mb-ct-lg" />
-            <Skeleton variant="card" className="h-[220px]" />
+            <Skeleton variant="kpi-glass-row" style={{ marginBottom: spacing.lg }} />
+            <Skeleton variant="card" style={{ height: 180, marginBottom: spacing.lg }} />
+            <Skeleton variant="card" style={{ height: 220 }} />
           </>
         )}
 
         {/* Error */}
         {!loading && error && (
-          <View className="items-center pt-16 px-6">
+          <View style={[s.center, { paddingTop: 64, paddingHorizontal: 24 }]}>
             <Ionicons name="cloud-offline-outline" size={48} color="#94a3b8" />
-            <Text className="text-ct-base text-ct-text-muted dark:text-slate-300 mt-ct-md text-center leading-5">{error}</Text>
-            <TouchableOpacity onPress={() => load()} activeOpacity={0.8} className="mt-5 px-6 py-2.5 bg-ct-orange rounded-ct-md">
-              <Text className="text-ct-base font-bold text-white">Retry</Text>
+            <Text style={{ fontSize: font.size.base, color: colors.textMuted, marginTop: spacing.md, textAlign: 'center', lineHeight: 20 }}>{error}</Text>
+            <TouchableOpacity onPress={() => load()} activeOpacity={0.8} style={{ marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#f5801e', borderRadius: radius.md }}>
+              <Text style={{ fontSize: font.size.base, fontWeight: font.weight.bold, color: '#ffffff' }}>Retry</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -185,35 +187,38 @@ export default function DashboardScreen() {
         {!loading && data && (
           <>
             {/* KPI row */}
-            <View className="mb-ct-lg">
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-4 px-4">
+            <View style={{ marginBottom: spacing.lg }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -(spacing.lg) }} contentContainerStyle={{ paddingHorizontal: spacing.lg }}>
                 <KpiCard icon="cube" iconColor="#0f2d5e" label="Total Shipments" value={data.summary.total_shipments} />
-                <KpiCard icon="navigate" iconColor="#3b82f6" label="In Transit" value={data.summary.active_shipments} className="ml-ct-md" />
-                <KpiCard icon="checkmark-circle" iconColor="#10b981" label="Delivered" value={data.summary.delivered_shipments} className="ml-ct-md" />
-                <KpiCard icon="warning" iconColor="#ef4444" label="Delayed" value={data.summary.delayed_shipments} className="ml-ct-md" />
-                <KpiCard icon="notifications" iconColor="#f59e0b" label="Open Alerts" value={data.summary.open_alerts} className="ml-ct-md" />
+                <KpiCard icon="navigate" iconColor="#3b82f6" label="In Transit" value={data.summary.active_shipments} style={{ marginLeft: spacing.md }} />
+                <KpiCard icon="checkmark-circle" iconColor="#10b981" label="Delivered" value={data.summary.delivered_shipments} style={{ marginLeft: spacing.md }} />
+                <KpiCard icon="warning" iconColor="#ef4444" label="Delayed" value={data.summary.delayed_shipments} style={{ marginLeft: spacing.md }} />
+                <KpiCard icon="notifications" iconColor="#f59e0b" label="Open Alerts" value={data.summary.open_alerts} style={{ marginLeft: spacing.md }} />
               </ScrollView>
             </View>
 
             {/* On-time + alerts */}
-            <GlassCard variant="subtle" className="mb-ct-lg">
-              <View className="p-ct-lg">
+            <GlassCard variant="subtle" style={{ marginBottom: spacing.lg }}>
+              <View style={{ padding: spacing.lg }}>
                 <SectionLabel label="On-Time Performance & Alerts" />
-                <View className="flex-row items-center mt-2">
+                <View style={[s.row, { marginTop: 8 }]}>
                   <OnTimeRing rate={data.summary.on_time_rate} />
-                  <View className="flex-1 ml-4">
+                  <View style={{ flex: 1, marginLeft: 16 }}>
                     {severityCounts && SEVERITY_ORDER.map((s) => {
                       const c = ALERT_SEVERITY_COLORS[s]
                       return (
                         <TouchableOpacity
                           key={s}
                           onPress={() => router.push('/(tabs)/alerts')}
-                          className="flex-row items-center rounded-full px-ct-md py-1.5 mb-1.5 border"
-                          style={{ backgroundColor: c.background, borderColor: c.border }}
+                          style={[
+                            { flexDirection: 'row', alignItems: 'center' },
+                            { borderRadius: 9999, paddingHorizontal: spacing.md, paddingVertical: 6, marginBottom: 6, borderWidth: 1 },
+                            { backgroundColor: c.background, borderColor: c.border },
+                          ]}
                           activeOpacity={0.75}
                         >
-                          <View className="w-[7px] h-[7px] rounded-full mr-1.5" style={{ backgroundColor: c.dot }} />
-                          <Text className="text-ct-xs font-bold" style={{ color: c.text }}>
+                          <View style={{ width: 7, height: 7, borderRadius: 9999, marginRight: 6, backgroundColor: c.dot }} />
+                          <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: c.text }}>
                             {s.charAt(0) + s.slice(1).toLowerCase()} · {severityCounts[s]}
                           </Text>
                         </TouchableOpacity>
@@ -226,13 +231,13 @@ export default function DashboardScreen() {
 
             {/* Risk heatmap */}
             {data.riskItems.length > 0 && (
-              <GlassCard variant="subtle" className="mb-ct-lg">
-                <View className="p-ct-lg">
+              <GlassCard variant="subtle" style={{ marginBottom: spacing.lg }}>
+                <View style={{ padding: spacing.lg }}>
                   <SectionLabel label="Delay Risk — Top Shipments" />
-                  <View className="flex-row mb-2 mt-2">
-                    <Text className="w-[110px] text-[10px] text-ct-text-faint dark:text-slate-400">Tracking #</Text>
-                    <Text className="flex-1 text-[10px] text-ct-text-faint dark:text-slate-400 mx-2">Risk</Text>
-                    <Text className="w-[34px] text-[10px] text-ct-text-faint dark:text-slate-400 text-right">Score</Text>
+                  <View style={[s.row, { marginBottom: 8, marginTop: 8 }]}>
+                    <Text style={{ width: 110, fontSize: 10, color: colors.textFaint }}>Tracking #</Text>
+                    <Text style={{ flex: 1, fontSize: 10, color: colors.textFaint, marginHorizontal: 8 }}>Risk</Text>
+                    <Text style={{ width: 34, fontSize: 10, color: colors.textFaint, textAlign: 'right' }}>Score</Text>
                   </View>
                   {data.riskItems.map((item) => (
                     <RiskRow key={item.id} id={item.id} trackingNumber={item.tracking_number} score={item.delay_risk_score} />
@@ -243,14 +248,14 @@ export default function DashboardScreen() {
 
             {/* Carrier performance */}
             {data.carriers.length > 0 && (
-              <GlassCard variant="subtle" className="mb-ct-lg">
-                <View className="p-ct-lg">
+              <GlassCard variant="subtle" style={{ marginBottom: spacing.lg }}>
+                <View style={{ padding: spacing.lg }}>
                   <SectionLabel label="Carrier Performance" />
-                  <View className="flex-row mb-1.5 px-2.5 mt-2">
-                    <Text className="flex-[2] text-[10px] text-ct-text-faint dark:text-slate-400">Carrier</Text>
-                    <Text className="flex-1 text-[10px] text-ct-text-faint dark:text-slate-400 text-center">Ships</Text>
-                    <Text className="flex-1 text-[10px] text-ct-text-faint dark:text-slate-400 text-center">Avg Risk</Text>
-                    <Text className="flex-1 text-[10px] text-ct-text-faint dark:text-slate-400 text-right">On-Time</Text>
+                  <View style={[s.row, { marginBottom: 6, paddingHorizontal: 10, marginTop: 8 }]}>
+                    <Text style={{ flex: 2, fontSize: 10, color: colors.textFaint }}>Carrier</Text>
+                    <Text style={{ flex: 1, fontSize: 10, color: colors.textFaint, textAlign: 'center' }}>Ships</Text>
+                    <Text style={{ flex: 1, fontSize: 10, color: colors.textFaint, textAlign: 'center' }}>Avg Risk</Text>
+                    <Text style={{ flex: 1, fontSize: 10, color: colors.textFaint, textAlign: 'right' }}>On-Time</Text>
                   </View>
                   {data.carriers.map((c, i) => <CarrierRow key={i} c={c} />)}
                 </View>
@@ -259,12 +264,11 @@ export default function DashboardScreen() {
 
             {/* Recent events feed */}
             {data.events.length > 0 && (
-              <GlassCard variant="subtle" className="mb-ct-lg">
-                <View className="p-ct-lg">
+              <GlassCard variant="subtle" style={{ marginBottom: spacing.lg }}>
+                <View style={{ padding: spacing.lg }}>
                   <SectionLabel label="Recent Tracking Events" />
-                  <View className="mt-2">
+                  <View style={{ marginTop: 8 }}>
                     {data.events.slice(0, 10).map((ev, idx) => {
-                      const dotColor = EVENT_DOT[ev.event_type as EventType] ?? '#9ca3af'
                       const isLast = idx === Math.min(data.events.length, 10) - 1
                       return (
                         <TimelineEvent
@@ -283,76 +287,76 @@ export default function DashboardScreen() {
             )}
 
             {/* SLA + Fleet */}
-            <GlassCard variant="subtle" className="mb-ct-lg">
-              <View className="p-ct-lg">
+            <GlassCard variant="subtle" style={{ marginBottom: spacing.lg }}>
+              <View style={{ padding: spacing.lg }}>
                 <SectionLabel label="Execution Control" />
-                <View className="flex-row gap-2.5 mt-2 mb-ct-md">
-                  <View className="flex-1 bg-blue-50 dark:bg-blue-500/10 rounded-ct-md p-ct-md">
-                    <Text className="text-ct-xs font-bold text-blue-700 dark:text-blue-300 uppercase">SLA compliance</Text>
-                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                <View style={[s.row, { gap: 10, marginTop: 8, marginBottom: spacing.md }]}>
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(59,130,246,0.1)' : '#eff6ff', borderRadius: radius.md, padding: spacing.md }}>
+                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#93c5fd' : '#1d4ed8', textTransform: 'uppercase' }}>SLA compliance</Text>
+                    <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>
                       {data.sla ? `${data.sla.compliance_pct}%` : '—'}
                     </Text>
-                    <Text className="text-ct-sm text-ct-text-faint dark:text-slate-400 mt-1">
+                    <Text style={{ fontSize: font.size.sm, color: colors.textFaint, marginTop: 4 }}>
                       {data.sla ? `${data.sla.on_time} on time · ${data.sla.breached} breached` : 'No SLA data'}
                     </Text>
                   </View>
-                  <View className="flex-1 bg-lime-50 dark:bg-lime-500/10 rounded-ct-md p-ct-md">
-                    <Text className="text-ct-xs font-bold text-lime-700 dark:text-lime-300 uppercase">Fleet utilisation</Text>
-                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(132,204,22,0.1)' : '#f7fee7', borderRadius: radius.md, padding: spacing.md }}>
+                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#bef264' : '#4d7c0f', textTransform: 'uppercase' }}>Fleet utilisation</Text>
+                    <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>
                       {data.fleet ? `${data.fleet.fleet_utilisation}%` : '—'}
                     </Text>
-                    <Text className="text-ct-sm text-lime-600 dark:text-lime-400 mt-1">
+                    <Text style={{ fontSize: font.size.sm, color: isDark ? '#a3e635' : '#65a30d', marginTop: 4 }}>
                       {data.fleet ? `${data.fleet.trucks_active}/${data.fleet.trucks} trucks active` : 'Unavailable'}
                     </Text>
                   </View>
                 </View>
-                <View className="flex-row flex-wrap -mx-1">
-                  <View className="flex-1 min-w-[46%] bg-slate-50 dark:bg-white/[0.04] rounded-ct-md p-ct-md m-1">
-                    <Text className="text-[10px] font-bold text-ct-text-faint dark:text-slate-400 uppercase">Drivers on route</Text>
-                    <Text className="text-ct-lg font-extrabold text-ct-text-primary dark:text-white mt-1">{data.fleet?.drivers_on_route ?? '—'}</Text>
-                    {data.fleet && <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{data.fleet.drivers} drivers total</Text>}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+                  <View style={{ flex: 1, minWidth: '46%', backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', borderRadius: radius.md, padding: spacing.md, margin: 4 }}>
+                    <Text style={{ fontSize: 10, fontWeight: font.weight.bold, color: colors.textFaint, textTransform: 'uppercase' }}>Drivers on route</Text>
+                    <Text style={{ fontSize: font.size.lg, fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>{data.fleet?.drivers_on_route ?? '—'}</Text>
+                    {data.fleet && <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>{data.fleet.drivers} drivers total</Text>}
                   </View>
-                  <View className="flex-1 min-w-[46%] bg-slate-50 dark:bg-white/[0.04] rounded-ct-md p-ct-md m-1">
-                    <Text className="text-[10px] font-bold text-ct-text-faint dark:text-slate-400 uppercase">At-risk loads</Text>
-                    <Text className="text-ct-lg font-extrabold text-ct-text-primary dark:text-white mt-1">{data.sla?.at_risk ?? '—'}</Text>
-                    <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">Needs monitoring</Text>
+                  <View style={{ flex: 1, minWidth: '46%', backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', borderRadius: radius.md, padding: spacing.md, margin: 4 }}>
+                    <Text style={{ fontSize: 10, fontWeight: font.weight.bold, color: colors.textFaint, textTransform: 'uppercase' }}>At-risk loads</Text>
+                    <Text style={{ fontSize: font.size.lg, fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>{data.sla?.at_risk ?? '—'}</Text>
+                    <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>Needs monitoring</Text>
                   </View>
                 </View>
               </View>
             </GlassCard>
 
             {/* Finance & Compliance */}
-            <GlassCard variant="subtle" className="mb-ct-lg">
-              <View className="p-ct-lg">
+            <GlassCard variant="subtle" style={{ marginBottom: spacing.lg }}>
+              <View style={{ padding: spacing.lg }}>
                 <SectionLabel label="Finance & Compliance" />
-                <View className="flex-row gap-2.5 mt-2 mb-ct-md">
-                  <View className="flex-1 bg-orange-50 dark:bg-orange-500/10 rounded-ct-md p-ct-md">
-                    <Text className="text-ct-xs font-bold text-orange-700 dark:text-orange-300 uppercase">Open invoices</Text>
-                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                <View style={[s.row, { gap: 10, marginTop: 8, marginBottom: spacing.md }]}>
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(249,115,22,0.1)' : '#fff7ed', borderRadius: radius.md, padding: spacing.md }}>
+                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#fdba74' : '#c2410c', textTransform: 'uppercase' }}>Open invoices</Text>
+                    <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>
                       {data.invoices.filter((i) => i.status === 'PENDING' || i.status === 'FAILED').length}
                     </Text>
-                    <Text className="text-ct-sm text-orange-600 dark:text-orange-300 mt-1">
+                    <Text style={{ fontSize: font.size.sm, color: isDark ? '#fdba74' : '#c2410c', marginTop: 4 }}>
                       {data.invoices.filter((i) => i.status === 'PAID').length} paid this cycle
                     </Text>
                   </View>
-                  <View className="flex-1 bg-red-50 dark:bg-red-500/10 rounded-ct-md p-ct-md">
-                    <Text className="text-ct-xs font-bold text-red-700 dark:text-red-300 uppercase">Expiring docs</Text>
-                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#fef2f2', borderRadius: radius.md, padding: spacing.md }}>
+                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#fca5a5' : '#b91c1c', textTransform: 'uppercase' }}>Expiring docs</Text>
+                    <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>
                       {data.compliance.filter((d) => d.days_until_expiry !== null && d.days_until_expiry <= 14).length}
                     </Text>
-                    <Text className="text-ct-sm text-red-600 dark:text-red-300 mt-1">{data.compliance.length} tracked</Text>
+                    <Text style={{ fontSize: font.size.sm, color: isDark ? '#fca5a5' : '#dc2626', marginTop: 4 }}>{data.compliance.length} tracked</Text>
                   </View>
                 </View>
                 {data.invoices.slice(0, 3).map((inv) => (
                   <TouchableOpacity
                     key={inv.id} onPress={() => router.push('/(tabs)/payments')} activeOpacity={0.75}
-                    className="flex-row justify-between items-center py-2.5 border-t border-slate-200 dark:border-white/[0.06]"
+                    style={[s.rowSpaceBetween, { paddingVertical: 10, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0' }]}
                   >
-                    <View className="flex-1 mr-2.5">
-                      <Text className="text-ct-sm font-bold text-ct-text-primary dark:text-white">{inv.invoice_number}</Text>
-                      <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{inv.shipment_tracking}</Text>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.text }}>{inv.invoice_number}</Text>
+                      <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>{inv.shipment_tracking}</Text>
                     </View>
-                    <Text className="text-ct-sm font-bold" style={{ color: inv.status === 'PAID' ? '#4ade80' : '#fb923c' }}>
+                    <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.bold, color: inv.status === 'PAID' ? '#4ade80' : '#fb923c' }}>
                       {Number(inv.amount_kes).toLocaleString()} {inv.currency}
                     </Text>
                   </TouchableOpacity>
@@ -361,30 +365,30 @@ export default function DashboardScreen() {
             </GlassCard>
 
             {/* Sustainability & Comms */}
-            <GlassCard variant="subtle" className="mb-ct-lg">
-              <View className="p-ct-lg">
+            <GlassCard variant="subtle" style={{ marginBottom: spacing.lg }}>
+              <View style={{ padding: spacing.lg }}>
                 <SectionLabel label="Sustainability & Comms" />
-                <View className="flex-row gap-2.5 mt-2 mb-ct-md">
-                  <View className="flex-1 bg-cyan-50 dark:bg-cyan-500/10 rounded-ct-md p-ct-md">
-                    <Text className="text-ct-xs font-bold text-cyan-700 dark:text-cyan-300 uppercase">Net carbon</Text>
-                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">
+                <View style={[s.row, { gap: 10, marginTop: 8, marginBottom: spacing.md }]}>
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(6,182,212,0.1)' : '#ecfeff', borderRadius: radius.md, padding: spacing.md }}>
+                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#67e8f9' : '#0e7490', textTransform: 'uppercase' }}>Net carbon</Text>
+                    <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>
                       {data.carbon ? `${Math.round(data.carbon.net_kg)} kg` : '—'}
                     </Text>
-                    <Text className="text-ct-sm text-cyan-600 dark:text-cyan-400 mt-1">
+                    <Text style={{ fontSize: font.size.sm, color: isDark ? '#22d3ee' : '#0891b2', marginTop: 4 }}>
                       {data.carbon ? `${Math.round(data.carbon.offset_kg)} kg offset` : 'Unavailable'}
                     </Text>
                   </View>
-                  <View className="flex-1 bg-purple-50 dark:bg-purple-500/10 rounded-ct-md p-ct-md">
-                    <Text className="text-ct-xs font-bold text-purple-700 dark:text-purple-300 uppercase">Unread updates</Text>
-                    <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white mt-1">{data.notifications.length}</Text>
-                    <Text className="text-ct-sm text-purple-600 dark:text-purple-400 mt-1">Waiting in your inbox</Text>
+                  <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(168,85,247,0.1)' : '#faf5ff', borderRadius: radius.md, padding: spacing.md }}>
+                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#d8b4fe' : '#7e22ce', textTransform: 'uppercase' }}>Unread updates</Text>
+                    <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>{data.notifications.length}</Text>
+                    <Text style={{ fontSize: font.size.sm, color: isDark ? '#c084fc' : '#9333ea', marginTop: 4 }}>Waiting in your inbox</Text>
                   </View>
                 </View>
                 {data.carbon?.by_carrier?.[0] && (
-                  <View className="bg-slate-50 dark:bg-white/[0.04] rounded-ct-md p-ct-md mb-2.5">
-                    <Text className="text-ct-xs font-bold text-ct-text-faint dark:text-slate-400 uppercase">Highest emitting carrier</Text>
-                    <Text className="text-ct-md font-extrabold text-ct-text-primary dark:text-white mt-1">{data.carbon.by_carrier[0].name}</Text>
-                    <Text className="text-ct-sm text-ct-text-faint dark:text-slate-400 mt-0.5">
+                  <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', borderRadius: radius.md, padding: spacing.md, marginBottom: 10 }}>
+                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: colors.textFaint, textTransform: 'uppercase' }}>Highest emitting carrier</Text>
+                    <Text style={{ fontSize: font.size.md, fontWeight: font.weight.extrabold, color: colors.text, marginTop: 4 }}>{data.carbon.by_carrier[0].name}</Text>
+                    <Text style={{ fontSize: font.size.sm, color: colors.textFaint, marginTop: 2 }}>
                       {Math.round(data.carbon.by_carrier[0].total_kg)} kg CO2 · Grade {data.carbon.by_carrier[0].grade}
                     </Text>
                   </View>
@@ -392,11 +396,11 @@ export default function DashboardScreen() {
                 {data.notifications.slice(0, 3).map((item) => (
                   <TouchableOpacity
                     key={item.id} onPress={() => router.push('/(tabs)/account')} activeOpacity={0.75}
-                    className="py-2.5 border-t border-slate-200 dark:border-white/[0.06]"
+                    style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0' }}
                   >
-                    <Text className="text-ct-sm font-bold text-ct-text-primary dark:text-white">{item.title}</Text>
-                    <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5" numberOfLines={2}>{item.message}</Text>
-                    <Text className="text-[10px] text-ct-text-faint dark:text-slate-500 mt-1">{timeAgo(item.created_at)}</Text>
+                    <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.text }}>{item.title}</Text>
+                    <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }} numberOfLines={2}>{item.message}</Text>
+                    <Text style={{ fontSize: 10, color: isDark ? '#64748b' : colors.textFaint, marginTop: 4 }}>{timeAgo(item.created_at)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -407,3 +411,11 @@ export default function DashboardScreen() {
     </SafeAreaView>
   )
 }
+
+/** Reusable static layout styles (no theme-dependent values) */
+const s = StyleSheet.create({
+  flex1: { flex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  rowSpaceBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  center: { alignItems: 'center' },
+})

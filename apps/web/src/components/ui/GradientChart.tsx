@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+﻿import { type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 interface GradientChartProps {
@@ -44,8 +44,8 @@ export default function GradientChart({
             <stop offset="100%" stopColor="var(--ct-navy)" stopOpacity={0.02} />
           </linearGradient>
           <linearGradient id={GRADIENT_IDS[1]} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f97316" stopOpacity={0.25} />
-            <stop offset="100%" stopColor="#f97316" stopOpacity={0.02} />
+            <stop offset="0%" stopColor="#f5801e" stopOpacity={0.25} />
+            <stop offset="100%" stopColor="#f5801e" stopOpacity={0.02} />
           </linearGradient>
           <linearGradient id={GRADIENT_IDS[2]} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#22c55e" stopOpacity={0.22} />

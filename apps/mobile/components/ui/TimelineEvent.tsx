@@ -1,5 +1,6 @@
-import { View, Text } from 'react-native'
-import { cn } from '@/lib/utils'
+import { View, Text, type ViewProps } from 'react-native'
+import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 
 type TimelineVariant = 'completed' | 'active' | 'pending' | 'error'
 
@@ -9,21 +10,28 @@ interface TimelineEventProps {
   timestamp?: string
   variant?: TimelineVariant
   isLast?: boolean
-  className?: string
+  style?: ViewProps['style']
 }
 
-const dotClasses: Record<TimelineVariant, string> = {
-  completed: 'bg-ct-success border-ct-success',
-  active: 'bg-ct-in-transit border-ct-in-transit',
-  pending: 'bg-transparent border-ct-border-mid dark:border-ct-dark-border',
-  error: 'bg-ct-danger border-ct-danger',
+const dotColor: Record<TimelineVariant, string> = {
+  completed: T.color.ui.success,
+  active:    T.color.status.inTransit,
+  pending:   'transparent',
+  error:     T.color.ui.danger,
 }
 
-const lineClasses: Record<TimelineVariant, string> = {
-  completed: 'bg-ct-success',
-  active: 'bg-ct-border-light dark:bg-ct-dark-border',
-  pending: 'bg-ct-border-light dark:bg-ct-dark-border',
-  error: 'bg-ct-border-light dark:bg-ct-dark-border',
+const dotBorder: Record<TimelineVariant, string> = {
+  completed: T.color.ui.success,
+  active:    T.color.status.inTransit,
+  pending:   T.light.border.mid,
+  error:     T.color.ui.danger,
+}
+
+const lineColor: Record<TimelineVariant, string> = {
+  completed: T.color.ui.success,
+  active:    '#E5E7EB',
+  pending:   '#E5E7EB',
+  error:     '#E5E7EB',
 }
 
 export default function TimelineEvent({
@@ -32,55 +40,64 @@ export default function TimelineEvent({
   timestamp,
   variant = 'completed',
   isLast = false,
-  className,
+  style,
 }: TimelineEventProps) {
+  const { colors, font } = useAppTheme()
+
+  const labelColor = variant === 'pending' ? colors.textMuted : colors.text
+
   return (
-    <View className={cn('flex-row', className)}>
-      {/* Spine */}
-      <View className="items-center mr-ct-md" style={{ width: 14 }}>
-        <View
-          className={cn(
-            'w-3.5 h-3.5 rounded-full border-2',
-            dotClasses[variant],
-            variant === 'active' && 'shadow-sm',
-          )}
-          style={
-            variant === 'active'
-              ? {
-                  shadowColor: '#2563EB',
-                  shadowOpacity: 0.4,
-                  shadowRadius: 4,
-                  elevation: 3,
-                }
-              : undefined
-          }
-        />
+    <View style={[{ flexDirection: 'row' }, style]}>
+      <View style={{ alignItems: 'center', marginRight: 12, width: 14 }}>
+        <View style={{
+          width: 14,
+          height: 14,
+          borderRadius: 7,
+          borderWidth: 2,
+          backgroundColor: dotColor[variant],
+          borderColor: variant === 'pending' ? colors.borderMid : dotBorder[variant],
+          ...(variant === 'active' ? {
+            shadowColor: '#2563EB',
+            shadowOpacity: 0.4,
+            shadowRadius: 4,
+            elevation: 3,
+          } : {}),
+        }} />
         {!isLast && (
-          <View className={cn('w-[2px] flex-1 mt-1', lineClasses[variant])} />
+          <View style={{
+            width: 2,
+            flex: 1,
+            marginTop: 4,
+            backgroundColor: variant === 'pending' ? colors.border : lineColor[variant],
+          }} />
         )}
       </View>
-
-      {/* Content */}
-      <View className="flex-1 pb-ct-xl">
-        <View className="flex-row items-center justify-between">
-          <Text
-            className={cn(
-              'text-ct-base font-bold',
-              variant === 'pending'
-                ? 'text-ct-text-muted dark:text-ct-dark-text-muted'
-                : 'text-ct-text-primary dark:text-ct-dark-text',
-            )}
-          >
+      <View style={{ flex: 1, paddingBottom: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{
+            fontSize: font.size.base,
+            fontWeight: font.weight.bold,
+            color: labelColor,
+          }}>
             {label}
           </Text>
           {timestamp && (
-            <Text className="text-ct-xs text-ct-text-faint font-mono ml-ct-sm">
+            <Text style={{
+              fontSize: font.size.xs,
+              color: colors.textFaint,
+              fontFamily: 'monospace',
+              marginLeft: 8,
+            }}>
               {timestamp}
             </Text>
           )}
         </View>
         {sublabel && (
-          <Text className="text-ct-sm text-ct-text-secondary dark:text-ct-dark-text-muted mt-0.5">
+          <Text style={{
+            fontSize: font.size.sm,
+            color: colors.textMuted,
+            marginTop: 2,
+          }}>
             {sublabel}
           </Text>
         )}

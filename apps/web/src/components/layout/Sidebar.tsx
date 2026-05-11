@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Sidebar.tsx — Premium collapsible navigation for CargoTrack.
  *
  * Supports all 9 user roles with role-specific nav sections.
@@ -431,7 +431,7 @@ export default function Sidebar() {
       )}>
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
+          style={{ background: 'linear-gradient(135deg, #f5801e, #ea580c)' }}
         >
           <Radio className="w-4 h-4 text-white" />
         </div>

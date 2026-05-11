@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { shipmentsApi } from '@/lib/api'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { Button } from '@/components/ui'
 import type { Shipment } from '@shared/api/types'
 
@@ -22,6 +23,7 @@ const EVENT_TYPES: { value: EventTypeCode; label: string; icon: React.ComponentP
 export default function LogEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const shipmentId = Number(id)
+  const { colors, font, radius, isDark } = useAppTheme()
 
   const [shipment, setShipment] = useState<Shipment | null>(null)
   const [eventType, setEventType] = useState<EventTypeCode | null>(null)
@@ -50,54 +52,60 @@ export default function LogEventScreen() {
   }
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-ct-navy">
-      <KeyboardAvoidingView className="flex-1 bg-gray-50 dark:bg-ct-dark-bg" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: isDark ? colors.background : '#f9fafb' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* Header */}
-        <View className="bg-ct-navy dark:bg-ct-dark-bg px-5 pt-3 pb-6">
-          <TouchableOpacity onPress={() => router.back()} className="flex-row items-center mb-4 self-start">
+        <View style={{ backgroundColor: isDark ? colors.background : '#0f2d5e', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, alignSelf: 'flex-start' }}>
             <Ionicons name="chevron-back" size={18} color="#93b4d8" />
-            <Text className="text-blue-300 text-ct-sm ml-0.5">Back</Text>
+            <Text style={{ color: '#93c5fd', fontSize: font.size.sm, marginLeft: 2 }}>Back</Text>
           </TouchableOpacity>
 
-          <Text className="text-ct-xl font-bold text-white">Log Tracking Event</Text>
+          <Text style={{ fontSize: font.size.xl, fontWeight: font.weight.bold, color: '#fff' }}>Log Tracking Event</Text>
           {shipment ? (
-            <View className="flex-row items-center mt-1.5">
-              <Text className="text-blue-300 text-ct-xs font-bold tabular-nums">{shipment.tracking_number}</Text>
-              <Text className="text-blue-400 text-ct-xs mx-1">·</Text>
-              <Text className="text-blue-300 text-ct-xs flex-1" numberOfLines={1}>{shipment.route.origin} → {shipment.route.destination}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <Text style={{ color: '#93c5fd', fontSize: font.size.xs, fontWeight: font.weight.bold, fontVariant: ['tabular-nums'] }}>{shipment.tracking_number}</Text>
+              <Text style={{ color: '#60a5fa', fontSize: font.size.xs, marginHorizontal: 4 }}>·</Text>
+              <Text style={{ color: '#93c5fd', fontSize: font.size.xs, flex: 1 }} numberOfLines={1}>{shipment.route.origin} → {shipment.route.destination}</Text>
             </View>
           ) : null}
         </View>
 
-        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View className="mx-4 mt-4 bg-ct-surface-card dark:bg-ct-dark-card rounded-ct-2xl shadow-sm overflow-hidden">
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={{ marginHorizontal: 16, marginTop: 16, backgroundColor: colors.card, borderRadius: radius['2xl'], shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 2, overflow: 'hidden' }}>
             {/* Event type */}
-            <View className="px-4 pt-5 pb-4 border-b border-ct-border-light dark:border-ct-dark-border">
-              <Text className="text-ct-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
+            <View style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: isDark ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>
                 Event Type <Text style={{ color: '#ef4444' }}>*</Text>
               </Text>
-              <View className="flex-row flex-wrap gap-2">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {EVENT_TYPES.map((opt) => {
                   const sel = eventType === opt.value
                   return (
                     <TouchableOpacity
                       key={opt.value}
                       onPress={() => { setEventType(opt.value); setErrors((e) => ({ ...e, eventType: undefined })) }}
-                      className={`flex-row items-center px-3 py-[7px] rounded-ct-md border-[1.5px] ${sel ? 'border-ct-navy dark:border-ct-orange bg-ct-navy dark:bg-ct-orange' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-ct-dark-surface'}`}
+                      style={[{
+                        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.md, borderWidth: 1.5,
+                      }, sel ? {
+                        borderColor: isDark ? '#f5801e' : '#0f2d5e', backgroundColor: isDark ? '#f5801e' : '#0f2d5e',
+                      } : {
+                        borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? colors.muted : '#fff',
+                      }]}
                       activeOpacity={0.75}
                     >
                       <Ionicons name={opt.icon} size={13} color={sel ? '#fff' : '#6b7280'} style={{ marginRight: 5 }} />
-                      <Text className={`text-ct-xs font-semibold ${sel ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>{opt.label}</Text>
+                      <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: sel ? '#fff' : (isDark ? '#cbd5e1' : '#334155') }}>{opt.label}</Text>
                     </TouchableOpacity>
                   )
                 })}
               </View>
-              {errors.eventType ? <Text className="text-ct-xs text-ct-danger mt-1.5">{errors.eventType}</Text> : null}
+              {errors.eventType ? <Text style={{ fontSize: font.size.xs, color: '#EF4444', marginTop: 6 }}>{errors.eventType}</Text> : null}
             </View>
 
             {/* Location */}
-            <View className="px-4 py-4 border-b border-ct-border-light dark:border-ct-dark-border">
-              <Text className="text-ct-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+            <View style={{ paddingHorizontal: 16, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: isDark ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
                 Location <Text style={{ color: '#ef4444' }}>*</Text>
               </Text>
               <TextInput
@@ -105,18 +113,25 @@ export default function LogEventScreen() {
                 onChangeText={(v) => { setLocation(v); setErrors((e) => ({ ...e, location: undefined })) }}
                 placeholder="e.g. Mombasa Port Gate 3"
                 placeholderTextColor="#9ca3af"
-                className={`border rounded-ct-md px-3 py-2.5 text-ct-sm text-ct-text-primary dark:text-ct-dark-text ${errors.location ? 'border-red-300 bg-red-50 dark:bg-red-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-ct-dark-surface'}`}
+                style={[{
+                  borderWidth: 1, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10,
+                  fontSize: font.size.sm, color: colors.text,
+                }, errors.location ? {
+                  borderColor: '#fca5a5', backgroundColor: isDark ? 'rgba(127,29,29,0.2)' : '#fef2f2',
+                } : {
+                  borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? colors.muted : '#f8fafc',
+                }]}
                 autoCapitalize="words"
                 returnKeyType="next"
               />
-              {errors.location ? <Text className="text-ct-xs text-ct-danger mt-1">{errors.location}</Text> : null}
+              {errors.location ? <Text style={{ fontSize: font.size.xs, color: '#EF4444', marginTop: 4 }}>{errors.location}</Text> : null}
             </View>
 
             {/* Notes */}
-            <View className="px-4 py-4">
-              <Text className="text-ct-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+            <View style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
+              <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: isDark ? '#64748b' : '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
                 Notes{' '}
-                <Text className="text-slate-400 dark:text-slate-500 font-normal normal-case">(optional)</Text>
+                <Text style={{ color: isDark ? '#64748b' : '#94a3b8', fontWeight: font.weight.normal, textTransform: 'none' }}>(optional)</Text>
               </Text>
               <TextInput
                 value={notes}
@@ -125,14 +140,18 @@ export default function LogEventScreen() {
                 placeholderTextColor="#9ca3af"
                 multiline
                 numberOfLines={3}
-                className="border border-slate-200 dark:border-slate-700 rounded-ct-md px-3 py-2.5 text-ct-sm text-ct-text-primary dark:text-ct-dark-text bg-slate-50 dark:bg-ct-dark-surface"
-                style={{ textAlignVertical: 'top', minHeight: 80 }}
+                style={{
+                  borderWidth: 1, borderColor: isDark ? '#334155' : '#e2e8f0', borderRadius: radius.md,
+                  paddingHorizontal: 12, paddingVertical: 10, fontSize: font.size.sm, color: colors.text,
+                  backgroundColor: isDark ? colors.muted : '#f8fafc',
+                  textAlignVertical: 'top', minHeight: 80,
+                }}
               />
             </View>
           </View>
 
           {/* Submit */}
-          <View className="mx-4 mt-4">
+          <View style={{ marginHorizontal: 16, marginTop: 16 }}>
             <Button variant="primary" size="lg" loading={submitting} onPress={handleSubmit} icon="checkmark-circle-outline">
               Submit Event
             </Button>

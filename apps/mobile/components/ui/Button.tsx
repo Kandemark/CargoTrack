@@ -1,6 +1,6 @@
-import { TouchableOpacity, Text, ActivityIndicator, View } from 'react-native'
+import { TouchableOpacity, Text, ActivityIndicator, View, type ViewProps } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { cn } from '@/lib/utils'
+import { T } from '@/lib/theme'
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
 type ButtonSize = 'sm' | 'md' | 'lg'
@@ -13,52 +13,38 @@ interface ButtonProps {
   icon?: keyof typeof Ionicons.glyphMap
   children: string
   onPress?: () => void
-  className?: string
+  style?: ViewProps['style']
 }
 
-const variantClasses: Record<ButtonVariant, string> = {
-  primary:
-    'bg-ct-navy dark:bg-ct-orange',
-  secondary:
-    'bg-ct-orange',
-  outline:
-    'bg-transparent border border-ct-border-mid dark:border-ct-dark-border',
-  ghost:
-    'bg-transparent',
-  danger:
-    'bg-ct-danger',
+const variantBg: Record<ButtonVariant, string> = {
+  primary:   T.color.brand.primary,
+  secondary: T.color.brand.accent,
+  outline:   'transparent',
+  ghost:     'transparent',
+  danger:    T.color.ui.danger,
 }
 
-const variantTextClasses: Record<ButtonVariant, string> = {
-  primary:
-    'text-white',
-  secondary:
-    'text-white',
-  outline:
-    'text-ct-text-primary dark:text-ct-dark-text',
-  ghost:
-    'text-ct-navy dark:text-ct-dark-text',
-  danger:
-    'text-white',
+const variantBorder: Record<ButtonVariant, string | undefined> = {
+  primary:   undefined,
+  secondary: undefined,
+  outline:   T.light.border.mid,
+  ghost:     undefined,
+  danger:    undefined,
 }
 
-const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'h-9 px-4 rounded-ct-md',
-  md: 'h-11 px-5 rounded-ct-md',
-  lg: 'h-[52px] px-6 rounded-ct-lg',
+const variantText: Record<ButtonVariant, string> = {
+  primary:   '#FFFFFF',
+  secondary: '#FFFFFF',
+  outline:   T.light.text.primary,
+  ghost:     T.color.brand.primary,
+  danger:    '#FFFFFF',
 }
 
-const textSizeClasses: Record<ButtonSize, string> = {
-  sm: 'text-ct-sm',
-  md: 'text-ct-base',
-  lg: 'text-ct-md',
-}
-
-const iconSize: Record<ButtonSize, number> = {
-  sm: 16,
-  md: 18,
-  lg: 20,
-}
+const sizeHeight: Record<ButtonSize, number> = { sm: 36, md: 44, lg: 52 }
+const sizePadding: Record<ButtonSize, number> = { sm: 16, md: 20, lg: 24 }
+const sizeRadius: Record<ButtonSize, number> = { sm: T.radius.md, md: T.radius.md, lg: T.radius.lg }
+const sizeText: Record<ButtonSize, number> = { sm: T.font.size.sm, md: T.font.size.base, lg: T.font.size.md }
+const iconSize: Record<ButtonSize, number> = { sm: 16, md: 18, lg: 20 }
 
 export default function Button({
   variant = 'primary',
@@ -68,45 +54,50 @@ export default function Button({
   icon,
   children,
   onPress,
-  className,
+  style,
 }: ButtonProps) {
   const isDisabled = disabled || loading
+  const isOutlineOrGhost = variant === 'outline' || variant === 'ghost'
+  const spinnerColor = isOutlineOrGhost ? T.color.brand.primary : '#fff'
+  const textColor = isOutlineOrGhost ? (variant === 'ghost' ? T.color.brand.primary : T.light.text.primary) : '#fff'
+  const iconColor = isOutlineOrGhost ? T.color.brand.primary : '#fff'
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={isDisabled}
       activeOpacity={0.8}
-      className={cn(
-        'flex-row items-center justify-center',
-        variantClasses[variant],
-        sizeClasses[size],
-        isDisabled && 'opacity-50',
-        className,
-      )}
+      style={[{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: variantBg[variant],
+        borderColor: variantBorder[variant],
+        borderWidth: variant === 'outline' ? 1.5 : 0,
+        height: sizeHeight[size],
+        paddingHorizontal: sizePadding[size],
+        borderRadius: sizeRadius[size],
+        opacity: isDisabled ? 0.5 : 1,
+      }, style]}
     >
       {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={variant === 'outline' || variant === 'ghost' ? '#0f2d5e' : '#fff'}
-        />
+        <ActivityIndicator size="small" color={spinnerColor} />
       ) : (
-        <View className="flex-row items-center">
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {icon && (
             <Ionicons
               name={icon}
               size={iconSize[size]}
-              color={variant === 'outline' || variant === 'ghost' ? '#0f2d5e' : '#fff'}
+              color={iconColor}
               style={{ marginRight: 6 }}
             />
           )}
-          <Text
-            className={cn(
-              'font-heading font-bold',
-              variantTextClasses[variant],
-              textSizeClasses[size],
-            )}
-          >
+          <Text style={{
+            fontFamily: 'SpaceGrotesk',
+            fontWeight: '700',
+            color: textColor,
+            fontSize: sizeText[size],
+          }}>
             {children}
           </Text>
         </View>

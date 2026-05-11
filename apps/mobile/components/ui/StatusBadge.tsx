@@ -1,7 +1,6 @@
-import { View, Text } from 'react-native'
+import { View, Text, type ViewProps } from 'react-native'
 import { SHIPMENT_STATUS_COLORS, ALERT_SEVERITY_COLORS, SHIPMENT_STATUS_LABELS } from '@shared/utils/statusColors'
 import type { ShipmentStatus, AlertSeverity } from '@shared/api/types'
-import { cn } from '@/lib/utils'
 
 type BadgeSize = 'sm' | 'md'
 
@@ -9,11 +8,7 @@ interface StatusBadgeProps {
   status: ShipmentStatus | AlertSeverity | string
   label?: string
   size?: BadgeSize
-  className?: string
-}
-
-function isShipment(s: string): s is ShipmentStatus {
-  return s in SHIPMENT_STATUS_COLORS
+  style?: ViewProps['style']
 }
 
 function getColor(status: string) {
@@ -27,26 +22,36 @@ function getLabel(status: string, fallback: string) {
   return fallback
 }
 
-export default function StatusBadge({ status, label, size = 'md', className }: StatusBadgeProps) {
+export default function StatusBadge({ status, label, size = 'md', style }: StatusBadgeProps) {
   const colors = getColor(status)
   const displayLabel = label ?? getLabel(status, status)
 
   if (!colors) {
     return (
-      <View className={cn('flex-row items-center', className)}>
-        <Text className="text-ct-base text-ct-text-muted">{displayLabel}</Text>
+      <View style={[{ flexDirection: 'row', alignItems: 'center' }, style]}>
+        <Text style={{ fontSize: 13, color: '#6B7280' }}>{displayLabel}</Text>
       </View>
     )
   }
 
   const dotSize = size === 'sm' ? 6 : 8
-  const textSize = size === 'sm' ? 'text-ct-xs' : 'text-ct-sm'
-  const padding = size === 'sm' ? 'px-2 py-0.5' : 'px-2.5 py-1'
+  const textSize = size === 'sm' ? 10 : 11
+  const paddingH = size === 'sm' ? 8 : 10
+  const paddingV = size === 'sm' ? 2 : 4
 
   return (
     <View
-      className={cn('flex-row items-center rounded-full self-start', padding, className)}
-      style={{ backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }}
+      style={[{
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 9999,
+        alignSelf: 'flex-start',
+        paddingHorizontal: paddingH,
+        paddingVertical: paddingV,
+        backgroundColor: colors.background,
+        borderColor: colors.border,
+        borderWidth: 1,
+      }, style]}
     >
       <View
         style={{
@@ -57,7 +62,7 @@ export default function StatusBadge({ status, label, size = 'md', className }: S
           marginRight: 4,
         }}
       />
-      <Text style={{ color: colors.text, fontSize: size === 'sm' ? 10 : 11, fontWeight: '700' }}>
+      <Text style={{ color: colors.text, fontSize: textSize, fontWeight: '700' }}>
         {displayLabel}
       </Text>
     </View>

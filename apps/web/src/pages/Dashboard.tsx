@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -383,12 +383,12 @@ export default function Dashboard() {
         style={{ background: 'linear-gradient(135deg, #0f2d5e 0%, #0a1e40 60%, #071428 100%)' }}>
         {/* Ambient glow orbs */}
         <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-[0.08] blur-[80px]"
-          style={{ background: 'radial-gradient(circle, #f97316 0%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, #f5801e 0%, transparent 70%)' }} />
         <div className="absolute bottom-0 left-1/4 w-48 h-48 rounded-full opacity-[0.06] blur-[60px]"
           style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }} />
         {/* Grid pattern */}
         <div className="absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #f97316 0%, transparent 50%), radial-gradient(circle at 80% 20%, #3b82f6 0%, transparent 40%)' }} />
+          style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #f5801e 0%, transparent 50%), radial-gradient(circle at 80% 20%, #3b82f6 0%, transparent 40%)' }} />
         <div className="relative grid grid-cols-1 lg:grid-cols-5 gap-0 min-h-[220px]">
 
           {/* Left stats */}
@@ -522,8 +522,8 @@ export default function Dashboard() {
                   <stop offset="95%" stopColor="#0f2d5e" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gExpenses" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#f5801e" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#f5801e" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -532,7 +532,7 @@ export default function Dashboard() {
               <Tooltip content={<ChartTooltip />} formatter={(v: number) => fmtKES(v)} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
               <Area type="monotone" dataKey="income" name="Income" stroke="#0f2d5e" fill="url(#gIncome)" strokeWidth={2.5} dot={false} />
-              <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f97316" fill="url(#gExpenses)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f5801e" fill="url(#gExpenses)" strokeWidth={2} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </motion.div>
@@ -708,8 +708,8 @@ export default function Dashboard() {
                 <Bar dataKey="onTime" name="On-Time %" fill="#0f2d5e" radius={[0, 3, 3, 0]}>
                   {carrierChartData.map((_, i) => <Cell key={i} fill={i % 2 === 0 ? '#0f2d5e' : '#1e3a5f'} />)}
                 </Bar>
-                <Bar dataKey="risk" name="Risk Score" fill="#f97316" radius={[0, 3, 3, 0]}>
-                  {carrierChartData.map((_, i) => <Cell key={i} fill={i % 2 === 0 ? '#f97316' : '#fb923c'} />)}
+                <Bar dataKey="risk" name="Risk Score" fill="#f5801e" radius={[0, 3, 3, 0]}>
+                  {carrierChartData.map((_, i) => <Cell key={i} fill={i % 2 === 0 ? '#f5801e' : '#fb923c'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -808,7 +808,7 @@ export default function Dashboard() {
         {[
           { label: 'Quick Tracking', desc: 'Search any shipment by number', icon: Package, to: '/tracking', gradient: 'from-blue-500/10 to-blue-600/10', iconColor: '#3b82f6' },
           { label: 'Live Map', desc: 'View all active shipments on map', icon: Map, to: '/live-map', gradient: 'from-emerald-500/10 to-teal-500/10', iconColor: '#22c55e' },
-          { label: 'AI Predictions', desc: 'Delay risk & route intelligence', icon: Activity, to: '/predictions', gradient: 'from-orange-500/10 to-amber-500/10', iconColor: '#f97316' },
+          { label: 'AI Predictions', desc: 'Delay risk & route intelligence', icon: Activity, to: '/predictions', gradient: 'from-orange-500/10 to-amber-500/10', iconColor: '#f5801e' },
         ].map(({ label, desc, icon: Icon, to, iconColor }) => (
           <Link key={label} to={to}
             className="group flex items-center gap-4 bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-100

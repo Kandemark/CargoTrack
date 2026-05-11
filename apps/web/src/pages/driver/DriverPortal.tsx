@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @route /driver/dashboard  @auth CARRIER
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -187,7 +187,7 @@ export default function DriverPortal() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: 'Active Jobs',   value: active.length.toString(),      icon: Activity,   color: '#3b82f6', bg: 'bg-blue-50 dark:bg-blue-900/15'      },
-          { label: 'Total Weight',  value: `${totalWeight.toLocaleString()} kg`, icon: Package, color: '#f97316', bg: 'bg-orange-50 dark:bg-orange-900/15' },
+          { label: 'Total Weight',  value: `${totalWeight.toLocaleString()} kg`, icon: Package, color: '#f5801e', bg: 'bg-orange-50 dark:bg-orange-900/15' },
           { label: 'Delivered',     value: completed.length.toString(),   icon: CheckCircle, color: '#22c55e', bg: 'bg-emerald-50 dark:bg-emerald-900/15' },
           { label: 'On-Time Rate',  value: `${onTimeRate}%`,              icon: Target,     color: '#22c55e', bg: 'bg-emerald-50 dark:bg-emerald-900/15'  },
           { label: 'Alerts',        value: unackedAlerts.length.toString(), icon: Bell,    color: unackedAlerts.length > 0 ? '#ef4444' : '#94a3b8', bg: unackedAlerts.length > 0 ? 'bg-red-50 dark:bg-red-900/15' : 'bg-gray-100 dark:bg-white/8' },
@@ -478,7 +478,7 @@ export default function DriverPortal() {
             <h2 className="text-sm font-bold text-gray-800 dark:text-white font-heading mb-3">Quick Actions</h2>
             <div className="space-y-2">
               {[
-                { label: 'Log Tracking Event', icon: Zap,       color: '#f97316', to: active[0] ? `/driver/shipments/${active[0].id}/log-event` : '/driver/shipments' },
+                { label: 'Log Tracking Event', icon: Zap,       color: '#f5801e', to: active[0] ? `/driver/shipments/${active[0].id}/log-event` : '/driver/shipments' },
                 { label: 'View Shipments',     icon: Package,   color: '#0f2d5e', to: '/driver/shipments' },
                 { label: 'View Documents',     icon: FileText,  color: '#22c55e', to: '/documents'        },
                 { label: 'Live Map',           icon: MapPin,    color: '#8b5cf6', to: '/live-map'         },

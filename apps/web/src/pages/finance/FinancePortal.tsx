@@ -1,4 +1,4 @@
-/**
+﻿/**
  * FinancePortal.tsx — Financial operations dashboard for finance officers.
  *
  * Responsibilities:
@@ -291,8 +291,8 @@ export default function FinancePortal() {
                       <stop offset="95%" stopColor="#9333ea" stopOpacity={0}   />
                     </linearGradient>
                     <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#f97316" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#f97316" stopOpacity={0}   />
+                      <stop offset="5%"  stopColor="#f5801e" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#f5801e" stopOpacity={0}   />
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -302,7 +302,7 @@ export default function FinancePortal() {
                     contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
                   />
                   <Area type="monotone" dataKey="revenue"  stroke="#9333ea" fill="url(#revGrad)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="expenses" stroke="#f97316" fill="url(#expGrad)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="expenses" stroke="#f5801e" fill="url(#expGrad)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

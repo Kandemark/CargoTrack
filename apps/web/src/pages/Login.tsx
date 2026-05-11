@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Login.tsx — Authenticated entry point for CargoTrack.
  */
 import { useState, type FormEvent } from 'react'
@@ -49,7 +49,7 @@ export default function Login() {
       <div className="hidden lg:flex lg:w-[42%] xl:w-[45%] relative overflow-hidden bg-gradient-to-br from-[#0f2d5e] via-[#133568] to-[#0a2047]">
         {/* Animated gradient orbs */}
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-[0.06] blur-[100px]"
-          style={{ background: 'radial-gradient(circle, #f97316 0%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, #f5801e 0%, transparent 70%)' }} />
         <div className="absolute top-1/2 -left-20 w-64 h-64 rounded-full opacity-[0.04] blur-[80px]"
           style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }} />
 

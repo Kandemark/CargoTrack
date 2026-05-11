@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
 import { WebView } from 'react-native-webview'
 import { apiClient, shipmentsApi } from '@/lib/api'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { EmptyState, Button, GlassCard } from '@/components/ui'
 import type { Document as ShipDoc, DocType, ShipmentListItem } from '@shared/api/types'
 
@@ -21,6 +22,7 @@ const DOC_TYPES: DocType[] = ['BOL', 'CUSTOMS', 'PACKING', 'INSURANCE', 'OTHER']
 function UploadModal({ shipments, selectedShipId, onClose, onUploaded }: {
   shipments: ShipmentListItem[]; selectedShipId: string; onClose: () => void; onUploaded: () => void
 }) {
+  const { colors, font, radius, isDark } = useAppTheme()
   const [shipId, setShipId] = useState(selectedShipId || (shipments[0] ? String(shipments[0].id) : ''))
   const [docType, setDocType] = useState<DocType>('OTHER')
   const [file, setFile] = useState<{ uri: string; name: string; type: string } | null>(null)
@@ -58,9 +60,9 @@ function UploadModal({ shipments, selectedShipId, onClose, onUploaded }: {
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-white dark:bg-ct-dark-bg">
-        <View className="flex-row items-center justify-between px-5 py-3.5 border-b border-ct-border-light dark:border-ct-dark-border">
-          <Text className="text-ct-base font-extrabold text-ct-text-primary dark:text-ct-dark-text">Upload Document</Text>
+      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: isDark ? colors.background : '#fff' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+          <Text style={{ fontSize: font.size.base, fontWeight: font.weight.extrabold, color: colors.text }}>Upload Document</Text>
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close-circle" size={26} color="#94a3b8" />
           </TouchableOpacity>
@@ -68,61 +70,70 @@ function UploadModal({ shipments, selectedShipId, onClose, onUploaded }: {
 
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           {err ? (
-            <View className="flex-row items-center bg-red-50 dark:bg-red-900/20 rounded-ct-md p-2.5 mb-3">
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(127,29,29,0.2)' : '#fef2f2', borderRadius: radius.md, padding: 10, marginBottom: 12 }}>
               <Ionicons name="alert-circle" size={14} color="#dc2626" />
-              <Text className="text-ct-xs text-ct-danger ml-1.5">{err}</Text>
+              <Text style={{ fontSize: font.size.xs, color: '#EF4444', marginLeft: 6 }}>{err}</Text>
             </View>
           ) : null}
 
           {/* Shipment selector */}
-          <Text className="text-ct-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Shipment *</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+          <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: isDark ? '#cbd5e1' : '#334155', marginBottom: 6 }}>Shipment *</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             {shipments.map((s) => (
               <TouchableOpacity
                 key={s.id}
                 onPress={() => setShipId(String(s.id))}
-                className={`mr-2 px-3.5 py-2 rounded-ct-md border-[1.5px] ${shipId === String(s.id) ? 'border-ct-navy dark:border-ct-orange bg-ct-navy dark:bg-ct-orange' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'}`}
+                style={[{
+                  marginRight: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1.5,
+                }, shipId === String(s.id) ? {
+                  borderColor: isDark ? '#f5801e' : '#0f2d5e', backgroundColor: isDark ? '#f5801e' : '#0f2d5e',
+                } : {
+                  borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+                }]}
                 activeOpacity={0.75}
               >
-                <Text className={`text-ct-xs font-bold ${shipId === String(s.id) ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>{s.tracking_number}</Text>
+                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: shipId === String(s.id) ? '#fff' : (isDark ? '#cbd5e1' : '#334155') }}>{s.tracking_number}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
           {/* Doc type */}
-          <Text className="text-ct-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Document Type</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+          <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: isDark ? '#cbd5e1' : '#334155', marginBottom: 6 }}>Document Type</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             {DOC_TYPES.map((dt) => (
               <TouchableOpacity
                 key={dt}
                 onPress={() => setDocType(dt)}
-                className={`mr-2 px-3.5 py-2 rounded-ct-md ${docType === dt ? 'bg-ct-orange' : 'bg-slate-100 dark:bg-slate-800'}`}
+                style={{
+                  marginRight: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.md,
+                  backgroundColor: docType === dt ? '#f5801e' : (isDark ? '#1e293b' : '#f1f5f9'),
+                }}
                 activeOpacity={0.75}
               >
-                <Text className={`text-ct-xs font-bold ${docType === dt ? 'text-white' : 'text-ct-text-muted dark:text-slate-300'}`}>{DOC_ICONS[dt]} {dt}</Text>
+                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: docType === dt ? '#fff' : colors.textMuted }}>{DOC_ICONS[dt]} {dt}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
           {/* File picker */}
-          <Text className="text-ct-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">File *</Text>
+          <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: isDark ? '#cbd5e1' : '#334155', marginBottom: 8 }}>File *</Text>
           {file ? (
-            <View className="flex-row items-center bg-blue-50 dark:bg-blue-900/20 rounded-ct-md p-3 mb-3">
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(30,58,138,0.2)' : '#eff6ff', borderRadius: radius.md, padding: 12, marginBottom: 12 }}>
               <Ionicons name="document" size={20} color="#3b82f6" />
-              <Text className="flex-1 text-ct-sm text-blue-700 dark:text-blue-300 ml-2" numberOfLines={1}>{file.name}</Text>
+              <Text style={{ flex: 1, fontSize: font.size.sm, color: isDark ? '#93c5fd' : '#1d4ed8', marginLeft: 8 }} numberOfLines={1}>{file.name}</Text>
               <TouchableOpacity onPress={() => setFile(null)}>
                 <Ionicons name="close-circle" size={18} color="#93c5fd" />
               </TouchableOpacity>
             </View>
           ) : (
-            <View className="flex-row gap-2.5 mb-4">
-              <TouchableOpacity onPress={() => void pickFromCamera()} className="flex-1 items-center py-4 rounded-ct-md border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800" activeOpacity={0.8}>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+              <TouchableOpacity onPress={() => void pickFromCamera()} style={{ flex: 1, alignItems: 'center', paddingVertical: 16, borderRadius: radius.md, borderWidth: 2, borderStyle: 'dashed', borderColor: isDark ? '#475569' : '#cbd5e1', backgroundColor: isDark ? '#1e293b' : '#f8fafc' }} activeOpacity={0.8}>
                 <Ionicons name="camera-outline" size={26} color="#9ca3af" />
-                <Text className="text-ct-xs text-ct-text-muted mt-1.5 font-semibold">Camera</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textMuted, marginTop: 6, fontWeight: font.weight.semibold }}>Camera</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => void pickFromGallery()} className="flex-1 items-center py-4 rounded-ct-md border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800" activeOpacity={0.8}>
+              <TouchableOpacity onPress={() => void pickFromGallery()} style={{ flex: 1, alignItems: 'center', paddingVertical: 16, borderRadius: radius.md, borderWidth: 2, borderStyle: 'dashed', borderColor: isDark ? '#475569' : '#cbd5e1', backgroundColor: isDark ? '#1e293b' : '#f8fafc' }} activeOpacity={0.8}>
                 <Ionicons name="folder-open-outline" size={26} color="#9ca3af" />
-                <Text className="text-ct-xs text-ct-text-muted mt-1.5 font-semibold">Browse</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textMuted, marginTop: 6, fontWeight: font.weight.semibold }}>Browse</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -130,10 +141,13 @@ function UploadModal({ shipments, selectedShipId, onClose, onUploaded }: {
           <TouchableOpacity
             onPress={() => void upload()}
             disabled={saving || !file || !shipId}
-            className={`rounded-ct-md py-3.5 items-center mt-2 ${saving || !file || !shipId ? 'bg-slate-400' : 'bg-ct-navy dark:bg-ct-orange'}`}
+            style={{
+              borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 8,
+              backgroundColor: saving || !file || !shipId ? '#94a3b8' : (isDark ? '#f5801e' : '#0f2d5e'),
+            }}
             activeOpacity={0.8}
           >
-            {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-ct-sm font-extrabold text-white">Upload Document</Text>}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: '#fff' }}>Upload Document</Text>}
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -144,11 +158,12 @@ function UploadModal({ shipments, selectedShipId, onClose, onUploaded }: {
 // ── PDF Viewer ────────────────────────────────────────────────────────────────
 
 function PdfViewer({ doc, onClose }: { doc: ShipDoc; onClose: () => void }) {
+  const { font } = useAppTheme()
   return (
     <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <SafeAreaView edges={['top']} className="flex-1 bg-black">
-        <View className="flex-row items-center justify-between px-4 py-2.5 bg-gray-900">
-          <Text className="text-ct-sm font-bold text-white flex-1" numberOfLines={1}>{doc.filename}</Text>
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#000' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#111827' }}>
+          <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.bold, color: '#fff', flex: 1 }} numberOfLines={1}>{doc.filename}</Text>
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={24} color="#9ca3af" />
           </TouchableOpacity>
@@ -156,18 +171,18 @@ function PdfViewer({ doc, onClose }: { doc: ShipDoc; onClose: () => void }) {
         {doc.file_url ? (
           <WebView
             source={{ uri: doc.file_url }}
-            className="flex-1 bg-[#1a1a2e]"
+            style={{ flex: 1, backgroundColor: '#1a1a2e' }}
             startInLoadingState
             renderLoading={() => (
-              <View className="flex-1 items-center justify-center bg-gray-900">
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111827' }}>
                 <ActivityIndicator color="#f5801e" />
               </View>
             )}
           />
         ) : (
-          <View className="flex-1 items-center justify-center">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="alert-circle-outline" size={48} color="#6b7280" />
-            <Text className="text-ct-sm text-slate-400 mt-3">Preview not available</Text>
+            <Text style={{ fontSize: font.size.sm, color: '#94a3b8', marginTop: 12 }}>Preview not available</Text>
           </View>
         )}
       </SafeAreaView>
@@ -178,17 +193,23 @@ function PdfViewer({ doc, onClose }: { doc: ShipDoc; onClose: () => void }) {
 // ── Doc Card ──────────────────────────────────────────────────────────────────
 
 function DocCard({ doc, onPreview }: { doc: ShipDoc; onPreview: (d: ShipDoc) => void }) {
+  const { colors, font, radius } = useAppTheme()
   return (
-    <View className="bg-ct-surface-card dark:bg-ct-dark-card mx-4 mb-2.5 rounded-ct-md p-3.5 flex-row items-center shadow-sm">
-      <Text className="text-[28px] mr-3">{DOC_ICONS[doc.doc_type]}</Text>
-      <View className="flex-1 min-w-0">
-        <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-ct-dark-text" numberOfLines={1}>{doc.filename || doc.doc_type_display}</Text>
-        <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{DOC_TYPE_LABELS[doc.doc_type] ?? doc.doc_type_display}</Text>
-        <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-px">
+    <View style={{
+      backgroundColor: colors.card,
+      marginHorizontal: 16, marginBottom: 10, borderRadius: radius.md, padding: 14,
+      flexDirection: 'row', alignItems: 'center',
+      shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 2,
+    }}>
+      <Text style={{ fontSize: 28, marginRight: 12 }}>{DOC_ICONS[doc.doc_type]}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }} numberOfLines={1}>{doc.filename || doc.doc_type_display}</Text>
+        <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>{DOC_TYPE_LABELS[doc.doc_type] ?? doc.doc_type_display}</Text>
+        <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 1 }}>
           {doc.uploaded_by_name ?? 'Unknown'} · {new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
         </Text>
       </View>
-      <TouchableOpacity onPress={() => onPreview(doc)} className="p-2">
+      <TouchableOpacity onPress={() => onPreview(doc)} style={{ padding: 8 }}>
         <Ionicons name="eye-outline" size={20} color="#94a3b8" />
       </TouchableOpacity>
     </View>
@@ -198,6 +219,7 @@ function DocCard({ doc, onPreview }: { doc: ShipDoc; onPreview: (d: ShipDoc) => 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function DocumentsScreen() {
+  const { colors, font, radius, spacing, isDark } = useAppTheme()
   const [shipments, setShipments] = useState<ShipmentListItem[]>([])
   const [shipId, setShipId] = useState('')
   const [docs, setDocs] = useState<ShipDoc[]>([])
@@ -230,23 +252,23 @@ export default function DocumentsScreen() {
   useEffect(() => { if (shipId) void loadDocs() }, [shipId])
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-bg dark:bg-ct-dark-bg">
-      <View className="flex-1">
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ flex: 1 }}>
         {/* Glass header */}
-        <GlassCard variant="elevated" accentColor="#7c3aed" accentPosition="left" className="mx-4 mt-ct-lg mb-2">
-          <View className="p-ct-lg">
-            <View className="flex-row items-center mb-3">
-              <TouchableOpacity onPress={() => router.back()} className="mr-3 p-1" activeOpacity={0.7}>
+        <GlassCard variant="elevated" accentColor="#7c3aed" accentPosition="left" style={{ marginHorizontal: 16, marginTop: spacing.lg, marginBottom: 8 }}>
+          <View style={{ padding: spacing.lg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12, padding: 4 }} activeOpacity={0.7}>
                 <Ionicons name="arrow-back" size={22} color="#e2e8f0" />
               </TouchableOpacity>
-              <Text className="text-ct-xl font-extrabold text-ct-text-primary dark:text-white flex-1">Documents</Text>
+              <Text style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: colors.text, flex: 1 }}>Documents</Text>
               <TouchableOpacity
                 onPress={() => setShowUpload(true)}
-                className="flex-row items-center bg-ct-orange rounded-ct-md px-3 py-[7px]"
+                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5801e', borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 7 }}
                 activeOpacity={0.8}
               >
                 <Ionicons name="cloud-upload-outline" size={14} color="#fff" />
-                <Text className="text-ct-xs font-extrabold text-white ml-[5px]">Upload</Text>
+                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.extrabold, color: '#fff', marginLeft: 5 }}>Upload</Text>
               </TouchableOpacity>
             </View>
 
@@ -256,10 +278,13 @@ export default function DocumentsScreen() {
               <TouchableOpacity
                 key={s.id}
                 onPress={() => setShipId(String(s.id))}
-                className={`mr-2 px-3 py-1.5 rounded-ct-sm ${shipId === String(s.id) ? 'bg-ct-orange' : 'bg-slate-200 dark:bg-white/10'}`}
+                style={{
+                  marginRight: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.sm,
+                  backgroundColor: shipId === String(s.id) ? '#f5801e' : (isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'),
+                }}
                 activeOpacity={0.75}
               >
-                <Text className={`text-ct-xs font-bold ${shipId === String(s.id) ? 'text-white' : 'text-ct-text-primary dark:text-white'}`}>{s.tracking_number}</Text>
+                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: shipId === String(s.id) ? '#fff' : colors.text }}>{s.tracking_number}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -267,7 +292,7 @@ export default function DocumentsScreen() {
         </GlassCard>
 
         {loading ? (
-          <View className="flex-1 items-center justify-center">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator size="large" color="#f5801e" />
           </View>
         ) : (

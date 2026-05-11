@@ -1,7 +1,6 @@
-import { View, TouchableOpacity } from 'react-native'
+import { View, TouchableOpacity, type ViewProps } from 'react-native'
 import { BlurView } from 'expo-blur'
 import { useThemeStore } from '@/lib/themeStore'
-import { cn } from '@/lib/utils'
 
 type GlassVariant = 'default' | 'elevated' | 'subtle'
 
@@ -10,7 +9,7 @@ interface GlassCardProps {
   accentColor?: string
   accentPosition?: 'top' | 'left'
   children: React.ReactNode
-  className?: string
+  style?: ViewProps['style']
   onPress?: () => void
 }
 
@@ -21,30 +20,34 @@ export default function GlassCard({
   accentColor,
   accentPosition = 'top',
   children,
-  className,
+  style,
   onPress,
 }: GlassCardProps) {
   const resolved = useThemeStore((s) => s.resolved)
   const tint = resolved === 'dark' ? 'dark' : 'light'
+  const bgColor = resolved === 'dark' ? 'rgba(10,25,41,0.85)' : 'rgba(255,255,255,0.85)'
 
   const content = (
-    <View
-      className={cn(
-        'overflow-hidden rounded-ct-xl border border-white/[0.08]',
-        variant === 'elevated' && 'shadow-lg shadow-black/20',
-        className,
-      )}
-    >
+    <View style={[{
+      overflow: 'hidden',
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+      ...(variant === 'elevated' && {
+        shadowColor: '#000',
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 8,
+      }),
+    }, style]}>
       <BlurView intensity={INTENSITY[variant]} tint={tint}>
-        <View className={cn(
-          'bg-ct-dark-card/85',
-          resolved === 'light' && 'bg-white/85',
-        )}>
+        <View style={{ backgroundColor: bgColor }}>
           {accentColor && accentPosition === 'top' && (
-            <View className="h-[3px] w-full" style={{ backgroundColor: accentColor }} />
+            <View style={{ height: 3, width: '100%', backgroundColor: accentColor }} />
           )}
           {accentColor && accentPosition === 'left' && (
-            <View className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: accentColor }} />
+            <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: accentColor }} />
           )}
           {children}
         </View>
@@ -54,7 +57,7 @@ export default function GlassCard({
 
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.85} className="active:scale-[0.98]">
+      <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
         {content}
       </TouchableOpacity>
     )

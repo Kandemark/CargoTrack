@@ -2,7 +2,6 @@ import { useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { View, PanResponder, Dimensions, StyleSheet, type ViewStyle } from 'react-native'
 import { BlurView } from 'expo-blur'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
-import { cn } from '@/lib/utils'
 
 const { height: SCREEN_H } = Dimensions.get('window')
 
@@ -14,7 +13,7 @@ interface BottomSheetProps {
   children: React.ReactNode
   showHandle?: boolean
   glass?: boolean
-  className?: string
+  style?: ViewStyle
   onSnapChange?: (index: number) => void
 }
 
@@ -24,7 +23,7 @@ export interface BottomSheetHandle {
 }
 
 const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(function BottomSheet(
-  { snapPoints, initialSnap = 0, children, showHandle = true, glass = true, className, onSnapChange },
+  { snapPoints, initialSnap = 0, children, showHandle = true, glass = true, style, onSnapChange },
   ref,
 ) {
   const sorted = [...snapPoints].sort((a, b) => a - b)
@@ -102,23 +101,35 @@ const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(function Bot
         ]}
         {...panResponder.panHandlers}
       >
-        <View className={cn('rounded-t-ct-2xl overflow-hidden border border-white/[0.08] shadow-lg shadow-black/30 flex-1', className)}>
+        <View style={[{
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.08)',
+          shadowColor: '#000',
+          shadowOpacity: 0.3,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: -2 },
+          elevation: 8,
+          flex: 1,
+        }, style]}>
           {glass ? (
             <BlurView intensity={85} tint="dark" style={{ flex: 1 }}>
-              <View className="flex-1 bg-ct-dark-card/80">
+              <View style={{ flex: 1, backgroundColor: 'rgba(26,34,53,0.8)' }}>
                 {showHandle && (
-                  <View className="items-center pt-3 pb-1">
-                    <View className="w-10 h-1 rounded-full bg-slate-500/60" />
+                  <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
+                    <View style={{ width: 40, height: 4, borderRadius: 9999, backgroundColor: 'rgba(100,116,139,0.6)' }} />
                   </View>
                 )}
                 {children}
               </View>
             </BlurView>
           ) : (
-            <View className="flex-1 bg-ct-dark-card">
+            <View style={{ flex: 1, backgroundColor: '#1a2235' }}>
               {showHandle && (
-                <View className="items-center pt-3 pb-1">
-                  <View className="w-10 h-1 rounded-full bg-slate-500/60" />
+                <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
+                  <View style={{ width: 40, height: 4, borderRadius: 9999, backgroundColor: 'rgba(100,116,139,0.6)' }} />
                 </View>
               )}
               {children}

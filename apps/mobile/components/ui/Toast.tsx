@@ -7,7 +7,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated'
 import { Ionicons } from '@expo/vector-icons'
-import { cn } from '@/lib/utils'
+import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 
 export type ToastType = 'error' | 'success' | 'info' | 'warning'
 
@@ -19,11 +20,11 @@ interface ToastProps {
   duration?: number
 }
 
-const config = {
-  error:   { bg: 'bg-red-50 dark:bg-red-900/30', border: 'border-red-200 dark:border-red-800', text: 'text-red-800 dark:text-red-200', icon: 'alert-circle' as const, iconColor: '#EF4444' },
-  success: { bg: 'bg-emerald-50 dark:bg-emerald-900/30', border: 'border-emerald-200 dark:border-emerald-800', text: 'text-emerald-800 dark:text-emerald-200', icon: 'checkmark-circle' as const, iconColor: '#10B981' },
-  info:    { bg: 'bg-blue-50 dark:bg-blue-900/30', border: 'border-blue-200 dark:border-blue-800', text: 'text-blue-800 dark:text-blue-200', icon: 'information-circle' as const, iconColor: '#3B82F6' },
-  warning: { bg: 'bg-amber-50 dark:bg-amber-900/30', border: 'border-amber-200 dark:border-amber-800', text: 'text-amber-800 dark:text-amber-200', icon: 'warning' as const, iconColor: '#F59E0B' },
+const config: Record<ToastType, { textColor: string; iconColor: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  error:   { textColor: '#991b1b', iconColor: '#EF4444', icon: 'alert-circle' },
+  success: { textColor: '#065f46', iconColor: '#10B981', icon: 'checkmark-circle' },
+  info:    { textColor: '#1e40af', iconColor: '#3B82F6', icon: 'information-circle' },
+  warning: { textColor: '#92400e', iconColor: '#F59E0B', icon: 'warning' },
 }
 
 export default function Toast({
@@ -33,6 +34,7 @@ export default function Toast({
   onDismiss,
   duration = 4000,
 }: ToastProps) {
+  const { colors, isDark } = useAppTheme()
   const translateY = useSharedValue(-100)
   const opacity = useSharedValue(0)
 
@@ -40,9 +42,7 @@ export default function Toast({
     if (visible) {
       translateY.value = withSpring(0, { damping: 15, stiffness: 150 })
       opacity.value = withTiming(1, { duration: 200 })
-      const t = setTimeout(() => {
-        onDismiss()
-      }, duration)
+      const t = setTimeout(() => onDismiss(), duration)
       return () => clearTimeout(t)
     } else {
       translateY.value = withTiming(-100, { duration: 200 })
@@ -59,17 +59,44 @@ export default function Toast({
 
   const c = config[type]
 
+  const bgMap: Record<ToastType, string> = {
+    error: isDark ? 'rgba(239,68,68,0.15)' : '#FEF2F2',
+    success: isDark ? 'rgba(16,185,129,0.15)' : '#ECFDF5',
+    info: isDark ? 'rgba(59,130,246,0.15)' : '#EFF6FF',
+    warning: isDark ? 'rgba(245,158,11,0.15)' : '#FFFBEB',
+  }
+
+  const borderMap: Record<ToastType, string> = {
+    error: isDark ? 'rgba(239,68,68,0.3)' : '#FECACA',
+    success: isDark ? 'rgba(16,185,129,0.3)' : '#A7F3D0',
+    info: isDark ? 'rgba(59,130,246,0.3)' : '#BFDBFE',
+    warning: isDark ? 'rgba(245,158,11,0.3)' : '#FDE68A',
+  }
+
   return (
-    <Animated.View
-      style={animatedStyle}
-      className={cn(
-        'absolute top-14 left-4 right-4 z-50 flex-row items-center px-ct-lg py-ct-md rounded-ct-lg border',
-        c.bg,
-        c.border,
-      )}
-    >
+    <Animated.View style={[animatedStyle, {
+      position: 'absolute',
+      top: 56,
+      left: 16,
+      right: 16,
+      zIndex: 50,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: T.radius.lg,
+      borderWidth: 1,
+      backgroundColor: bgMap[type],
+      borderColor: borderMap[type],
+    }]}>
       <Ionicons name={c.icon} size={20} color={c.iconColor} />
-      <Text className={cn('flex-1 ml-ct-sm text-ct-sm font-bold', c.text)} numberOfLines={2}>
+      <Text style={{
+        flex: 1,
+        marginLeft: 8,
+        fontSize: T.font.size.sm,
+        fontWeight: T.font.weight.bold,
+        color: c.textColor,
+      }} numberOfLines={2}>
         {message}
       </Text>
       <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

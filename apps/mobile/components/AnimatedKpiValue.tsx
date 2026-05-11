@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Text } from 'react-native'
-import { cn } from '@/lib/utils'
+import { Text, type TextProps } from 'react-native'
 
 interface Props {
   value: number
@@ -8,7 +7,7 @@ interface Props {
   prefix?: string
   suffix?: string
   decimals?: number
-  className?: string
+  style?: TextProps['style']
 }
 
 /** Animated count-up using cubic ease-out matching the web frontend.
@@ -19,7 +18,7 @@ export default function AnimatedKpiValue({
   prefix = '',
   suffix = '',
   decimals = 0,
-  className,
+  style,
 }: Props) {
   const [display, setDisplay] = useState(() => value)
   const prevRef = useRef(value)
@@ -33,7 +32,6 @@ export default function AnimatedKpiValue({
     function tick() {
       const elapsed = Date.now() - start
       const t = Math.min(elapsed / duration, 1)
-      // Cubic ease-out: 1 - (1-t)^3 — matches web frontend
       const eased = 1 - Math.pow(1 - t, 3)
       setDisplay(from + (value - from) * eased)
       if (t < 1) raf = requestAnimationFrame(tick)
@@ -43,7 +41,7 @@ export default function AnimatedKpiValue({
   }, [value, duration])
 
   return (
-    <Text className={cn('tabular-nums', className)}>
+    <Text style={[{ fontVariant: ['tabular-nums'] }, style]}>
       {prefix}{display.toFixed(decimals)}{suffix}
     </Text>
   )

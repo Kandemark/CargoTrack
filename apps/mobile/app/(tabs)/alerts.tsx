@@ -1,15 +1,17 @@
 import { useEffect, useCallback } from 'react'
-import { View, Text, FlatList, RefreshControl, Alert } from 'react-native'
+import { View, Text, FlatList, RefreshControl, Alert, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { apiClient } from '@/lib/api'
 import { useAuthStore, useAlertStore } from '@/lib/store'
+import { useAppTheme } from '@/lib/useAppTheme'
 import SwipeableAlertCard from '@/components/SwipeableAlertCard'
 import { EmptyState, SectionLabel, GlassCard, Skeleton } from '@/components/ui'
 
 export default function AlertsScreen() {
   const user = useAuthStore((s) => s.user)
   const { alerts, isLoading, fetchAlerts, acknowledgeLocal } = useAlertStore()
+  const { colors, font, spacing, radius } = useAppTheme()
   const canAcknowledge = user?.role === 'LOGISTICS_MGR' || user?.role === 'ADMIN'
 
   const load = useCallback((isRefresh = false) => {
@@ -40,20 +42,20 @@ export default function AlertsScreen() {
   const allSorted = [...unacked, ...acked]
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-bg dark:bg-ct-dark-bg">
-      <View className="flex-1">
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={s.flex1}>
         {/* Glass header */}
-        <GlassCard variant="elevated" accentColor="#ef4444" accentPosition="left" className="mx-4 mt-ct-lg mb-2">
-          <View className="p-ct-lg">
-            <View className="flex-row items-center justify-between mb-1">
-              <Text className="text-ct-xl font-extrabold text-ct-text-primary dark:text-white">Alerts</Text>
+        <GlassCard variant="elevated" accentColor="#ef4444" accentPosition="left" style={{ marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 8 }}>
+          <View style={{ padding: spacing.lg }}>
+            <View style={[s.rowSpaceBetween, { marginBottom: 4 }]}>
+              <Text style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: colors.text }}>Alerts</Text>
               {unacked.length > 0 && (
-                <View className="bg-ct-orange rounded-full px-2.5 py-1">
-                  <Text className="text-ct-sm font-extrabold text-white">{unacked.length} new</Text>
+                <View style={{ backgroundColor: '#f5801e', borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                  <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: '#ffffff' }}>{unacked.length} new</Text>
                 </View>
               )}
             </View>
-            <Text className="text-ct-sm text-ct-text-muted dark:text-slate-300">
+            <Text style={{ fontSize: font.size.sm, color: colors.textMuted }}>
               {unacked.length === 0 && acked.length === 0
                 ? 'No alerts'
                 : `${unacked.length} unacknowledged · ${acked.length} resolved`}
@@ -63,7 +65,7 @@ export default function AlertsScreen() {
         </GlassCard>
 
         {isLoading && alerts.length === 0 ? (
-          <View className="px-4">
+          <View style={{ paddingHorizontal: spacing.lg }}>
             <Skeleton variant="alert-list" />
           </View>
         ) : (
@@ -76,7 +78,7 @@ export default function AlertsScreen() {
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 100 }}
             refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => load(true)} tintColor="#f5801e" />}
             ListHeaderComponent={
-              unacked.length > 0 ? <SectionLabel label="Requires attention" className="px-5 mb-1.5" /> : null
+              unacked.length > 0 ? <SectionLabel label="Requires attention" style={{ paddingHorizontal: 20, marginBottom: 6 }} /> : null
             }
             ListEmptyComponent={
               <EmptyState
@@ -92,3 +94,8 @@ export default function AlertsScreen() {
     </SafeAreaView>
   )
 }
+
+const s = StyleSheet.create({
+  flex1: { flex: 1 },
+  rowSpaceBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+})

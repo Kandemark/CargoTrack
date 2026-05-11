@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Truck, Edit, MessageCircle, Phone, MapPin,
@@ -20,7 +20,7 @@ function TruckLoadVisual({ pct }: { pct: number }) {
         <svg viewBox="0 0 120 60" className="w-32 h-16">
           {/* Cargo bed */}
           <rect x="10" y="10" width="70" height="35" rx="2" fill="#e5e7eb" />
-          <rect x="10" y={10 + (35 * (1 - fill / 100))} width="70" height={35 * fill / 100} rx="2" fill="#f97316" opacity="0.8" />
+          <rect x="10" y={10 + (35 * (1 - fill / 100))} width="70" height={35 * fill / 100} rx="2" fill="#f5801e" opacity="0.8" />
           {/* Cab */}
           <rect x="80" y="5" width="30" height="40" rx="2" fill="#d1d5db" />
           <rect x="85" y="10" width="12" height="12" rx="1" fill="#9ca3af" />
@@ -35,7 +35,7 @@ function TruckLoadVisual({ pct }: { pct: number }) {
           <span className="text-3xl font-bold text-gray-900">{fill.toFixed(0)}%</span>
           <span className="text-sm text-gray-400 ml-1">loaded</span>
           <div className="mt-1 h-2 w-24 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full bg-[#f97316] transition-all duration-500" style={{ width: `${fill}%` }} />
+            <div className="h-full rounded-full bg-[#f5801e] transition-all duration-500" style={{ width: `${fill}%` }} />
           </div>
         </div>
       </div>
@@ -110,7 +110,7 @@ function DriverInfoCard({
 function TruckMetricsCard({ truck }: { truck: TruckType }) {
   const metrics = [
     { label: 'Odometer', value: `${(truck.odometer_km || 0).toLocaleString()} km`, icon: Gauge, color: '#0f2d5e' },
-    { label: 'Payload', value: `${truck.payload_tonnes} t`, icon: Package, color: '#f97316' },
+    { label: 'Payload', value: `${truck.payload_tonnes} t`, icon: Package, color: '#f5801e' },
     { label: 'Last Service', value: truck.last_service_date ? new Date(truck.last_service_date).toLocaleDateString() : '—', icon: Wrench, color: '#22c55e' },
     { label: 'Next Service', value: truck.next_service_date ? new Date(truck.next_service_date).toLocaleDateString() : '—', icon: Calendar, color: '#8b5cf6' },
     { label: 'Fuel', value: truck.fuel_type, icon: Fuel, color: '#ef4444' },

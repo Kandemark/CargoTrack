@@ -2,7 +2,7 @@
  * @cargotrack/api-client
  *
  * Typed API client for the CargoTrack logistics backbone.
- * Combines the base client factory from @cargotrack/shared with
+ * Combines the base client factory from @cargotrack/shared-types with
  * prediction, WebSocket, and convenience methods for all domain APIs.
  *
  * @example
@@ -36,7 +36,7 @@ export {
   createAuthApi,
   createShipmentsApi,
   createDashboardApi,
-} from "@cargotrack/shared/api";
+} from "@cargotrack/shared-types/api";
 export type {
   ApiClientConfig,
   User,
@@ -54,7 +54,7 @@ export type {
   CarrierPerformance,
   DashboardResponse,
   PaginatedResponse,
-} from "@cargotrack/shared/api";
+} from "@cargotrack/shared-types/api";
 
 // ML Predictions
 export {
@@ -100,8 +100,8 @@ import {
   createAuthApi,
   createShipmentsApi,
   createDashboardApi,
-} from "@cargotrack/shared/api";
-import type { ApiClientConfig } from "@cargotrack/shared/api";
+} from "@cargotrack/shared-types/api";
+import type { ApiClientConfig } from "@cargotrack/shared-types/api";
 import { createPredictionsApi } from "./predictions";
 import type { PredictionsApi } from "./predictions";
 import { createCargoTrackWs } from "./ws";

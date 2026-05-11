@@ -18,37 +18,57 @@ export default function Legend({ visible = true }: Props) {
   const corridors = getCorridorLegend()
 
   return (
-    <View className="absolute bottom-28 left-3 rounded-ct-lg px-3 py-2.5 bg-ct-dark-card/85 border border-white/[0.08]">
-      {/* Status dots */}
-      <Text className="text-[9px] font-extrabold text-slate-400 uppercase tracking-[0.5px] mb-1.5">
+    <View style={{
+      position: 'absolute',
+      bottom: 112,
+      left: 12,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      backgroundColor: 'rgba(26,34,53,0.85)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.08)',
+    }}>
+      <Text style={{
+        fontSize: 9,
+        fontWeight: '800',
+        color: '#94a3b8',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 6,
+      }}>
         Shipment Status
       </Text>
       {STATUS_ENTRIES.map(({ label, color }) => (
-        <View key={label} className="flex-row items-center mb-1">
-          <View className="w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: color }} />
-          <Text className="text-ct-xs text-slate-300 font-semibold">{label}</Text>
+        <View key={label} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, marginRight: 6, backgroundColor: color }} />
+          <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '600' }}>{label}</Text>
         </View>
       ))}
 
-      {/* Divider */}
-      <View className="h-px bg-white/10 my-1.5" />
+      <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 6 }} />
 
-      {/* Corridors */}
-      <Text className="text-[9px] font-extrabold text-slate-400 uppercase tracking-[0.5px] mb-1.5">
+      <Text style={{
+        fontSize: 9,
+        fontWeight: '800',
+        color: '#94a3b8',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+        marginBottom: 6,
+      }}>
         Trade Corridors
       </Text>
       {corridors.map(({ id, label, color }) => (
-        <View key={id} className="flex-row items-center mb-1">
-          <View className="w-3 h-0.5 rounded mr-1.5" style={{ backgroundColor: color }} />
-          <Text className="text-ct-xs text-slate-300 font-semibold">{label}</Text>
+        <View key={id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+          <View style={{ width: 12, height: 2, borderRadius: 1, marginRight: 6, backgroundColor: color }} />
+          <Text style={{ fontSize: 10, color: '#cbd5e1', fontWeight: '600' }}>{label}</Text>
         </View>
       ))}
 
-      {/* High risk */}
-      <View className="h-px bg-white/10 my-1.5" />
-      <View className="flex-row items-center">
+      <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 6 }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <Ionicons name="alert-circle" size={10} color="#EF4444" style={{ marginRight: 5 }} />
-        <Text className="text-ct-xs text-red-400 font-semibold">High Risk (≥70%)</Text>
+        <Text style={{ fontSize: 10, color: '#f87171', fontWeight: '600' }}>High Risk (≥70%)</Text>
       </View>
     </View>
   )

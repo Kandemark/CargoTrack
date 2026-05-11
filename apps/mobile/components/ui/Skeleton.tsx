@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { View, StyleSheet } from 'react-native'
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, interpolate } from 'react-native-reanimated'
-import { cn } from '@/lib/utils'
+import { View, type ViewProps } from 'react-native'
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated'
+import { useAppTheme } from '@/lib/useAppTheme'
 
 type SkeletonVariant = 'text' | 'circle' | 'rect' | 'card' | 'kpi-row' | 'kpi-glass-row' | 'alert-list' | 'timeline' | 'profile'
 
@@ -9,10 +9,11 @@ interface SkeletonProps {
   variant?: SkeletonVariant
   width?: number
   height?: number
-  className?: string
+  style?: ViewProps['style']
 }
 
-function ShimmerBox({ className, width, height }: { className?: string; width?: number; height?: number }) {
+function ShimmerBox({ width, height, style }: { width?: number; height?: number; style?: ViewProps['style'] }) {
+  const { colors, isDark } = useAppTheme()
   const shimmerX = useSharedValue(-200)
 
   useEffect(() => {
@@ -24,63 +25,69 @@ function ShimmerBox({ className, width, height }: { className?: string; width?: 
   }))
 
   return (
-    <View
-      className={cn('bg-gray-200 dark:bg-white/[0.07] rounded-ct-sm overflow-hidden', className)}
-      style={[{ width, height }]}
-    >
-      <Animated.View
-        style={[
-          animatedStyle,
-          {
-            width: '40%',
-            height: '100%',
-            backgroundColor: 'rgba(255,255,255,0.15)',
-          },
-        ]}
-      />
+    <View style={[{
+      backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#E5E7EB',
+      borderRadius: 8,
+      overflow: 'hidden',
+      width,
+      height,
+    }, style]}>
+      <Animated.View style={[animatedStyle, {
+        width: '40%',
+        height: '100%',
+        backgroundColor: 'rgba(255,255,255,0.15)',
+      }]} />
     </View>
   )
 }
 
-export default function Skeleton({ variant = 'rect', width, height, className }: SkeletonProps) {
+export default function Skeleton({ variant = 'rect', width, height, style }: SkeletonProps) {
+  const { colors, radius, isDark } = useAppTheme()
+
   switch (variant) {
     case 'text':
       return (
-        <View className={cn('gap-2', className)}>
-          <ShimmerBox className="h-3 w-full" />
-          <ShimmerBox className="h-3 w-3/4" />
+        <View style={[{ gap: 8 }, style]}>
+          <ShimmerBox height={12} style={{ width: '100%' }} />
+          <ShimmerBox height={12} style={{ width: '75%' }} />
         </View>
       )
 
     case 'circle':
-      return <ShimmerBox className={cn('rounded-full', className)} width={width ?? 40} height={height ?? 40} />
+      return <ShimmerBox width={width ?? 40} height={height ?? 40} style={{ borderRadius: 9999 }} />
 
     case 'rect':
-      return <ShimmerBox className={cn('rounded-ct-md', className)} width={width} height={height} />
+      return <ShimmerBox width={width} height={height} style={[{ borderRadius: radius.md }, style]} />
 
     case 'card':
       return (
-        <View className={cn('mx-4 mb-2.5 rounded-ct-lg p-3.5 bg-ct-surface-card dark:bg-ct-dark-card', className)}>
-          <View className="flex-row items-center justify-between mb-2">
-            <ShimmerBox className="h-3.5 w-2/5" />
-            <ShimmerBox className="h-5 w-16 rounded-full" />
+        <View style={[{
+          marginHorizontal: 16,
+          marginBottom: 10,
+          borderRadius: radius.lg,
+          padding: 14,
+          backgroundColor: colors.card,
+        }, style]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <ShimmerBox height={14} style={{ width: '40%' }} />
+            <ShimmerBox height={20} width={64} style={{ borderRadius: 9999 }} />
           </View>
-          <View className="flex-row items-center mb-2.5">
-            <ShimmerBox className="h-2.5 w-32" />
-            <ShimmerBox className="h-2.5 w-32 ml-2" />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            <ShimmerBox height={10} width={128} />
+            <ShimmerBox height={10} width={128} style={{ marginLeft: 8 }} />
           </View>
-          <ShimmerBox className="h-1 w-full rounded-sm" />
+          <ShimmerBox height={4} style={{ width: '100%', borderRadius: 4 }} />
         </View>
       )
 
     case 'kpi-row':
       return (
-        <View className={cn('flex-row gap-3 px-4', className)}>
+        <View style={[{ flexDirection: 'row', gap: 12, paddingHorizontal: 16 }, style]}>
           {[1, 2, 3].map((i) => (
-            <View key={i} className="flex-1 bg-ct-surface-card dark:bg-ct-dark-card rounded-ct-lg p-3 h-[100px]">
-              <ShimmerBox className="h-8 w-8 rounded-full mb-2" />
-              <ShimmerBox className="h-3 w-2/3 mb-1" />
-              <ShimmerBox className="h-5 w-1/2" />
+            <View key={i} style={{ flex: 1, backgroundColor: colors.card, borderRadius: radius.lg, padding: 12, height: 100 }}>
+              <ShimmerBox height={32} width={32} style={{ borderRadius: 9999, marginBottom: 8 }} />
+              <ShimmerBox height={12} style={{ width: '66%', marginBottom: 4 }} />
+              <ShimmerBox height={20} style={{ width: '50%' }} />
             </View>
           ))}
         </View>
@@ -88,12 +95,12 @@ export default function Skeleton({ variant = 'rect', width, height, className }:
 
     case 'kpi-glass-row':
       return (
-        <View className={cn('flex-row gap-3 px-4', className)}>
+        <View style={[{ flexDirection: 'row', gap: 12, paddingHorizontal: 16 }, style]}>
           {[1, 2, 3, 4, 5].map((i) => (
-            <View key={i} className="w-[140px] h-[100px] rounded-ct-xl bg-white/[0.08] p-3">
-              <ShimmerBox className="h-7 w-7 rounded-full mb-2" />
-              <ShimmerBox className="h-3 w-16 mb-1" />
-              <ShimmerBox className="h-5 w-12" />
+            <View key={i} style={{ width: 140, height: 100, borderRadius: radius.xl, backgroundColor: 'rgba(255,255,255,0.08)', padding: 12 }}>
+              <ShimmerBox height={28} width={28} style={{ borderRadius: 9999, marginBottom: 8 }} />
+              <ShimmerBox height={12} width={64} style={{ marginBottom: 4 }} />
+              <ShimmerBox height={20} width={48} />
             </View>
           ))}
         </View>
@@ -101,15 +108,21 @@ export default function Skeleton({ variant = 'rect', width, height, className }:
 
     case 'alert-list':
       return (
-        <View className={cn('gap-2.5 px-4', className)}>
+        <View style={[{ gap: 10, paddingHorizontal: 16 }, style]}>
           {[1, 2, 3, 4].map((i) => (
-            <View key={i} className="bg-ct-surface-card dark:bg-ct-dark-card rounded-ct-lg p-3.5 border-l-4 border-gray-200 dark:border-gray-700">
-              <View className="flex-row justify-between mb-2">
-                <ShimmerBox className="h-3 w-20 rounded-full" />
-                <ShimmerBox className="h-2.5 w-24" />
+            <View key={i} style={{
+              backgroundColor: colors.card,
+              borderRadius: radius.lg,
+              padding: 14,
+              borderLeftWidth: 4,
+              borderLeftColor: isDark ? '#374151' : '#E5E7EB',
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <ShimmerBox height={12} width={80} style={{ borderRadius: 9999 }} />
+                <ShimmerBox height={10} width={96} />
               </View>
-              <ShimmerBox className="h-3.5 w-2/5 mb-1.5" />
-              <ShimmerBox className="h-3 w-4/5" />
+              <ShimmerBox height={14} style={{ width: '40%', marginBottom: 6 }} />
+              <ShimmerBox height={12} style={{ width: '80%' }} />
             </View>
           ))}
         </View>
@@ -117,16 +130,16 @@ export default function Skeleton({ variant = 'rect', width, height, className }:
 
     case 'timeline':
       return (
-        <View className={cn('gap-0', className)}>
+        <View style={[{ gap: 0 }, style]}>
           {[1, 2, 3, 4, 5].map((i) => (
-            <View key={i} className="flex-row mb-3">
-              <View className="w-8 items-center">
-                <ShimmerBox className="w-7 h-7 rounded-full" />
+            <View key={i} style={{ flexDirection: 'row', marginBottom: 12 }}>
+              <View style={{ width: 32, alignItems: 'center' }}>
+                <ShimmerBox height={28} width={28} style={{ borderRadius: 9999 }} />
               </View>
-              <View className="flex-1 ml-2.5">
-                <ShimmerBox className="h-3.5 w-1/3 mb-1" />
-                <ShimmerBox className="h-2.5 w-2/3 mb-1" />
-                <ShimmerBox className="h-2 w-1/4" />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <ShimmerBox height={14} style={{ width: '33%', marginBottom: 4 }} />
+                <ShimmerBox height={10} style={{ width: '66%', marginBottom: 4 }} />
+                <ShimmerBox height={8} style={{ width: '25%' }} />
               </View>
             </View>
           ))}
@@ -135,17 +148,24 @@ export default function Skeleton({ variant = 'rect', width, height, className }:
 
     case 'profile':
       return (
-        <View className={cn('mx-4 rounded-ct-lg p-4 bg-ct-surface-card dark:bg-ct-dark-card flex-row items-center', className)}>
-          <ShimmerBox className="w-[54px] h-[54px] rounded-ct-lg" />
-          <View className="flex-1 ml-3.5">
-            <ShimmerBox className="h-4 w-40 mb-1.5" />
-            <ShimmerBox className="h-3 w-52 mb-1" />
-            <ShimmerBox className="h-3 w-32" />
+        <View style={[{
+          marginHorizontal: 16,
+          borderRadius: radius.lg,
+          padding: 16,
+          backgroundColor: colors.card,
+          flexDirection: 'row',
+          alignItems: 'center',
+        }, style]}>
+          <ShimmerBox height={54} width={54} style={{ borderRadius: radius.lg }} />
+          <View style={{ flex: 1, marginLeft: 14 }}>
+            <ShimmerBox height={16} width={160} style={{ marginBottom: 6 }} />
+            <ShimmerBox height={12} width={208} style={{ marginBottom: 4 }} />
+            <ShimmerBox height={12} width={128} />
           </View>
         </View>
       )
 
     default:
-      return <ShimmerBox className={className} width={width} height={height} />
+      return <ShimmerBox width={width} height={height} style={style} />
   }
 }

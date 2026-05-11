@@ -1,5 +1,6 @@
-import { View, ScrollView, TouchableOpacity, Text } from 'react-native'
-import { cn } from '@/lib/utils'
+import { View, ScrollView, TouchableOpacity, Text, type ViewProps } from 'react-native'
+import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 
 export interface FilterPill {
   key: string
@@ -16,7 +17,7 @@ interface FilterPillsProps {
   selected: string | null
   onSelect: (key: string | null) => void
   allowDeselect?: boolean
-  className?: string
+  style?: ViewProps['style']
 }
 
 export default function FilterPills({
@@ -24,74 +25,72 @@ export default function FilterPills({
   selected,
   onSelect,
   allowDeselect = true,
-  className,
+  style,
 }: FilterPillsProps) {
+  const { colors, font, radius, isDark } = useAppTheme()
+
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ gap: 8, paddingRight: 16 }}
-      className={cn('py-1', className)}
+      style={[{ paddingVertical: 4 }, style]}
     >
       {options.map((opt) => {
         const isActive = selected === opt.key
         const hasCustomColors = !!(opt.activeBg || opt.activeText || opt.activeBorder)
 
-        const activeStyle = hasCustomColors && isActive
-          ? {
-              backgroundColor: opt.activeBg,
-              borderColor: opt.activeBorder ?? opt.activeBg,
-            }
-          : undefined
+        const pillBg = isActive && hasCustomColors ? opt.activeBg
+          : isActive ? (isDark ? T.color.brand.accent : T.color.brand.primary)
+          : colors.card
 
-        const activeTextStyle = hasCustomColors && isActive && opt.activeText
-          ? { color: opt.activeText }
-          : undefined
+        const pillBorder = isActive && hasCustomColors ? (opt.activeBorder ?? opt.activeBg)
+          : isActive ? pillBg
+          : colors.border
+
+        const textColor = isActive && hasCustomColors && opt.activeText
+          ? opt.activeText
+          : isActive && !hasCustomColors ? '#FFFFFF'
+          : colors.textSecondary
+
+        const countColor = isActive ? 'rgba(255,255,255,0.7)' : colors.textFaint
 
         return (
           <TouchableOpacity
             key={opt.key}
             onPress={() => {
-              if (allowDeselect && isActive) {
-                onSelect(null)
-              } else {
-                onSelect(opt.key)
-              }
+              if (allowDeselect && isActive) onSelect(null)
+              else onSelect(opt.key)
             }}
             activeOpacity={0.7}
-            style={activeStyle}
-            className={cn(
-              'flex-row items-center px-3.5 py-2 rounded-full border',
-              isActive && !hasCustomColors
-                ? 'bg-ct-navy dark:bg-ct-orange border-ct-navy dark:border-ct-orange'
-                : isActive
-                  ? '' // custom colors applied via style
-                  : 'bg-ct-surface-card dark:bg-ct-dark-card border-ct-border-light dark:border-ct-dark-border',
-            )}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: radius.full,
+              borderWidth: 1,
+              backgroundColor: pillBg,
+              borderColor: pillBorder,
+            }}
           >
             {opt.dotColor && (
-              <View className="w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: opt.dotColor }} />
+              <View style={{ width: 8, height: 8, borderRadius: 4, marginRight: 6, backgroundColor: opt.dotColor }} />
             )}
-            <Text
-              style={activeTextStyle}
-              className={cn(
-                'text-ct-sm font-bold',
-                isActive && !hasCustomColors
-                  ? 'text-white'
-                  : isActive && hasCustomColors
-                    ? '' // custom text applied via style
-                    : 'text-ct-text-secondary dark:text-ct-dark-text-muted',
-              )}
-            >
+            <Text style={{
+              fontSize: font.size.sm,
+              fontWeight: font.weight.bold,
+              color: textColor,
+            }}>
               {opt.label}
             </Text>
             {opt.count !== undefined && (
-              <Text
-                className={cn(
-                  'text-ct-xs font-bold ml-1.5',
-                  isActive ? 'text-white/70' : 'text-ct-text-faint',
-                )}
-              >
+              <Text style={{
+                fontSize: font.size.xs,
+                fontWeight: font.weight.bold,
+                marginLeft: 6,
+                color: countColor,
+              }}>
                 {opt.count}
               </Text>
             )}
@@ -101,3 +100,4 @@ export default function FilterPills({
     </ScrollView>
   )
 }
+

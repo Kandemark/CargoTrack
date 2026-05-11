@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { apiClient } from '@/lib/api'
 import { useAuthStore, useAlertStore } from '@/lib/store'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { ALERT_SEVERITY_COLORS } from '@shared/utils/statusColors'
 import { SectionLabel, StatusBadge } from '@/components/ui'
 import ConnectionCenter from '@/components/ConnectionCenter'
@@ -53,17 +54,24 @@ const STAT_SPECS: Record<string, { icon: React.ComponentProps<typeof Ionicons>['
 }
 
 function StatTile({ kind, value, sub }: { kind: string; value: string; sub: string }) {
+  const { colors, font, radius, isDark } = useAppTheme()
   const spec = STAT_SPECS[kind] ?? STAT_SPECS.alerts
   return (
     <View
-      className="flex-1 min-w-[46%] rounded-ct-lg p-3 m-1"
-      style={{ backgroundColor: spec.bg }}
+      style={{
+        flex: 1,
+        minWidth: '46%',
+        borderRadius: radius.lg,
+        padding: 12,
+        margin: 4,
+        backgroundColor: isDark ? spec.darkBg : spec.bg,
+      }}
     >
-      <View className="flex-row items-center gap-1.5 mb-1.5">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <Ionicons name={spec.icon} size={14} color={spec.accent} />
-        <Text className="text-[10px] font-bold uppercase" style={{ color: spec.accent }}>{sub}</Text>
+        <Text style={{ fontSize: 10, fontWeight: font.weight.bold, textTransform: 'uppercase', color: spec.accent }}>{sub}</Text>
       </View>
-      <Text className="text-ct-xl font-extrabold text-ct-text-primary dark:text-white">{value}</Text>
+      <Text style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: colors.text }}>{value}</Text>
     </View>
   )
 }
@@ -79,6 +87,7 @@ function ProfileModal({
 }) {
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
+  const { colors, font, radius, spacing, isDark } = useAppTheme()
 
   useEffect(() => { if (visible) setForm(initial) }, [initial, visible])
 
@@ -101,31 +110,31 @@ function ProfileModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView edges={['top', 'bottom']} className="flex-1 bg-white dark:bg-ct-dark-bg">
-        <View className="px-5 py-3.5 border-b border-ct-border-light dark:border-ct-dark-border flex-row items-center justify-between">
-          <Text className="text-ct-lg font-extrabold text-ct-text-primary dark:text-ct-dark-text">Edit profile</Text>
+      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: isDark ? colors.background : '#fff' }}>
+        <View style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontSize: font.size.lg, fontWeight: font.weight.extrabold, color: colors.text }}>Edit profile</Text>
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={22} color="#94a3b8" />
           </TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           {fields.map(([label, key, icon, keyboard]) => (
-            <View key={key} className="mb-4">
-              <Text className="text-ct-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">{label}</Text>
+            <View key={key} style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: isDark ? '#94a3b8' : '#475569', marginBottom: 6 }}>{label}</Text>
               <TextInput
                 value={form[key as keyof typeof form]}
                 onChangeText={(text) => setForm((prev) => ({ ...prev, [key]: text }))}
-                className="border-[1.5px] border-slate-200 dark:border-slate-700 rounded-ct-md bg-slate-50 dark:bg-ct-dark-surface px-3.5 py-3 text-ct-sm text-ct-text-primary dark:text-ct-dark-text"
+                style={{ borderWidth: 1.5, borderColor: isDark ? '#334155' : '#e2e8f0', borderRadius: radius.md, backgroundColor: isDark ? colors.background : '#f8fafc', paddingHorizontal: 14, paddingVertical: 12, fontSize: font.size.sm, color: colors.text }}
                 keyboardType={keyboard === 'phone-pad' ? 'phone-pad' : 'default'}
               />
             </View>
           ))}
           <TouchableOpacity
             onPress={() => void saveProfile()}
-            className="bg-ct-navy dark:bg-ct-orange rounded-ct-md items-center py-3.5 mt-2"
+            style={{ backgroundColor: isDark ? '#f5801e' : '#0f2d5e', borderRadius: radius.md, alignItems: 'center', paddingVertical: 14, marginTop: 8 }}
             activeOpacity={0.8}
           >
-            {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-ct-sm font-extrabold text-white">Save changes</Text>}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: '#fff' }}>Save changes</Text>}
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -135,17 +144,24 @@ function ProfileModal({
 
 // ── Card wrapper ────────────────────────────────────────────────────────────────
 
-function SectionCard({ children, className }: { children: React.ReactNode; className?: string }) {
+function SectionCard({ children, style }: { children: React.ReactNode; style?: any }) {
+  const { colors, radius, isDark } = useAppTheme()
   return (
     <View
-      className={`mx-4 mb-3 rounded-ct-xl bg-white dark:bg-ct-dark-card border border-slate-100 dark:border-slate-800 overflow-hidden ${className ?? ''}`}
-      style={{
+      style={[{
+        marginHorizontal: 16,
+        marginBottom: 12,
+        borderRadius: radius.xl,
+        backgroundColor: isDark ? colors.card : '#fff',
+        borderWidth: 1,
+        borderColor: isDark ? '#1e293b' : '#f1f5f9',
+        overflow: 'hidden',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.04,
         shadowRadius: 3,
         elevation: 1,
-      }}
+      }, style]}
     >
       {children}
     </View>
@@ -155,6 +171,7 @@ function SectionCard({ children, className }: { children: React.ReactNode; class
 // ── Main screen ─────────────────────────────────────────────────────────────────
 
 export default function AccountScreen() {
+  const { colors, font, radius, spacing, isDark } = useAppTheme()
   const { user, logout, setUser } = useAuthStore()
   const { alerts, isLoading, fetchAlerts, acknowledgeLocal } = useAlertStore()
   const [data, setData] = useState<AccountData | null>(null)
@@ -248,42 +265,39 @@ export default function AccountScreen() {
   }
 
   return (
-    <SafeAreaView edges={['top']} className="flex-1 bg-ct-surface-bg dark:bg-ct-dark-bg">
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={loading || isLoading} onRefresh={() => void load()} tintColor="#f5801e" />}
       >
         {/* ═══ Profile header ═══════════════════════════════════════════════════ */}
-        <View className="mx-4 mt-4 mb-1">
-          <View className="flex-row items-center">
+        <View style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             {/* Avatar */}
-            <View className="w-[56px] h-[56px] rounded-ct-xl bg-ct-orange items-center justify-center mr-4"
-              style={{
-                shadowColor: '#f5801e',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 6,
-              }}
-            >
-              <Text className="text-white text-ct-xl font-extrabold">{initials}</Text>
+            <View style={{
+              width: 56, height: 56, borderRadius: radius.xl, backgroundColor: '#f5801e',
+              alignItems: 'center', justifyContent: 'center', marginRight: 16,
+              shadowColor: '#f5801e', shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
+            }}>
+              <Text style={{ color: '#fff', fontSize: font.size.xl, fontWeight: font.weight.extrabold }}>{initials}</Text>
             </View>
 
             {/* Name + details */}
-            <View className="flex-1 mr-3">
-              <Text className="text-ct-lg font-extrabold text-ct-text-primary dark:text-white" numberOfLines={1}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={{ fontSize: font.size.lg, fontWeight: font.weight.extrabold, color: colors.text }} numberOfLines={1}>
                 {displayName}
               </Text>
-              <Text className="text-ct-sm text-ct-text-muted dark:text-slate-400 mt-0.5" numberOfLines={1}>
+              <Text style={{ fontSize: font.size.sm, color: colors.textMuted, marginTop: 2 }} numberOfLines={1}>
                 {user?.email}
               </Text>
-              <View className="flex-row items-center gap-2 mt-1">
-                <View className="bg-blue-50 dark:bg-blue-900/30 rounded-full px-2.5 py-0.5">
-                  <Text className="text-[10px] font-extrabold text-blue-700 dark:text-blue-300">{user?.role ?? 'User'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <View style={{ backgroundColor: isDark ? 'rgba(30,58,138,0.3)' : '#eff6ff', borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 2 }}>
+                  <Text style={{ fontSize: 10, fontWeight: font.weight.extrabold, color: isDark ? '#93c5fd' : '#1d4ed8' }}>{user?.role ?? 'User'}</Text>
                 </View>
                 {user?.org_name ? (
-                  <Text className="text-[10px] text-ct-text-faint dark:text-slate-500" numberOfLines={1}>
+                  <Text style={{ fontSize: 10, color: colors.textFaint }} numberOfLines={1}>
                     {user.org_name}
                   </Text>
                 ) : null}
@@ -293,7 +307,7 @@ export default function AccountScreen() {
             {/* Edit button */}
             <TouchableOpacity
               onPress={() => setProfileOpen(true)}
-              className="bg-slate-100 dark:bg-slate-800 rounded-full w-[38px] h-[38px] items-center justify-center"
+              style={{ backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderRadius: 9999, width: 38, height: 38, alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.7}
             >
               <Ionicons name="create-outline" size={16} color="#64748b" />
@@ -302,7 +316,7 @@ export default function AccountScreen() {
         </View>
 
         {/* ═══ Stat tiles ══════════════════════════════════════════════════════ */}
-        <View className="flex-row flex-wrap mx-3 mb-1">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: 12, marginBottom: 4 }}>
           <StatTile kind="alerts"   value={String(unacked.length)}         sub="Open alerts" />
           <StatTile kind="inbox"    value={String(unreadNotifications)}    sub="Unread" />
           <StatTile kind="invoices" value={String(openInvoices)}           sub="Open invoices" />
@@ -310,30 +324,30 @@ export default function AccountScreen() {
         </View>
 
         {/* ═══ Inbox: Alerts + Notifications ══════════════════════════════════ */}
-        <SectionLabel label="Inbox" className="px-5 mt-2 mb-2" />
+        <SectionLabel label="Inbox" style={{ paddingHorizontal: 20, marginTop: 8, marginBottom: 8 }} />
 
         {/* Alerts */}
         <SectionCard>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/alerts')}
-            className="flex-row items-center justify-between px-4 py-3.5"
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}
             activeOpacity={0.7}
           >
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-[34px] h-[34px] rounded-ct-md items-center justify-center" style={{ backgroundColor: STAT_SPECS.alerts.darkBg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 34, height: 34, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: STAT_SPECS.alerts.darkBg }}>
                 <Ionicons name="warning" size={16} color={STAT_SPECS.alerts.accent} />
               </View>
               <View>
-                <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-white">Alerts</Text>
-                <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">
+                <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }}>Alerts</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>
                   {unacked.length === 0 ? 'All clear' : `${unacked.length} need attention`}
                 </Text>
               </View>
             </View>
-            <View className="flex-row items-center gap-1.5">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               {unacked.length > 0 && (
-                <View className="bg-ct-orange rounded-full min-w-[22px] h-[22px] items-center justify-center px-1.5">
-                  <Text className="text-[10px] font-extrabold text-white">{unacked.length}</Text>
+                <View style={{ backgroundColor: '#f5801e', borderRadius: 9999, minWidth: 22, height: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: font.weight.extrabold, color: '#fff' }}>{unacked.length}</Text>
                 </View>
               )}
               <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
@@ -342,30 +356,30 @@ export default function AccountScreen() {
 
           {/* Inline alert previews */}
           {unacked.slice(0, 2).map((item) => {
-            const colors = ALERT_SEVERITY_COLORS[item.severity] ?? ALERT_SEVERITY_COLORS.LOW
+            const alertColors = ALERT_SEVERITY_COLORS[item.severity] ?? ALERT_SEVERITY_COLORS.LOW
             return (
               <TouchableOpacity
                 key={item.id}
                 onPress={() => router.push('/(tabs)/alerts')}
-                className="flex-row items-center px-4 py-2.5 border-t border-slate-50 dark:border-slate-800"
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc' }}
                 activeOpacity={0.7}
               >
-                <View className="w-[3px] h-[28px] rounded-full mr-3" style={{ backgroundColor: colors.dot }} />
-                <View className="flex-1 min-w-0">
-                  <Text className="text-ct-xs font-bold text-ct-text-primary dark:text-white" numberOfLines={1}>
+                <View style={{ width: 3, height: 28, borderRadius: 9999, marginRight: 12, backgroundColor: alertColors.dot }} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: colors.text }} numberOfLines={1}>
                     {item.shipment_tracking}
                   </Text>
-                  <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5" numberOfLines={1}>
+                  <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }} numberOfLines={1}>
                     {item.message}
                   </Text>
                 </View>
                 {canAck && (
                   <TouchableOpacity
                     onPress={(e) => { e.stopPropagation(); void handleAcknowledge(item.id) }}
-                    className="ml-2 px-2.5 py-1 rounded-full border border-ct-navy dark:border-ct-orange"
+                    style={{ marginLeft: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9999, borderWidth: 1, borderColor: isDark ? '#f5801e' : '#0f2d5e' }}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   >
-                    <Text className="text-[10px] font-bold text-ct-navy dark:text-ct-orange">Ack</Text>
+                    <Text style={{ fontSize: 10, fontWeight: font.weight.bold, color: isDark ? '#f5801e' : '#0f2d5e' }}>Ack</Text>
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -375,21 +389,21 @@ export default function AccountScreen() {
 
         {/* Notifications */}
         <SectionCard>
-          <View className="flex-row items-center justify-between px-4 pt-3.5 pb-1">
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-[34px] h-[34px] rounded-ct-md items-center justify-center" style={{ backgroundColor: STAT_SPECS.inbox.darkBg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 34, height: 34, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: STAT_SPECS.inbox.darkBg }}>
                 <Ionicons name="mail" size={16} color={STAT_SPECS.inbox.accent} />
               </View>
               <View>
-                <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-white">Notifications</Text>
-                <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">
+                <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }}>Notifications</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>
                   {unreadNotifications === 0 ? 'All read' : `${unreadNotifications} unread`}
                 </Text>
               </View>
             </View>
             {unreadNotifications > 0 && (
-              <View className="bg-purple-100 dark:bg-purple-900/30 rounded-full px-2 py-0.5">
-                <Text className="text-[10px] font-extrabold text-purple-700 dark:text-purple-300">{unreadNotifications} new</Text>
+              <View style={{ backgroundColor: isDark ? 'rgba(88,28,135,0.3)' : '#f3e8ff', borderRadius: 9999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 10, fontWeight: font.weight.extrabold, color: isDark ? '#d8b4fe' : '#7e22ce' }}>{unreadNotifications} new</Text>
               </View>
             )}
           </View>
@@ -397,32 +411,32 @@ export default function AccountScreen() {
             <TouchableOpacity
               key={item.id}
               onPress={() => void markNotificationRead(item.id)}
-              className="px-4 py-2.5 border-t border-slate-50 dark:border-slate-800 flex-row items-start"
+              style={{ paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc', flexDirection: 'row', alignItems: 'flex-start' }}
               activeOpacity={0.7}
             >
-              <View className="flex-1 min-w-0">
-                <View className="flex-row items-center gap-2">
-                  {!item.is_read && <View className="w-[6px] h-[6px] rounded-full bg-ct-orange" />}
-                  <Text className="text-ct-xs font-bold text-ct-text-primary dark:text-white" numberOfLines={1}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {!item.is_read && <View style={{ width: 6, height: 6, borderRadius: 9999, backgroundColor: '#f5801e' }} />}
+                  <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: colors.text }} numberOfLines={1}>
                     {item.title}
                   </Text>
                 </View>
-                <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5" numberOfLines={2}>
+                <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }} numberOfLines={2}>
                   {item.message}
                 </Text>
-                <Text className="text-[10px] text-ct-text-faint dark:text-slate-500 mt-1">
+                <Text style={{ fontSize: 10, color: colors.textFaint, marginTop: 4 }}>
                   {new Date(item.created_at).toLocaleString()}
                 </Text>
               </View>
             </TouchableOpacity>
           ))}
           {(data?.notifications.length ?? 0) === 0 && (
-            <Text className="text-ct-sm text-ct-text-muted dark:text-slate-400 px-4 py-3">No notifications yet.</Text>
+            <Text style={{ fontSize: font.size.sm, color: colors.textMuted, paddingHorizontal: 16, paddingVertical: 12 }}>No notifications yet.</Text>
           )}
         </SectionCard>
 
         {/* ═══ Notification preferences ════════════════════════════════════════ */}
-        <SectionLabel label="Preferences" className="px-5 mt-3 mb-2" />
+        <SectionLabel label="Preferences" style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 8 }} />
         <SectionCard>
           {prefEntries.map(([key, enabled], i) => {
             const info = PREF_LABELS[key] ?? { label: key.replace(/_/g, ' '), desc: 'Notification channel preference' }
@@ -430,11 +444,14 @@ export default function AccountScreen() {
             return (
               <View
                 key={key}
-                className={`flex-row items-center justify-between px-4 py-3 ${isLast ? '' : 'border-b border-slate-50 dark:border-slate-800'}`}
+                style={[{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                  paddingHorizontal: 16, paddingVertical: 12,
+                }, !isLast && { borderBottomWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc' }]}
               >
-                <View className="flex-1 mr-4">
-                  <Text className="text-ct-sm font-bold text-ct-text-primary dark:text-white capitalize">{info.label}</Text>
-                  <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{info.desc}</Text>
+                <View style={{ flex: 1, marginRight: 16 }}>
+                  <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.text, textTransform: 'capitalize' }}>{info.label}</Text>
+                  <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>{info.desc}</Text>
                 </View>
                 <Switch
                   value={enabled}
@@ -448,22 +465,22 @@ export default function AccountScreen() {
         </SectionCard>
 
         {/* ═══ Finance & Compliance ════════════════════════════════════════════ */}
-        <SectionLabel label="Finance & compliance" className="px-5 mt-3 mb-2" />
+        <SectionLabel label="Finance & compliance" style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 8 }} />
 
         {/* Payments */}
         <SectionCard>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/payments')}
-            className="flex-row items-center justify-between px-4 py-3.5"
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}
             activeOpacity={0.7}
           >
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-[34px] h-[34px] rounded-ct-md items-center justify-center" style={{ backgroundColor: STAT_SPECS.invoices.darkBg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 34, height: 34, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: STAT_SPECS.invoices.darkBg }}>
                 <Ionicons name="receipt" size={16} color={STAT_SPECS.invoices.accent} />
               </View>
               <View>
-                <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-white">Payments</Text>
-                <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">
+                <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }}>Payments</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>
                   {openInvoices > 0 ? `${openInvoices} invoices pending` : 'All settled'}
                 </Text>
               </View>
@@ -474,18 +491,18 @@ export default function AccountScreen() {
             <TouchableOpacity
               key={inv.id}
               onPress={() => router.push('/(tabs)/payments')}
-              className="flex-row items-center justify-between px-4 py-2.5 border-t border-slate-50 dark:border-slate-800"
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc' }}
               activeOpacity={0.7}
             >
-              <View className="flex-1">
-                <Text className="text-ct-xs font-extrabold text-ct-text-primary dark:text-white">{inv.invoice_number}</Text>
-                <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{inv.shipment_tracking}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.extrabold, color: colors.text }}>{inv.invoice_number}</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>{inv.shipment_tracking}</Text>
               </View>
-              <View className="items-end">
-                <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-white">
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }}>
                   {Number(inv.amount_kes).toLocaleString()} {inv.currency}
                 </Text>
-                <Text className={`text-[10px] font-bold ${inv.status === 'PAID' ? 'text-emerald-600 dark:text-emerald-400' : 'text-ct-orange'}`}>
+                <Text style={{ fontSize: 10, fontWeight: font.weight.bold, color: inv.status === 'PAID' ? (isDark ? '#34d399' : '#059669') : '#f5801e' }}>
                   {inv.status}
                 </Text>
               </View>
@@ -497,16 +514,16 @@ export default function AccountScreen() {
         <SectionCard>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/documents')}
-            className="flex-row items-center justify-between px-4 py-3.5"
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 }}
             activeOpacity={0.7}
           >
-            <View className="flex-row items-center gap-2.5">
-              <View className="w-[34px] h-[34px] rounded-ct-md items-center justify-center" style={{ backgroundColor: STAT_SPECS.docs.darkBg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 34, height: 34, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: STAT_SPECS.docs.darkBg }}>
                 <Ionicons name="document-text" size={16} color={STAT_SPECS.docs.accent} />
               </View>
               <View>
-                <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-white">Documents</Text>
-                <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">
+                <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }}>Documents</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>
                   {expiringDocs > 0 ? `${expiringDocs} expiring soon` : 'All up to date'}
                 </Text>
               </View>
@@ -516,13 +533,13 @@ export default function AccountScreen() {
           {(data?.compliance ?? []).slice(0, 2).map((doc) => (
             <View
               key={doc.id}
-              className="flex-row items-center justify-between px-4 py-2.5 border-t border-slate-50 dark:border-slate-800"
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc' }}
             >
-              <View className="flex-1">
-                <Text className="text-ct-xs font-extrabold text-ct-text-primary dark:text-white">{doc.tracking_number}</Text>
-                <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{doc.doc_type_display}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.extrabold, color: colors.text }}>{doc.tracking_number}</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>{doc.doc_type_display}</Text>
               </View>
-              <Text className={`text-ct-xs font-extrabold ${(doc.days_until_expiry ?? 999) <= 14 ? 'text-ct-danger' : 'text-emerald-600 dark:text-emerald-400'}`}>
+              <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.extrabold, color: (doc.days_until_expiry ?? 999) <= 14 ? '#EF4444' : (isDark ? '#34d399' : '#059669') }}>
                 {doc.days_until_expiry === null ? doc.status_display : `${doc.days_until_expiry}d`}
               </Text>
             </View>
@@ -530,31 +547,37 @@ export default function AccountScreen() {
         </SectionCard>
 
         {/* ═══ Network operations ══════════════════════════════════════════════ */}
-        <SectionLabel label="Network operations" className="px-5 mt-3 mb-2" />
+        <SectionLabel label="Network operations" style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 8 }} />
         <ConnectionCenter />
 
         {/* Fleet + Carriers */}
         <SectionCard>
           {data?.fleet ? (
-            <View className="px-4 py-3.5 border-b border-slate-50 dark:border-slate-800">
-              <View className="flex-row items-center gap-2.5 mb-2">
+            <View style={{ paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <Ionicons name="bus" size={16} color="#3b82f6" />
-                <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-white">Fleet</Text>
+                <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }}>Fleet</Text>
               </View>
-              <View className="flex-row flex-wrap">
-                <View className="w-1/2 mb-2">
-                  <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white">{data.fleet.trucks_active}<Text className="text-ct-sm text-ct-text-faint dark:text-slate-400">/{data.fleet.trucks}</Text></Text>
-                  <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">Trucks active</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                <View style={{ width: '50%', marginBottom: 8 }}>
+                  <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text }}>
+                    {data.fleet.trucks_active}
+                    <Text style={{ fontSize: font.size.sm, color: colors.textFaint }}>/{data.fleet.trucks}</Text>
+                  </Text>
+                  <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>Trucks active</Text>
                 </View>
-                <View className="w-1/2 mb-2">
-                  <Text className="text-ct-2xl font-extrabold text-ct-text-primary dark:text-white">{data.fleet.drivers_on_route}<Text className="text-ct-sm text-ct-text-faint dark:text-slate-400">/{data.fleet.drivers}</Text></Text>
-                  <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">Drivers on route</Text>
+                <View style={{ width: '50%', marginBottom: 8 }}>
+                  <Text style={{ fontSize: font.size['2xl'], fontWeight: font.weight.extrabold, color: colors.text }}>
+                    {data.fleet.drivers_on_route}
+                    <Text style={{ fontSize: font.size.sm, color: colors.textFaint }}>/{data.fleet.drivers}</Text>
+                  </Text>
+                  <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>Drivers on route</Text>
                 </View>
-                <View className="w-full">
-                  <View className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <View className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, data.fleet.fleet_utilisation)}%` }} />
+                <View style={{ width: '100%' }}>
+                  <View style={{ height: 6, backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderRadius: 9999, overflow: 'hidden' }}>
+                    <View style={{ height: '100%', backgroundColor: '#3b82f6', borderRadius: 9999, width: `${Math.min(100, data.fleet.fleet_utilisation)}%` }} />
                   </View>
-                  <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-1">{data.fleet.fleet_utilisation}% utilisation</Text>
+                  <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 4 }}>{data.fleet.fleet_utilisation}% utilisation</Text>
                 </View>
               </View>
             </View>
@@ -564,10 +587,10 @@ export default function AccountScreen() {
             return (
               <View
                 key={carrier.id}
-                className={`px-4 py-3 ${isLast ? '' : 'border-b border-slate-50 dark:border-slate-800'}`}
+                style={[{ paddingHorizontal: 16, paddingVertical: 12 }, !isLast && { borderBottomWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc' }]}
               >
-                <Text className="text-ct-sm font-extrabold text-ct-text-primary dark:text-white">{carrier.name}</Text>
-                <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">
+                <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text }}>{carrier.name}</Text>
+                <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>
                   {carrier.code} · {carrier.rating.toFixed(1)}★ · {carrier.on_time_rate}% on time · {carrier.active_shipments} loads
                 </Text>
               </View>
@@ -578,24 +601,37 @@ export default function AccountScreen() {
         {/* ═══ Manager-only sections ═══════════════════════════════════════════ */}
         {canSeeManagerData && (
           <>
-            <SectionLabel label="Integrations" className="px-5 mt-3 mb-2" />
+            <SectionLabel label="Integrations" style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 8 }} />
             <SectionCard>
               {(data?.integrations ?? []).length === 0 ? (
-                <Text className="text-ct-sm text-ct-text-muted dark:text-slate-400 px-4 py-3">No integrations configured.</Text>
+                <Text style={{ fontSize: font.size.sm, color: colors.textMuted, paddingHorizontal: 16, paddingVertical: 12 }}>No integrations configured.</Text>
               ) : (
                 data?.integrations.slice(0, 4).map((integration, i) => {
                   const isLast = i === Math.min((data?.integrations ?? []).length, 4) - 1
                   return (
                     <View
                       key={integration.id}
-                      className={`flex-row items-center justify-between px-4 py-3 ${isLast ? '' : 'border-b border-slate-50 dark:border-slate-800'}`}
+                      style={[{
+                        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                        paddingHorizontal: 16, paddingVertical: 12,
+                      }, !isLast && { borderBottomWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc' }]}
                     >
-                      <View className="flex-1 mr-3">
-                        <Text className="text-ct-xs font-extrabold text-ct-text-primary dark:text-white">{integration.name}</Text>
-                        <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5">{integration.category}</Text>
+                      <View style={{ flex: 1, marginRight: 12 }}>
+                        <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.extrabold, color: colors.text }}>{integration.name}</Text>
+                        <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>{integration.category}</Text>
                       </View>
-                      <View className={`rounded-full px-2.5 py-0.5 ${integration.status === 'ACTIVE' ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-orange-50 dark:bg-orange-900/20'}`}>
-                        <Text className={`text-[10px] font-extrabold ${integration.status === 'ACTIVE' ? 'text-emerald-600 dark:text-emerald-400' : 'text-ct-orange'}`}>
+                      <View style={{
+                        borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 2,
+                        backgroundColor: integration.status === 'ACTIVE'
+                          ? (isDark ? 'rgba(6,78,59,0.2)' : '#ecfdf5')
+                          : (isDark ? 'rgba(124,45,18,0.2)' : '#fff7ed'),
+                      }}>
+                        <Text style={{
+                          fontSize: 10, fontWeight: font.weight.extrabold,
+                          color: integration.status === 'ACTIVE'
+                            ? (isDark ? '#34d399' : '#059669')
+                            : '#f5801e',
+                        }}>
                           {integration.status}
                         </Text>
                       </View>
@@ -605,26 +641,26 @@ export default function AccountScreen() {
               )}
             </SectionCard>
 
-            <SectionLabel label="Audit trail" className="px-5 mt-3 mb-2" />
+            <SectionLabel label="Audit trail" style={{ paddingHorizontal: 20, marginTop: 12, marginBottom: 8 }} />
             <SectionCard>
               {(data?.audit ?? []).length === 0 ? (
-                <Text className="text-ct-sm text-ct-text-muted dark:text-slate-400 px-4 py-3">No audit items available.</Text>
+                <Text style={{ fontSize: font.size.sm, color: colors.textMuted, paddingHorizontal: 16, paddingVertical: 12 }}>No audit items available.</Text>
               ) : (
                 data?.audit.slice(0, 4).map((item, i) => {
                   const isLast = i === Math.min((data?.audit ?? []).length, 4) - 1
                   return (
                     <View
                       key={item.id}
-                      className={`px-4 py-3 ${isLast ? '' : 'border-b border-slate-50 dark:border-slate-800'}`}
+                      style={[{ paddingHorizontal: 16, paddingVertical: 12 }, !isLast && { borderBottomWidth: 1, borderColor: isDark ? '#1e293b' : '#f8fafc' }]}
                     >
-                      <View className="flex-row items-center gap-2">
-                        <Text className="text-ct-xs font-extrabold text-ct-text-primary dark:text-white">{item.action}</Text>
-                        <Text className="text-[10px] text-ct-text-faint dark:text-slate-400">· {item.result}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.extrabold, color: colors.text }}>{item.action}</Text>
+                        <Text style={{ fontSize: 10, color: colors.textFaint }}>· {item.result}</Text>
                       </View>
-                      <Text className="text-ct-xs text-ct-text-faint dark:text-slate-400 mt-0.5" numberOfLines={2}>
+                      <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }} numberOfLines={2}>
                         {item.description}
                       </Text>
-                      <Text className="text-[10px] text-ct-text-faint dark:text-slate-500 mt-1">
+                      <Text style={{ fontSize: 10, color: colors.textFaint, marginTop: 4 }}>
                         {new Date(item.created_at).toLocaleString()}
                       </Text>
                     </View>
@@ -636,31 +672,35 @@ export default function AccountScreen() {
         )}
 
         {/* ═══ Sign out ════════════════════════════════════════════════════════ */}
-        <View className="mx-4 mt-1 mb-2">
+        <View style={{ marginHorizontal: 16, marginTop: 4, marginBottom: 8 }}>
           <TouchableOpacity
             onPress={handleLogout}
-            className="flex-row items-center rounded-ct-xl px-4 py-3.5 border border-red-100 dark:border-red-900/30 bg-white dark:bg-ct-dark-card"
-            activeOpacity={0.7}
             style={{
+              flexDirection: 'row', alignItems: 'center', borderRadius: radius.xl,
+              paddingHorizontal: 16, paddingVertical: 14,
+              borderWidth: 1,
+              borderColor: isDark ? 'rgba(127,29,29,0.3)' : '#fee2e2',
+              backgroundColor: isDark ? colors.card : '#fff',
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: 0.04,
               shadowRadius: 3,
               elevation: 1,
             }}
+            activeOpacity={0.7}
           >
-            <View className="w-[38px] h-[38px] rounded-ct-md bg-red-50 dark:bg-red-900/20 items-center justify-center mr-3">
+            <View style={{ width: 38, height: 38, borderRadius: radius.md, backgroundColor: isDark ? 'rgba(127,29,29,0.2)' : '#fef2f2', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
               <Ionicons name="log-out-outline" size={18} color="#ef4444" />
             </View>
-            <View className="flex-1">
-              <Text className="text-ct-sm font-extrabold text-red-600 dark:text-red-400">Sign out</Text>
-              <Text className="text-ct-xs text-ct-text-faint dark:text-slate-500 mt-0.5">End your current session</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: isDark ? '#f87171' : '#dc2626' }}>Sign out</Text>
+              <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>End your current session</Text>
             </View>
             <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
           </TouchableOpacity>
         </View>
 
-        <Text className="text-center text-ct-xs text-ct-text-faint dark:text-slate-600 mt-2">
+        <Text style={{ textAlign: 'center', fontSize: font.size.xs, color: colors.textFaint, marginTop: 8 }}>
           CargoTrack v1.0 · East Africa Logistics Intelligence
         </Text>
       </ScrollView>

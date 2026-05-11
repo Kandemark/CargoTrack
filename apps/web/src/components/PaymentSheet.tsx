@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PaymentSheet.tsx — Provider-tabbed payment modal.
  * Tabs: M-Pesa | Airtel Money | MTN MoMo | Flutterwave | Card (Stripe)
  * On success: confetti burst + invoice status update.
@@ -41,7 +41,7 @@ function ConfettiPop() {
       {Array.from({ length: 30 }).map((_, i) => {
         const x = (Math.random() - 0.5) * 400
         const y = (Math.random() - 1) * 400
-        const color = ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#ec4899'][i % 5]
+        const color = ['#f5801e', '#22c55e', '#3b82f6', '#f59e0b', '#ec4899'][i % 5]
         return (
           <motion.div key={i}
             className="absolute w-2 h-2 rounded-sm"

@@ -33,7 +33,7 @@
     "axios": "^1.0.0"
   },
   "dependencies": {
-    "@cargotrack/shared": "workspace:*"
+    "@cargotrack/shared-types": "*"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

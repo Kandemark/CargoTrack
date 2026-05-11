@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Analytics.tsx — Multi-tab analytics hub.
  *
  * Tabs: Overview | Profit | Routes | Corridors | Customers | Temporal | Drivers
@@ -333,9 +333,9 @@ function TemporalTab() {
                   labelFormatter={(h: number) => `${h}:00`} />
                 <Bar dataKey="avg_risk" fill="var(--ct-navy)" radius={[2, 2, 0, 0]}>
                   {data.by_hour.map((_, i) => {
-                    const colors = ['#22c55e', '#22c55e', '#22c55e', '#3b82f6', '#f59e0b', '#f59e0b', '#f97316', '#f97316',
-                      '#f97316', '#f59e0b', '#f59e0b', '#f97316', '#f97316', '#f59e0b', '#f59e0b', '#f59e0b',
-                      '#f97316', '#ef4444', '#ef4444', '#ef4444', '#ef4444', '#f59e0b', '#22c55e', '#22c55e']
+                    const colors = ['#22c55e', '#22c55e', '#22c55e', '#3b82f6', '#f59e0b', '#f59e0b', '#f5801e', '#f5801e',
+                      '#f5801e', '#f59e0b', '#f59e0b', '#f5801e', '#f5801e', '#f59e0b', '#f59e0b', '#f59e0b',
+                      '#f5801e', '#ef4444', '#ef4444', '#ef4444', '#ef4444', '#f59e0b', '#22c55e', '#22c55e']
                     return <rect key={i} fill={colors[i]} />
                   })}
                 </Bar>

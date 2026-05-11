@@ -1,6 +1,6 @@
-import { View, Text } from 'react-native'
+import { View, Text, type ViewProps } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { cn } from '@/lib/utils'
+import { useAppTheme } from '@/lib/useAppTheme'
 import Button from './Button'
 
 type EmptySize = 'sm' | 'md' | 'lg'
@@ -11,13 +11,13 @@ interface EmptyStateProps {
   description?: string
   action?: { label: string; onPress: () => void }
   size?: EmptySize
-  className?: string
+  style?: ViewProps['style']
 }
 
-const sizeMap: Record<EmptySize, { py: string; iconSize: number; titleSize: string }> = {
-  sm: { py: 'py-8', iconSize: 36, titleSize: 'text-ct-md' },
-  md: { py: 'py-12', iconSize: 48, titleSize: 'text-ct-lg' },
-  lg: { py: 'py-16', iconSize: 56, titleSize: 'text-ct-xl' },
+const sizeMap: Record<EmptySize, { py: number; iconSize: number; titleSize: number }> = {
+  sm: { py: 32, iconSize: 36, titleSize: 14 },
+  md: { py: 48, iconSize: 48, titleSize: 16 },
+  lg: { py: 64, iconSize: 56, titleSize: 20 },
 }
 
 export default function EmptyState({
@@ -26,30 +26,46 @@ export default function EmptyState({
   description,
   action,
   size = 'md',
-  className,
+  style,
 }: EmptyStateProps) {
+  const { colors, font, spacing } = useAppTheme()
   const s = sizeMap[size]
 
   return (
-    <View className={cn('items-center justify-center px-6', s.py, className)}>
-      <View className="w-16 h-16 rounded-full bg-ct-surface-muted dark:bg-ct-dark-surface items-center justify-center mb-ct-md">
+    <View style={[{ alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: s.py }, style]}>
+      <View style={{
+        width: 64,
+        height: 64,
+        borderRadius: 9999,
+        backgroundColor: colors.muted,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: spacing.md,
+      }}>
         <Ionicons name={icon} size={s.iconSize} color="#9CA3AF" />
       </View>
-      <Text
-        className={cn(
-          'font-heading font-bold text-ct-text-primary dark:text-ct-dark-text text-center',
-          s.titleSize,
-        )}
-      >
+      <Text style={{
+        fontFamily: 'SpaceGrotesk',
+        fontWeight: font.weight.bold,
+        color: colors.text,
+        textAlign: 'center',
+        fontSize: s.titleSize,
+      }}>
         {title}
       </Text>
       {description && (
-        <Text className="text-ct-base text-ct-text-muted dark:text-ct-dark-text-muted text-center mt-ct-sm max-w-[280px]">
+        <Text style={{
+          fontSize: font.size.base,
+          color: colors.textMuted,
+          textAlign: 'center',
+          marginTop: spacing.sm,
+          maxWidth: 280,
+        }}>
           {description}
         </Text>
       )}
       {action && (
-        <View className="mt-ct-lg">
+        <View style={{ marginTop: spacing.lg }}>
           <Button variant="primary" size="sm" icon="add-circle-outline" onPress={action.onPress}>
             {action.label}
           </Button>

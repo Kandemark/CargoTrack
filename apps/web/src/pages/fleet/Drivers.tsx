@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, AlertTriangle, RefreshCw, Search, ChevronRight,
@@ -282,7 +282,7 @@ export default function FleetDrivers() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
                     { label: 'Total Jobs',  value: selected.total_jobs.toString(),                               icon: Package,   color: '#0f2d5e' },
-                    { label: 'Total KM',    value: `${(selected.total_km ?? 0).toLocaleString()} km`,           icon: Activity,  color: '#f97316' },
+                    { label: 'Total KM',    value: `${(selected.total_km ?? 0).toLocaleString()} km`,           icon: Activity,  color: '#f5801e' },
                     { label: 'On-Time',     value: `${(selected.on_time_rate ?? 0).toFixed(0)}%`,                 icon: TrendingUp, color: '#22c55e' },
                     { label: 'Earnings MTD', value: `KES ${Number(selected.earnings_mtd || 0).toLocaleString()}`, icon: Award,     color: '#8b5cf6' },
                   ].map(({ label, value, icon: Icon, color }) => (

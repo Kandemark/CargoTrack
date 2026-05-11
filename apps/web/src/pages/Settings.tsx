@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Settings.tsx — Profile, Notifications, API Keys, Billing, Payment Providers,
  * Sessions, Security, and Preferences tabs.
  */
@@ -173,7 +173,7 @@ function ProfileTab() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: 'Shipments', value: stats.total_shipments, sub: `${stats.shipments_mtd} this month`, color: '#3b82f6', bg: 'bg-blue-50 dark:bg-blue-900/15', Icon: Package },
-            { label: 'Events Logged', value: stats.events_logged, sub: `${stats.events_mtd} this month`, color: '#f97316', bg: 'bg-orange-50 dark:bg-orange-900/15', Icon: Activity },
+            { label: 'Events Logged', value: stats.events_logged, sub: `${stats.events_mtd} this month`, color: '#f5801e', bg: 'bg-orange-50 dark:bg-orange-900/15', Icon: Activity },
             { label: 'Docs Uploaded', value: stats.docs_uploaded, sub: 'Total', color: '#22c55e', bg: 'bg-emerald-50 dark:bg-emerald-900/15', Icon: FileText },
             { label: 'Top Carrier', value: stats.most_used_carrier ?? '—', sub: 'Most used', color: '#a78bfa', bg: 'bg-violet-50 dark:bg-violet-900/15', isText: true, Icon: Truck },
           ].map(({ label, value, sub, color, bg, isText, Icon }, i) => (

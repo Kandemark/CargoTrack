@@ -1,59 +1,63 @@
-import { View, Text } from 'react-native'
-import { cn } from '@/lib/utils'
+import { View, Text, type ViewProps } from 'react-native'
+import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 
 interface LoadBarProps {
   current: number
   max: number
   unit?: string
   label?: string
-  className?: string
+  style?: ViewProps['style']
 }
 
 function barColor(pct: number): string {
-  if (pct >= 90) return 'bg-ct-danger'
-  if (pct >= 70) return 'bg-ct-risk-medium'
-  return 'bg-ct-success'
+  if (pct >= 90) return T.color.ui.danger
+  if (pct >= 70) return T.color.risk.medium
+  return T.color.ui.success
 }
 
-function textColor(pct: number): string {
-  if (pct >= 90) return 'text-ct-danger'
-  if (pct >= 70) return 'text-ct-risk-medium'
-  return 'text-ct-success'
-}
-
-export default function LoadBar({ current, max, unit = '%', label, className }: LoadBarProps) {
+export default function LoadBar({ current, max, unit = '%', label, style }: LoadBarProps) {
+  const { colors, font } = useAppTheme()
   const pct = max > 0 ? Math.round((current / max) * 100) : 0
   const clamped = Math.min(pct, 100)
+  const barClr = barColor(clamped)
 
   return (
-    <View className={cn('w-full', className)}>
-      {(label || true) && (
-        <View className="flex-row justify-between mb-ct-xs">
-          {label && (
-            <Text className="text-ct-xs text-ct-text-muted dark:text-ct-dark-text-muted font-bold uppercase tracking-wider">
-              {label}
-            </Text>
-          )}
-          <Text className={cn('text-ct-xs font-heading font-bold', textColor(clamped))}>
-            {current}/{max}{unit !== '%' ? ` ${unit}` : `${unit}`}
+    <View style={[{ width: '100%' }, style]}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+        {label && (
+          <Text style={{
+            fontSize: font.size.xs,
+            color: colors.textMuted,
+            fontWeight: font.weight.bold,
+            textTransform: 'uppercase',
+            letterSpacing: 0.8,
+          }}>
+            {label}
           </Text>
-        </View>
-      )}
-      <View className="h-2 rounded-full bg-ct-surface-muted dark:bg-ct-dark-surface overflow-hidden">
-        <View
-          className={cn('h-full rounded-full', barColor(clamped))}
-          style={{ width: `${clamped}%` as any }}
-        />
+        )}
+        <Text style={{
+          fontSize: font.size.xs,
+          fontFamily: 'SpaceGrotesk',
+          fontWeight: font.weight.bold,
+          color: barClr,
+        }}>
+          {current}/{max}{unit !== '%' ? ` ${unit}` : unit}
+        </Text>
       </View>
-      {/* Tick marks */}
-      <View className="flex-row justify-between mt-1 px-0.5">
+      <View style={{ height: 8, borderRadius: 9999, backgroundColor: colors.muted, overflow: 'hidden' }}>
+        <View style={{ height: '100%', borderRadius: 9999, backgroundColor: barClr, width: `${clamped}%` as any }} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, paddingHorizontal: 1 }}>
         {[25, 50, 75].map((tick) => (
           <View
             key={tick}
-            className={cn(
-              'w-[1px] h-1.5 rounded-full',
-              clamped >= tick ? 'bg-ct-border-mid dark:bg-ct-dark-border' : 'bg-ct-border-light dark:bg-white/5',
-            )}
+            style={{
+              width: 1,
+              height: 6,
+              borderRadius: 9999,
+              backgroundColor: clamped >= tick ? colors.borderMid : colors.border,
+            }}
           />
         ))}
       </View>

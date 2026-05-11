@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DispatcherPortal.tsx — Command center for CargoTrack dispatchers.
  *
  * Responsibilities:
@@ -167,7 +167,7 @@ export default function DispatcherPortal() {
         <div className="grid grid-cols-4 gap-3 mt-5">
           {[
             { label: 'Active Routes',  value: onRouteDrivers.length, color: '#3b82f6' },
-            { label: 'Queued Jobs',    value: queue.length,           color: '#f97316' },
+            { label: 'Queued Jobs',    value: queue.length,           color: '#f5801e' },
             { label: 'Delayed',        value: delayed.length,         color: '#ef4444' },
             { label: 'Utilisation',    value: `${stats?.fleet_utilisation ?? 0}%`, color: '#22c55e' },
           ].map(({ label, value, color }) => (
@@ -183,7 +183,7 @@ export default function DispatcherPortal() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={UserCheck}    label="Available Drivers" value={availableDrivers.length} sub={`${drivers.length} total`}       color="#22c55e" />
         <StatCard icon={Truck}        label="Idle Trucks"        value={availableTrucks.length}  sub={`${trucks.length} total`}        color="#3b82f6" />
-        <StatCard icon={ClipboardList}label="Dispatch Queue"     value={queue.length}             sub="Awaiting assignment"            color="#f97316" />
+        <StatCard icon={ClipboardList}label="Dispatch Queue"     value={queue.length}             sub="Awaiting assignment"            color="#f5801e" />
         <StatCard icon={AlertTriangle}label="Delayed Shipments"  value={delayed.length}           sub="Needs immediate action"         color="#ef4444" />
       </div>
 

@@ -1,4 +1,4 @@
-import { useRef, useMemo, Suspense } from 'react'
+﻿import { useRef, useMemo, Suspense } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Line } from '@react-three/drei'
 import * as THREE from 'three'
@@ -47,7 +47,7 @@ function PulseRing({ position }: { position: THREE.Vector3 }) {
   return (
     <mesh ref={meshRef} position={position}>
       <ringGeometry args={[0.06, 0.09, 32]} />
-      <meshBasicMaterial color="#f97316" transparent opacity={0.6} side={THREE.DoubleSide} />
+      <meshBasicMaterial color="#f5801e" transparent opacity={0.6} side={THREE.DoubleSide} />
     </mesh>
   )
 }
@@ -92,8 +92,8 @@ function GlobeObject() {
         <mesh key={i} position={pos}>
           <sphereGeometry args={[i === 0 ? 0.065 : 0.038, 14, 14]} />
           <meshStandardMaterial
-            color={i === 0 ? '#f97316' : '#22c55e'}
-            emissive={i === 0 ? '#f97316' : '#22c55e'}
+            color={i === 0 ? '#f5801e' : '#22c55e'}
+            emissive={i === 0 ? '#f5801e' : '#22c55e'}
             emissiveIntensity={i === 0 ? 4 : 1.8}
           />
         </mesh>
@@ -107,7 +107,7 @@ function GlobeObject() {
         <Line
           key={i}
           points={pts}
-          color="#f97316"
+          color="#f5801e"
           lineWidth={i < 4 ? 1.2 : 0.7}
           transparent
           opacity={i < 4 ? 0.55 : 0.30}
@@ -121,7 +121,7 @@ function Scene() {
   return (
     <>
       <ambientLight intensity={0.3} />
-      <pointLight position={[8, 8, 8]} intensity={1.5} color="#f97316" />
+      <pointLight position={[8, 8, 8]} intensity={1.5} color="#f5801e" />
       <pointLight position={[-10, -5, -8]} intensity={0.6} color="#3b82f6" />
       <pointLight position={[0, 10, 0]} intensity={0.4} color="#ffffff" />
       <GlobeObject />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Truck, TrendingUp, Gauge, Activity, Package,
@@ -52,7 +52,7 @@ export default function FleetAnalytics() {
   const kpis = [
     { label: 'Total Vehicles', value: fleetStats?.trucks ?? trucks.length, icon: Truck, color: '#0f2d5e' },
     { label: 'Active on Road', value: activeTrucks, icon: Activity, color: '#22c55e' },
-    { label: 'Fleet Utilisation', value: `${fleetStats?.fleet_utilisation != null ? (fleetStats.fleet_utilisation * 100).toFixed(0) : '—'}%`, icon: Gauge, color: '#f97316' },
+    { label: 'Fleet Utilisation', value: `${fleetStats?.fleet_utilisation != null ? (fleetStats.fleet_utilisation * 100).toFixed(0) : '—'}%`, icon: Gauge, color: '#f5801e' },
     { label: 'Avg Load', value: `${avgLoad.toFixed(0)}%`, icon: Package, color: '#3b82f6' },
     { label: 'Total KM', value: `${totalKM.toLocaleString()} km`, icon: TrendingUp, color: '#8b5cf6' },
     { label: 'Drivers on Route', value: fleetStats?.drivers_on_route ?? 0, icon: Fuel, color: '#ef4444' },
@@ -92,7 +92,7 @@ export default function FleetAnalytics() {
             <svg viewBox="0 0 120 120" className="w-36 h-36">
               <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" strokeWidth="12" />
               <circle
-                cx="60" cy="60" r="50" fill="none" stroke="#f97316" strokeWidth="12"
+                cx="60" cy="60" r="50" fill="none" stroke="#f5801e" strokeWidth="12"
                 strokeDasharray={`${((fleetStats?.fleet_utilisation ?? 0) * 314).toFixed(1)} 314`}
                 strokeLinecap="round"
                 transform="rotate(-90 60 60)"
@@ -104,7 +104,7 @@ export default function FleetAnalytics() {
             </svg>
           </div>
           <div className="flex justify-center gap-6 mt-3 text-xs text-gray-500">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f97316]" /> Active</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f5801e]" /> Active</span>
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#e5e7eb]" /> Idle</span>
           </div>
         </div>

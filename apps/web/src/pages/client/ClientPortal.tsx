@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @route /portal/dashboard  @auth CLIENT
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -240,7 +240,7 @@ export default function ClientPortal() {
           { label: 'Pending',          value: counts.pending.toString(),          icon: Clock,     color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-900/15',   sub: 'Awaiting dispatch'     },
           { label: 'At Customs',       value: counts.customs.toString(),          icon: Shield,    color: '#8b5cf6', bg: 'bg-violet-50 dark:bg-violet-900/15', sub: 'Clearance in progress'  },
           { label: 'Invoiced',         value: fmtKES(invoiceStats.totalPaid),     icon: DollarSign, color: '#0f2d5e', bg: 'bg-blue-50 dark:bg-blue-900/15',   sub: 'Total paid invoices'   },
-          { label: 'Outstanding',      value: fmtKES(invoiceStats.totalPending),  icon: CreditCard, color: '#f97316', bg: 'bg-orange-50 dark:bg-orange-900/15', sub: 'Pending payment'      },
+          { label: 'Outstanding',      value: fmtKES(invoiceStats.totalPending),  icon: CreditCard, color: '#f5801e', bg: 'bg-orange-50 dark:bg-orange-900/15', sub: 'Pending payment'      },
           { label: 'Alerts',           value: unacknowledged.length.toString(),   icon: Bell,      color: unacknowledged.length > 0 ? '#ef4444' : '#94a3b8', bg: unacknowledged.length > 0 ? 'bg-red-50 dark:bg-red-900/15' : 'bg-gray-100 dark:bg-white/8', sub: 'Unacknowledged' },
         ].map(({ label, value, icon: Icon, color, bg, sub }, i) => (
           <motion.div key={label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
@@ -335,7 +335,7 @@ export default function ClientPortal() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             {[
               { label: 'Shipments This Month', value: shipments.filter(s => new Date(s.scheduled_departure).getMonth() === new Date().getMonth()).length.toString(), sub: 'Dispatched', color: '#0f2d5e' },
-              { label: 'Avg Transit Time',     value: '—',  sub: 'Days (no data yet)', color: '#f97316' },
+              { label: 'Avg Transit Time',     value: '—',  sub: 'Days (no data yet)', color: '#f5801e' },
               { label: 'On-Time Delivery',     value: `${onTimeRate}%`, sub: 'vs last month', color: '#22c55e' },
               { label: 'Total Weight',         value: `${shipments.reduce((s, sh) => s + (sh.weight_kg ?? 0), 0).toLocaleString()} kg`, sub: 'All shipments', color: '#8b5cf6' },
             ].map(({ label, value, sub, color }) => (
