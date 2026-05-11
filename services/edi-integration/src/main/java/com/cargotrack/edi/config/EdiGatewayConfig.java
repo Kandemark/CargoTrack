@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.config;
+package com.cargotrack.edi.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

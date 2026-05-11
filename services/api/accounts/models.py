@@ -200,6 +200,7 @@ class UserProfile(models.Model):
         related_name='profile',
     )
     notification_prefs = models.JSONField(default=dict, blank=True)
+    display_prefs = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:

@@ -22,6 +22,7 @@ urlpatterns = [
     path('me/sessions/<int:pk>/',    api_views.SessionRevokeView.as_view(),         name='v1-me-session-revoke'),
     path('me/stats/',                api_views.UserStatsView.as_view(),             name='v1-me-stats'),
     path('me/security-log/',         api_views.UserSecurityLogView.as_view(),       name='v1-me-security-log'),
+    path('me/preferences/',          api_views.UserPreferencesView.as_view(),        name='v1-me-preferences'),
     path('change-password/',         api_views.ChangePasswordView.as_view(),         name='change-password'),
     path('notification-prefs/',      api_views.NotificationPrefsView.as_view(),      name='notification-prefs'),
     path('api-keys/',                api_views.APIKeyListCreateView.as_view(),        name='api-keys'),

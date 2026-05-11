@@ -8,9 +8,10 @@ import {
   User, Bell, Key, CreditCard, Zap, Eye, EyeOff, Copy, Check,
   Plus, Trash2, RefreshCw, Shield, Monitor, Sliders, Activity,
   Clock, FileText, LogIn, AlertTriangle, Smartphone, Globe,
-  Truck, Package,
+  Truck, Package, QrCode, Download,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ROLE_COLOR, ROLE_LABEL } from '@/lib/roleUtils'
 import apiClient from '@/api/client'
 import { accountApi, type ActivityItem, type UserStats, type SessionItem, type SecurityLogEntry, type NotifPrefs } from '@/api/account'
 import { useAuthStore } from '@/store/authStore'
@@ -46,18 +47,6 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
 }
 
 // ── Profile Tab (with account overview, activity timeline & stats) ──────────
-
-const ROLE_COLOR: Record<string, string> = {
-  ADMIN: '#dc2626', LOGISTICS_MGR: '#0f2d5e', CARRIER: '#2563eb', CLIENT: '#7c3aed',
-  DISPATCHER: '#0891b2', CUSTOMS_BROKER: '#b45309', WAREHOUSE_MGR: '#16a34a',
-  PORT_AGENT: '#0f766e', FINANCE_OFFICER: '#9333ea',
-}
-
-const ROLE_LABEL: Record<string, string> = {
-  ADMIN: 'Administrator', LOGISTICS_MGR: 'Logistics Manager', CARRIER: 'Carrier / Driver',
-  CLIENT: 'Client', DISPATCHER: 'Dispatcher', CUSTOMS_BROKER: 'Customs Broker',
-  WAREHOUSE_MGR: 'Warehouse Manager', PORT_AGENT: 'Port Agent', FINANCE_OFFICER: 'Finance Officer',
-}
 
 function ProfileTab() {
   const { user, setUser } = useAuthStore()
@@ -269,6 +258,38 @@ function ProfileTab() {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Data & Privacy */}
+      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-6">
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading mb-4">Data & Privacy</h2>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button onClick={async () => {
+            try {
+              const { data } = await accountApi.requestExport()
+              alert(`Export requested. Status: ${data.status}. You'll receive a download link when ready.`)
+            } catch { alert('Failed to request data export.') }
+          }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/10 text-gray-700 dark:text-white/70 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+            <Download className="w-3.5 h-3.5" /> Export My Data
+          </button>
+          <button onClick={async () => {
+            if (!confirm('This permanently deletes your account and all data. This cannot be undone. Continue?')) return
+            const pw = prompt('Enter your password to confirm:')
+            if (!pw) return
+            try {
+              await accountApi.deleteAccount({ password: pw })
+              alert('Account deletion requested. You will be logged out.')
+              window.location.href = '/login'
+            } catch { alert('Failed to delete account. Check your password.') }
+          }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            <Trash2 className="w-3.5 h-3.5" /> Delete Account
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-400 dark:text-white/25 mt-3">
+          Export your data in machine-readable format (GDPR compliant). Account deletion is permanent and irreversible.
+        </p>
       </div>
 
       {/* Activity timeline */}
@@ -862,13 +883,54 @@ function SecurityTab() {
   const [entries, setEntries] = useState<SecurityLogEntry[]>([])
   const [lastLogin, setLastLogin] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // TOTP state
+  const [totpEnabled, setTotpEnabled] = useState(false)
+  const [totpSetup, setTotpSetup] = useState<{ secret: string; qr_code_url: string } | null>(null)
+  const [totpCode, setTotpCode] = useState('')
+  const [totpLoading, setTotpLoading] = useState(false)
+  const [totpMsg, setTotpMsg] = useState('')
 
   useEffect(() => {
     accountApi.securityLog()
       .then(r => { setEntries(r.data.entries); setLastLogin(r.data.last_login) })
       .catch(() => {})
       .finally(() => setLoading(false))
+    accountApi.totpStatus()
+      .then(r => setTotpEnabled(r.data.is_enabled))
+      .catch(() => {})
   }, [])
+
+  async function startTotpSetup() {
+    setTotpLoading(true); setTotpMsg('')
+    try {
+      const { data } = await accountApi.totpSetup()
+      setTotpSetup(data)
+    } catch { setTotpMsg('Failed to setup TOTP.') }
+    finally { setTotpLoading(false) }
+  }
+
+  async function verifyTotp(e: React.FormEvent) {
+    e.preventDefault()
+    setTotpLoading(true); setTotpMsg('')
+    try {
+      await accountApi.totpVerify({ code: totpCode })
+      setTotpEnabled(true); setTotpSetup(null); setTotpCode('')
+      setTotpMsg('Two-factor authentication enabled.')
+    } catch { setTotpMsg('Invalid verification code.') }
+    finally { setTotpLoading(false) }
+  }
+
+  async function disableTotp() {
+    const pw = prompt('Enter your password to disable 2FA:')
+    if (!pw) return
+    setTotpLoading(true); setTotpMsg('')
+    try {
+      await accountApi.totpDisable({ password: pw })
+      setTotpEnabled(false)
+      setTotpMsg('Two-factor authentication disabled.')
+    } catch { setTotpMsg('Failed to disable TOTP. Check your password.') }
+    finally { setTotpLoading(false) }
+  }
 
   return (
     <div className="max-w-xl space-y-4">
@@ -886,6 +948,55 @@ function SecurityTab() {
           </div>
         </div>
       )}
+
+      {/* Two-Factor Authentication */}
+      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-white/8">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">Two-Factor Authentication</h2>
+          <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">
+            {totpEnabled ? 'TOTP is enabled on your account.' : 'Add an extra layer of security with authenticator app.'}
+          </p>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {totpMsg && (
+            <p className={cn('text-xs px-3 py-2 rounded-lg', totpMsg.includes('enabled') || totpMsg.includes('disabled') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400' : 'text-red-600 bg-red-50 dark:bg-red-900/20')}>{totpMsg}</p>
+          )}
+          {totpEnabled ? (
+            <button onClick={disableTotp} disabled={totpLoading}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">
+              {totpLoading ? 'Disabling…' : 'Disable 2FA'}
+            </button>
+          ) : totpSetup ? (
+            <div className="space-y-3">
+              <div className="flex items-start gap-4">
+                {totpSetup.qr_code_url && (
+                  <img src={totpSetup.qr_code_url} alt="TOTP QR Code" className="w-32 h-32 rounded-xl border border-gray-200 dark:border-white/10 bg-white p-1" />
+                )}
+                <div className="text-xs space-y-1">
+                  <p className="text-gray-600 dark:text-white/60">Scan with your authenticator app</p>
+                  <p className="font-mono text-gray-800 dark:text-white select-all">{totpSetup.secret}</p>
+                </div>
+              </div>
+              <form onSubmit={verifyTotp} className="flex gap-2">
+                <input type="text" value={totpCode} onChange={(e) => setTotpCode(e.target.value)}
+                  placeholder="6-digit verification code" maxLength={6}
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                <button type="submit" disabled={totpLoading || totpCode.length !== 6}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                  style={{ background: 'var(--ct-navy)' }}>
+                  {totpLoading ? 'Verifying…' : 'Verify'}
+                </button>
+              </form>
+            </div>
+          ) : (
+            <button onClick={startTotpSetup} disabled={totpLoading}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+              style={{ background: 'var(--ct-navy)' }}>
+              <QrCode className="w-3.5 h-3.5" /> {totpLoading ? 'Loading…' : 'Setup 2FA'}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Security events */}
       <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden">
@@ -924,8 +1035,6 @@ function SecurityTab() {
 
 // ── Preferences Tab ───────────────────────────────────────────────────────────
 
-const PREF_STORAGE_KEY = 'ct-preferences'
-
 interface UserPreferences {
   date_format: string
   distance_unit: string
@@ -944,40 +1053,49 @@ const DEFAULT_PREFS: UserPreferences = {
   map_zoom: '6',
 }
 
-function loadPrefs(): UserPreferences {
-  try {
-    const raw = localStorage.getItem(PREF_STORAGE_KEY)
-    if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) }
-  } catch { /* ignore */ }
-  return { ...DEFAULT_PREFS }
-}
-
-function savePrefs(prefs: UserPreferences) {
-  localStorage.setItem(PREF_STORAGE_KEY, JSON.stringify(prefs))
-}
-
 function PreferencesTab() {
-  const [prefs, setPrefs] = useState<UserPreferences>(loadPrefs)
+  const [prefs, setPrefs] = useState<UserPreferences>(DEFAULT_PREFS)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
-  function handleSave() {
-    setSaving(true)
-    savePrefs(prefs)
-    // Apply language if changed
-    if (prefs.language) {
-      document.documentElement.lang = prefs.language
-    }
-    setTimeout(() => {
-      setSaving(false)
+  useEffect(() => {
+    accountApi.userPreferences()
+      .then(r => { if (r.data && Object.keys(r.data).length > 0) setPrefs({ ...DEFAULT_PREFS, ...r.data }) })
+      .catch(() => { /* use defaults */ })
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function handleSave() {
+    setSaving(true); setSaved(false); setError('')
+    try {
+      await accountApi.updateUserPreferences(prefs as unknown as Record<string, string>)
+      if (prefs.language) {
+        document.documentElement.lang = prefs.language
+        localStorage.setItem('ct-lang', prefs.language)
+      }
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    }, 200)
+      setTimeout(() => setSaved(false), 2500)
+    } catch {
+      setError('Failed to save preferences. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <div className="max-w-xl space-y-4">
-      <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-6">
+      {error && (
+        <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{error}</div>
+      )}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <>
+          <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-6">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading mb-4">Display & Locale</h2>
         <div className="space-y-4">
           {[
@@ -1028,6 +1146,8 @@ function PreferencesTab() {
           {saving ? 'Saving…' : 'Save Preferences'}
         </button>
       </div>
+        </>
+      )}
     </div>
   )
 }

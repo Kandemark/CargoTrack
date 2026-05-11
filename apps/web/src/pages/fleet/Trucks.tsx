@@ -7,6 +7,8 @@ import {
   Activity, Battery, Fuel, Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import { fleetApi } from '@/api/fleet'
 import type { Truck as TruckType, TruckStats } from '@/api/fleet'
 
@@ -47,6 +49,7 @@ export default function FleetTrucks() {
   const [error,    setError]    = useState<string | null>(null)
   const [filter,   setFilter]   = useState<FilterType>('ALL')
   const [search,   setSearch]   = useState('')
+  const canManageFleet = usePermission(Permission.FLEET_MANAGE)
 
   async function load() {
     setLoading(true); setError(null)
@@ -112,13 +115,15 @@ export default function FleetTrucks() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            to="/fleet/trucks/new"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-            style={{ background: 'var(--ct-navy)' }}
-          >
-            <Plus className="w-4 h-4" /> Add Truck
-          </Link>
+          {canManageFleet && (
+            <Link
+              to="/fleet/trucks/new"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+              style={{ background: 'var(--ct-navy)' }}
+            >
+              <Plus className="w-4 h-4" /> Add Truck
+            </Link>
+          )}
           <button onClick={load} disabled={loading}
             className="p-2 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8 transition-colors disabled:opacity-50">
             <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />

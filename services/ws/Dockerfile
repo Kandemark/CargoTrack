@@ -5,7 +5,7 @@
 #   runtime. No build tools, no source code.
 
 # ── Builder ──────────────────────────────────────────────────────────────────
-FROM hexpm/elixir:1.17.3-erlang-26.2.5-alpine-3.20.3 AS builder
+FROM hexpm/elixir:1.19.0-erlang-27.0-alpine-3.23.3 AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN mix local.hex --force && mix local.rebar --force
 # Cache deps separately from source so dependency fetch only re-runs when
 # mix.exs/mix.lock change, not on every source edit.
 COPY mix.exs mix.lock* ./
-RUN mix deps.get --only prod
+RUN HEX_HTTP_TIMEOUT=120 mix deps.get --only prod || HEX_HTTP_TIMEOUT=120 mix deps.get --only prod || HEX_HTTP_TIMEOUT=120 mix deps.get --only prod
 
 # Copy the rest of the source and compile for production.
 COPY config config
@@ -25,14 +25,14 @@ RUN mix compile --no-debug-info
 
 # Assemble a self-contained release.  The release includes ERTS (the Erlang
 # runtime) so the runtime stage doesn't need Elixir installed at all.
-RUN mix release cargotrack_ws --no-debug-info --path /opt/release
+RUN mix release cargotrack_ws --path /opt/release
 
 # ── Runtime ──────────────────────────────────────────────────────────────────
-FROM alpine:3.20.3
+FROM alpine:3.23
 
 # Erlang runtime libraries needed by the release.
 # ncurses-libs / libcrypto3 / libstdc++ are pulled in by ERTS crypto & asn1.
-RUN apk add --no-cache ncurses-libs libcrypto3 libstdc++
+RUN apk add --no-cache ncurses-libs libcrypto3 libstdc++ openssl
 
 # Copy the release from the builder stage.
 COPY --from=builder /opt/release /opt/cargotrack_ws

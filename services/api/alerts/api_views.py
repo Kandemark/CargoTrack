@@ -15,10 +15,11 @@ AlertAcknowledgeAPIView
     or ADMIN).
 """
 from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from cargotrack.permissions import IsClientUser, IsManagerUser
+from cargotrack.authz import CanViewAnalytics
 from .models import Alert
 from .serializers import AlertSerializer, AlertAcknowledgeSerializer
 
@@ -30,7 +31,7 @@ class AlertListAPIView(generics.ListAPIView):
     Managers also see acknowledged alerts via ?all=1.
     """
     serializer_class = AlertSerializer
-    permission_classes = [IsClientUser]
+    permission_classes = [IsAuthenticated, CanViewAnalytics]
 
     def get_queryset(self):
         qs = Alert.objects.select_related('shipment').order_by('-sent_at')
@@ -46,7 +47,7 @@ class AlertAcknowledgeAPIView(APIView):
     POST /api/v1/alerts/<pk>/acknowledge/
     Marks an alert as acknowledged. Any authenticated user can acknowledge.
     """
-    permission_classes = [IsClientUser]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, pk, **kwargs):
         try:

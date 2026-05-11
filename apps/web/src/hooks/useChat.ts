@@ -30,9 +30,7 @@ export function useChat(): UseChatReturn {
   const activeIdRef = useRef<number | null>(null)
 
   const getToken = useCallback(() => {
-    return useAuthStore.getState().isAuthenticated
-      ? localStorage.getItem('ct_access')
-      : null
+    return useAuthStore.getState().accessToken
   }, [])
 
   // ── Load conversation list ──────────────────────────────────────────────

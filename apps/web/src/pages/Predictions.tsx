@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { shipmentsApi } from '@/api/shipments'
+import { predictionsApi } from '@/api/predictions'
 import type { DelayPrediction, ShipmentListItem } from '@/types'
 
 // ── Types & utils ──────────────────────────────────────────────────────────────
@@ -59,6 +60,61 @@ function RiskBar({ score }: { score: number }) {
       </div>
       <span className="text-xs font-bold tabular-nums w-9 text-right" style={{ color }}>{pct}%</span>
     </div>
+  )
+}
+
+// ── Quick ML Tool Card ──────────────────────────────────────────────────────────
+
+interface MLField {
+  key: string; label: string; type: 'text' | 'select'; placeholder?: string; options?: string[]
+}
+
+function MLToolCard({ title, desc, fields, runner, resultFn }: {
+  title: string; desc: string
+  fields: MLField[]
+  runner: (vals: Record<string, string>) => Promise<Record<string, unknown>>
+  resultFn: (data: Record<string, unknown>) => string
+}) {
+  const [vals, setVals] = useState<Record<string, string>>(() =>
+    Object.fromEntries(fields.map(f => [f.key, f.options?.[0] ?? '']))
+  )
+  const [result, setResult] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function run(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true); setErr(''); setResult(null)
+    try {
+      const data = await runner(vals)
+      setResult(resultFn(data))
+    } catch {
+      setErr('Prediction failed')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <form onSubmit={run} className="rounded-xl border border-gray-100 dark:border-white/6 p-4 bg-gray-50/50 dark:bg-white/2 space-y-2">
+      <div>
+        <p className="text-xs font-semibold text-gray-800 dark:text-white">{title}</p>
+        <p className="text-[10px] text-gray-400 dark:text-white/30">{desc}</p>
+      </div>
+      {fields.map(f => f.type === 'select' ? (
+        <select key={f.key} value={vals[f.key]} onChange={e => setVals(v => ({ ...v, [f.key]: e.target.value }))}
+          className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-400">
+          {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input key={f.key} value={vals[f.key]} onChange={e => setVals(v => ({ ...v, [f.key]: e.target.value }))}
+          placeholder={f.placeholder} className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-400" />
+      ))}
+      <button type="submit" disabled={loading}
+        className="w-full px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-60 transition-colors">
+        {loading ? 'Running…' : 'Run'}
+      </button>
+      {err && <p className="text-[10px] text-red-500">{err}</p>}
+      {result && <p className="text-xs font-semibold text-gray-700 dark:text-white/70 bg-white dark:bg-white/5 rounded-lg px-2.5 py-1.5">{result}</p>}
+    </form>
   )
 }
 
@@ -462,6 +518,49 @@ export default function Predictions() {
           </div>
         </div>
       )}
+
+      {/* Quick ML Tools */}
+      <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-5 shadow-card">
+        <h2 className="text-sm font-bold text-gray-800 dark:text-white font-heading mb-4 flex items-center gap-2">
+          <Zap className="w-4 h-4 text-orange-500" /> Quick ML Tools
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <MLToolCard
+            title="Demand Forecast"
+            desc="Corridor demand prediction"
+            fields={[{ key: 'corridor', label: 'Corridor', type: 'select', options: ['Northern', 'Central', 'LAPSSET'] }]}
+            runner={(vals) => predictionsApi.demand({ corridor: vals.corridor }).then(r => r.data)}
+            resultFn={(d: Record<string, unknown>) => `${d.forecast_demand_teu} TEU (${d.trend})`}
+          />
+          <MLToolCard
+            title="Theft Risk"
+            desc="Route security assessment"
+            fields={[
+              { key: 'origin', label: 'Origin', type: 'text', placeholder: 'e.g. Nairobi' },
+              { key: 'destination', label: 'Destination', type: 'text', placeholder: 'e.g. Kigali' },
+            ]}
+            runner={(vals) => predictionsApi.theftRisk({ origin: vals.origin, destination: vals.destination }).then(r => r.data)}
+            resultFn={(d: Record<string, unknown>) => `${d.risk_level} (${Math.round(Number(d.theft_risk_score) * 100)}%)`}
+          />
+          <MLToolCard
+            title="Border Delay"
+            desc="Crossing wait time"
+            fields={[{ key: 'border_name', label: 'Border', type: 'text', placeholder: 'e.g. Namanga' }]}
+            runner={(vals) => predictionsApi.borderDelay({ border_name: vals.border_name }).then(r => r.data)}
+            resultFn={(d: Record<string, unknown>) => `${d.predicted_wait_hours} hrs · ${d.best_crossing_window}`}
+          />
+          <MLToolCard
+            title="Fuel Optimize"
+            desc="Route fuel savings"
+            fields={[
+              { key: 'origin', label: 'Origin', type: 'text', placeholder: 'e.g. Mombasa' },
+              { key: 'destination', label: 'Destination', type: 'text', placeholder: 'e.g. Kampala' },
+            ]}
+            runner={(vals) => predictionsApi.fuelOptimize({ origin: vals.origin, destination: vals.destination }).then(r => r.data)}
+            resultFn={(d: Record<string, unknown>) => `${d.estimated_fuel_savings_pct}% savings · ${d.optimal_speed_kmh} km/h`}
+          />
+        </div>
+      </div>
     </div>
   )
 }

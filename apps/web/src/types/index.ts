@@ -14,6 +14,7 @@
  * inside the Vite/tsc build when @shared resolves via the path alias.
  */
 export type {
+  EACountry,
   User,
   TokenPair,
   Route,
@@ -57,10 +58,15 @@ export type {
 // Defined locally to keep this as a pure type-only re-export file and avoid
 // forcing tsc to resolve @shared as a JS module (verbatimModuleSyntax constraint).
 export const UserRole = {
-  ADMIN:         'ADMIN',
-  LOGISTICS_MGR: 'LOGISTICS_MGR',
-  CLIENT:        'CLIENT',
-  CARRIER:       'CARRIER',
+  ADMIN:          'ADMIN',
+  LOGISTICS_MGR:  'LOGISTICS_MGR',
+  CLIENT:         'CLIENT',
+  CARRIER:        'CARRIER',
+  DISPATCHER:     'DISPATCHER',
+  CUSTOMS_BROKER: 'CUSTOMS_BROKER',
+  WAREHOUSE_MGR:  'WAREHOUSE_MGR',
+  PORT_AGENT:     'PORT_AGENT',
+  FINANCE_OFFICER:'FINANCE_OFFICER',
 } as const
 
 export type UserRoleType = typeof UserRole[keyof typeof UserRole]

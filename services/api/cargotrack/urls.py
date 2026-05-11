@@ -59,6 +59,9 @@ urlpatterns = [
     path('api/auth/register/',       ThrottledRegisterAPIView.as_view(),  name='register'),
     path('api/health/',              HealthCheckView.as_view(),      name='api-health'),
 
+    # ── Prometheus metrics (scraped by prometheus:9090) ────────────────────────
+    path('', include('django_prometheus.urls')),
+
     # ── OpenAPI schema & docs ──────────────────────────────────────────────────
     path('api/schema/',              SpectacularAPIView.as_view(),    name='schema'),
     path('api/docs/swagger/',        SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

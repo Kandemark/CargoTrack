@@ -9,6 +9,7 @@ from carriers.models import Carrier
 from fleet.models import Truck
 from shipments.models import Shipment
 
+from cargotrack.authz import CanViewAnalytics
 from cargotrack.async_cache import AsyncCacheMixin
 
 from .dashboard import LogisticsDashboard
@@ -53,7 +54,7 @@ def _compute_kpis() -> dict:
 
 class KPIApiView(AsyncCacheMixin, APIView):
     """GET /api/v1/dashboard/kpis/ — KPI summary for the React dashboard."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewAnalytics]
     cache_ttl = 60  # 1-min cache
 
     def get(self, request, **kwargs):
@@ -66,7 +67,7 @@ class MapDataAPIView(APIView):
     Returns a GeoJSON FeatureCollection of active shipments with route lines.
     Each shipment is a Point feature; routes are LineString features.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewAnalytics]
 
     # City coordinate lookup — mirrors LiveMap.tsx CITY_COORDS
     CITY_COORDS: dict[str, tuple[float, float]] = {
@@ -166,7 +167,7 @@ class DashboardAPIView(AsyncCacheMixin, APIView):
     GET /api/v1/dashboard/stats/
     Returns summary stats, recent events, and per-carrier performance.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewAnalytics]
     cache_ttl = 30  # 30s cache — main dashboard
 
     def get(self, request, **kwargs):

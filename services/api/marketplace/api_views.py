@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from cargotrack.authz import CanViewMarketplace, CanBidMarketplace, CanManageMarketplace
+
 from carriers.models import Carrier
 from .models import FreightListing, Bid
 from .serializers import (
@@ -18,9 +20,12 @@ from .serializers import (
 
 class FreightListingListCreateView(APIView):
     """GET /api/v1/marketplace/listings/ — list open listings. POST — create new listing."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewMarketplace]
 
-    def get(self, request, **kwargs):
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAuthenticated(), CanManageMarketplace]
+        return [permission() for permission in self.permission_classes]
         listings = FreightListing.objects.select_related('posted_by').prefetch_related(
             'bids', 'bids__carrier',
         ).order_by('-created_at')
@@ -79,7 +84,7 @@ class FreightListingListCreateView(APIView):
 
 class FreightListingDetailView(APIView):
     """GET /api/v1/marketplace/listings/<pk>/ — single listing with bids."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewMarketplace]
 
     def get(self, request, pk, **kwargs):
         try:
@@ -95,7 +100,7 @@ class FreightListingDetailView(APIView):
 
 class BidCreateView(APIView):
     """POST /api/v1/marketplace/listings/<pk>/bid/ — place a bid on a listing."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanBidMarketplace]
 
     def post(self, request, pk, **kwargs):
         try:
@@ -135,7 +140,7 @@ class BidCreateView(APIView):
 
 class BidAcceptView(APIView):
     """POST /api/v1/marketplace/bids/<pk>/accept/ — accept a bid and create a shipment."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageMarketplace]
 
     @transaction.atomic
     def post(self, request, pk, **kwargs):
@@ -192,7 +197,7 @@ class BidAcceptView(APIView):
 
 class MyBidsView(APIView):
     """GET /api/v1/marketplace/my-bids/ — bids placed by carriers in the current user's organization."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewMarketplace]
 
     def get(self, request, **kwargs):
         org = request.user.organization
@@ -217,7 +222,7 @@ class MyBidsView(APIView):
 
 class MyListingsView(APIView):
     """GET /api/v1/marketplace/my-listings/ — listings posted by the current user."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewMarketplace]
 
     def get(self, request, **kwargs):
         listings = FreightListing.objects.filter(

@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from cargotrack.authz import CanSendChat
 
 from .models import Conversation, Message
 from .serializers import (
@@ -21,7 +22,7 @@ from .serializers import (
 
 class ConversationListCreateView(APIView):
     """GET /api/v1/chat/conversations/ — list user's conversations. POST — create new."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanSendChat]
 
     def get(self, request, **kwargs):
         conversations = request.user.conversations.prefetch_related(
@@ -48,7 +49,7 @@ class ConversationListCreateView(APIView):
 
 class ConversationDetailView(APIView):
     """GET /api/v1/chat/conversations/<pk>/ — full conversation with messages."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanSendChat]
 
     def get(self, request, pk, **kwargs):
         try:
@@ -71,7 +72,7 @@ class ConversationDetailView(APIView):
 
 class MessageCreateView(APIView):
     """POST /api/v1/chat/conversations/<pk>/messages/ — send a message via REST."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanSendChat]
 
     def post(self, request, pk, **kwargs):
         try:
@@ -104,7 +105,7 @@ class MessageCreateView(APIView):
 
 class MarkReadView(APIView):
     """POST /api/v1/chat/conversations/<pk>/mark-read/ — mark conversation as read."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanSendChat]
 
     def post(self, request, pk, **kwargs):
         updated = Message.objects.filter(
@@ -138,7 +139,7 @@ class WebRTCConfigView(APIView):
     TURN credentials are time-limited (24h) HMAC-SHA1 tokens generated
     from the shared secret, following the TURN REST API standard.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanSendChat]
 
     def get(self, request, **kwargs):
         turn_secret = config('TURN_SECRET', default='')

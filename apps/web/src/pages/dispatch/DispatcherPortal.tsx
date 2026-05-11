@@ -20,7 +20,7 @@ import {
   ChevronRight, RefreshCw, CheckCircle2, Radio, Route,
   ClipboardList, TrendingUp, Zap, Eye,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { shipmentsApi } from '@/api/shipments'
 import { fleetApi } from '@/api/fleet'
@@ -101,7 +101,12 @@ export default function DispatcherPortal() {
   const [trucks,   setTrucks]  = useState<TruckType[]>([])
   const [stats,    setStats]   = useState<FleetStats | null>(null)
   const [loading,  setLoading] = useState(true)
-  const [activeTab, setTab]    = useState<'queue' | 'drivers' | 'trucks'>('queue')
+  const loc = useLocation()
+  function tabFromPath(): 'queue' | 'drivers' | 'trucks' {
+    if (loc.pathname.includes('/dispatch/queue')) return 'queue'
+    return 'drivers'
+  }
+  const [activeTab, setTab] = useState<'queue' | 'drivers' | 'trucks'>(tabFromPath)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -124,6 +129,7 @@ export default function DispatcherPortal() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => { setTab(tabFromPath()) }, [loc.pathname])
 
   const availableDrivers = drivers.filter((d) => d.status === 'AVAILABLE')
   const availableTrucks  = trucks.filter((t)  => t.status === 'IDLE')

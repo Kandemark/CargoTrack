@@ -2,21 +2,21 @@
 
 http:
   routers:
-    # ── Frontend (React/Vite SPA) ────────────────────────────────────────────────
-    frontend:
+    # ── Web App (React/Vite SPA) ─────────────────────────────────────────────────
+    web:
       rule: "Host(`app.cargotrack.localhost`) || Host(`localhost`)"
       entryPoints: ["websecure"]
-      service: frontend
+      service: web
       middlewares:
         - security-headers
         - compress
         - retry-api
       priority: 10
 
-    frontend-dev:
+    web-dev:
       rule: "Host(`localhost`) && PathPrefix(`/`)"
       entryPoints: ["web"]
-      service: frontend
+      service: web
       priority: 5
 
     # ── Django Backend API ──────────────────────────────────────────────────────
@@ -111,10 +111,10 @@ http:
 
   # ── Services ──────────────────────────────────────────────────────────────────
   services:
-    frontend:
+    web:
       loadBalancer:
         servers:
-          - url: "http://frontend:5173"
+          - url: "http://web:5173"
 
     api:
       loadBalancer:

@@ -16,6 +16,20 @@
  * @module shared/api/types
  */
 
+// ─── Geo ───────────────────────────────────────────────────────────────────────
+
+export type EACountry = 'KE' | 'TZ' | 'UG' | 'RW' | 'BI' | 'CD' | 'SS'
+
+export const EA_COUNTRY_META: Record<EACountry, { label: string; corridor: string; iso_alpha3: string }> = {
+  KE: { label: 'Kenya',        corridor: 'Northern Corridor', iso_alpha3: 'KEN' },
+  TZ: { label: 'Tanzania',     corridor: 'Central Corridor',  iso_alpha3: 'TZA' },
+  UG: { label: 'Uganda',       corridor: 'Northern Corridor', iso_alpha3: 'UGA' },
+  RW: { label: 'Rwanda',       corridor: 'Central Corridor',  iso_alpha3: 'RWA' },
+  BI: { label: 'Burundi',      corridor: 'Central Corridor',  iso_alpha3: 'BDI' },
+  CD: { label: 'DR Congo',     corridor: 'Eastern Corridor',  iso_alpha3: 'COD' },
+  SS: { label: 'South Sudan',  corridor: 'LAPSSET Corridor',  iso_alpha3: 'SSD' },
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export type UserRole =
@@ -33,6 +47,7 @@ export interface User {
   role_display: string
   org_id: number | null
   org_name: string | null
+  country: EACountry | null
   phone: string
   onboarding_completed: boolean
   date_joined: string
@@ -167,10 +182,15 @@ export interface CarrierPerformance {
 // ─── Role constants ───────────────────────────────────────────────────────────
 
 export const UserRole = {
-  ADMIN:         'ADMIN',
-  LOGISTICS_MGR: 'LOGISTICS_MGR',
-  CLIENT:        'CLIENT',
-  CARRIER:       'CARRIER',
+  ADMIN:          'ADMIN',
+  LOGISTICS_MGR:  'LOGISTICS_MGR',
+  CLIENT:         'CLIENT',
+  CARRIER:        'CARRIER',
+  DISPATCHER:     'DISPATCHER',
+  CUSTOMS_BROKER: 'CUSTOMS_BROKER',
+  WAREHOUSE_MGR:  'WAREHOUSE_MGR',
+  PORT_AGENT:     'PORT_AGENT',
+  FINANCE_OFFICER:'FINANCE_OFFICER',
 } as const
 
 export type UserRoleType = typeof UserRole[keyof typeof UserRole]

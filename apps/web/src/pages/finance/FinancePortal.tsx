@@ -22,9 +22,10 @@ import {
 import {
   CreditCard, TrendingUp, TrendingDown, AlertOctagon,
   CheckCircle2, Clock, RefreshCw, Download, ArrowRight,
-  Banknote, BarChart3, Percent,
+  Banknote, BarChart3, Percent, Calculator, Coins, Receipt,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { financeApi, type CurrencyConversion, type TaxSummary, type InvoiceCalculation } from '@/api/finance'
+import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { paymentsApi } from '@/api/payments'
 import type { Invoice } from '@/api/payments'
@@ -117,7 +118,55 @@ const AGING_COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#991b1b']
 export default function FinancePortal() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading,  setLoading]  = useState(true)
-  const [activeTab, setTab]     = useState<'overview' | 'invoices' | 'aging'>('overview')
+  const loc = useLocation()
+  function tabFromPath(): 'overview' | 'invoices' | 'aging' | 'calculator' {
+    const p = loc.pathname
+    if (p.includes('/finance/revenue')) return 'invoices'
+    if (p.includes('/finance/reports')) return 'aging'
+    return 'overview'
+  }
+  const [activeTab, setTab] = useState<'overview' | 'invoices' | 'aging' | 'calculator'>(tabFromPath)
+
+  // Sync tab when URL changes (sidebar nav between same component)
+  useEffect(() => { setTab(tabFromPath()) }, [loc.pathname])
+
+  // Calculator state
+  const [convFrom, setConvFrom] = useState('KES')
+  const [convTo, setConvTo] = useState('USD')
+  const [convAmount, setConvAmount] = useState('1000')
+  const [convResult, setConvResult] = useState<CurrencyConversion | null>(null)
+  const [taxData, setTaxData] = useState<TaxSummary | null>(null)
+  const [calcCountry, setCalcCountry] = useState('KE')
+  const [calcAmount, setCalcAmount] = useState('100000')
+  const [calcResult, setCalcResult] = useState<InvoiceCalculation | null>(null)
+  const [calcLoading, setCalcLoading] = useState(false)
+  const [calcError, setCalcError] = useState<string | null>(null)
+
+  async function doConvert(e: React.FormEvent) {
+    e.preventDefault()
+    setCalcLoading(true); setCalcError(null)
+    try {
+      const { data } = await financeApi.convert({ from: convFrom, to: convTo, amount: Number(convAmount) })
+      setConvResult(data)
+    } catch { setCalcError('Conversion failed.') } finally { setCalcLoading(false) }
+  }
+
+  async function loadTaxes() {
+    setCalcLoading(true)
+    try {
+      const { data } = await financeApi.taxes()
+      setTaxData(data)
+    } catch { /* silent */ } finally { setCalcLoading(false) }
+  }
+
+  async function doCalculate(e: React.FormEvent) {
+    e.preventDefault()
+    setCalcLoading(true); setCalcError(null)
+    try {
+      const { data } = await financeApi.calculate({ amount_kes: calcAmount, country: calcCountry })
+      setCalcResult(data)
+    } catch { setCalcError('Calculation failed.') } finally { setCalcLoading(false) }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -212,6 +261,7 @@ export default function FinancePortal() {
             { key: 'overview',  label: 'Revenue Overview', icon: BarChart3   },
             { key: 'invoices',  label: 'Invoice Board',    icon: CreditCard  },
             { key: 'aging',     label: 'Aging Analysis',   icon: Clock       },
+            { key: 'calculator',label: 'Calculator',       icon: Calculator  },
           ].map(({ key, label, icon: Icon }) => (
             <button key={key}
               onClick={() => setTab(key as typeof activeTab)}
@@ -364,6 +414,108 @@ export default function FinancePortal() {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        )}
+
+        {activeTab === 'calculator' && (
+          <div className="p-5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Currency Converter */}
+              <div>
+                <p className="text-sm font-bold text-gray-700 dark:text-white/80 mb-3 flex items-center gap-1.5"><Coins className="w-4 h-4 text-violet-500" /> Currency Converter</p>
+                <form onSubmit={doConvert} className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={convFrom} onChange={(e) => setConvFrom(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-400">
+                      <option value="KES">KES</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="TZS">TZS</option><option value="UGX">UGX</option><option value="RWF">RWF</option>
+                    </select>
+                    <select value={convTo} onChange={(e) => setConvTo(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-400">
+                      <option value="USD">USD</option><option value="KES">KES</option><option value="EUR">EUR</option><option value="TZS">TZS</option><option value="UGX">UGX</option><option value="RWF">RWF</option>
+                    </select>
+                  </div>
+                  <input type="number" value={convAmount} onChange={(e) => setConvAmount(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                  <button type="submit" disabled={calcLoading}
+                    className="w-full px-4 py-2 rounded-lg text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-60 transition-colors">
+                    {calcLoading ? 'Converting…' : 'Convert'}
+                  </button>
+                </form>
+                {convResult && (
+                  <div className="mt-3 p-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800/30">
+                    <p className="text-xs text-violet-600 dark:text-violet-300">{convResult.amount} {convResult.from_currency} =</p>
+                    <p className="text-lg font-bold text-violet-700 dark:text-violet-200">{convResult.converted} {convResult.to_currency}</p>
+                    <p className="text-[10px] text-violet-400 dark:text-violet-400/60 mt-0.5">Rate: {convResult.rate}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Tax Rates */}
+              <div>
+                <p className="text-sm font-bold text-gray-700 dark:text-white/80 mb-3 flex items-center gap-1.5"><Receipt className="w-4 h-4 text-violet-500" /> Tax Rates</p>
+                {taxData ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {taxData.countries.map((c) => (
+                      <div key={c.country_code} className="rounded-lg border border-gray-100 dark:border-white/6 p-2.5 bg-gray-50 dark:bg-white/3">
+                        <p className="text-xs font-semibold text-gray-800 dark:text-white">{c.country_name} ({c.country_code})</p>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1 text-[10px]">
+                          <span className="text-gray-400">VAT</span><span className="font-mono text-gray-700 dark:text-white/70 tabular-nums">{c.vat_rate}%</span>
+                          <span className="text-gray-400">Withholding</span><span className="font-mono text-gray-700 dark:text-white/70 tabular-nums">{c.withholding_tax_rate}%</span>
+                          <span className="text-gray-400">Currency</span><span className="font-mono text-gray-500">{c.currency}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <button onClick={loadTaxes} disabled={calcLoading}
+                    className="w-full px-4 py-8 rounded-xl border-2 border-dashed border-gray-200 dark:border-white/10 text-sm text-gray-400 dark:text-white/30 hover:border-violet-300 dark:hover:border-violet-600 hover:text-violet-500 transition-colors">
+                    Click to load tax rates
+                  </button>
+                )}
+              </div>
+
+              {/* Invoice Calculator */}
+              <div>
+                <p className="text-sm font-bold text-gray-700 dark:text-white/80 mb-3 flex items-center gap-1.5"><Calculator className="w-4 h-4 text-violet-500" /> Invoice Calculator</p>
+                <form onSubmit={doCalculate} className="space-y-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-white/40 mb-1">Country</label>
+                    <select value={calcCountry} onChange={(e) => setCalcCountry(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-400">
+                      <option value="KE">Kenya</option><option value="TZ">Tanzania</option><option value="UG">Uganda</option><option value="RW">Rwanda</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-white/40 mb-1">Amount (KES)</label>
+                    <input type="number" value={calcAmount} onChange={(e) => setCalcAmount(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                  </div>
+                  <button type="submit" disabled={calcLoading}
+                    className="w-full px-4 py-2 rounded-lg text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-60 transition-colors">
+                    {calcLoading ? 'Calculating…' : 'Calculate'}
+                  </button>
+                </form>
+                {calcError && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg mt-2">{calcError}</p>}
+                {calcResult && (
+                  <div className="mt-3 p-3 rounded-xl bg-gray-50 dark:bg-white/3 border border-gray-100 dark:border-white/6 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-400">Subtotal</span><span className="font-semibold text-gray-800 dark:text-white">{calcResult.subtotal} {calcResult.currency}</span></div>
+                    {calcResult.taxes.vat && (
+                      <div className="flex justify-between"><span className="text-gray-400">VAT ({calcResult.taxes.vat.rate}%)</span><span className="font-semibold text-gray-700 dark:text-white/70">{calcResult.taxes.vat.amount} {calcResult.currency}</span></div>
+                    )}
+                    {calcResult.taxes.withholding_tax && (
+                      <div className="flex justify-between"><span className="text-gray-400">Withholding Tax ({calcResult.taxes.withholding_tax.rate}%)</span><span className="font-semibold text-gray-700 dark:text-white/70">{calcResult.taxes.withholding_tax.amount} {calcResult.currency}</span></div>
+                    )}
+                    {calcResult.taxes.fuel_surcharge && (
+                      <div className="flex justify-between"><span className="text-gray-400">Fuel Surcharge</span><span className="font-semibold text-gray-700 dark:text-white/70">{calcResult.taxes.fuel_surcharge.amount} {calcResult.currency}</span></div>
+                    )}
+                    <div className="border-t border-gray-200 dark:border-white/8 pt-1.5 flex justify-between">
+                      <span className="font-bold text-gray-700 dark:text-white/80">Total</span>
+                      <span className="font-bold text-violet-700 dark:text-violet-300">{calcResult.total} {calcResult.currency}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

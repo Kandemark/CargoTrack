@@ -10,6 +10,7 @@ export interface RoleOrgFields {
 
 interface Props {
   form: RoleOrgFields
+  errors?: Partial<Record<string, string>>
   onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void
   onRoleChange: (role: string) => void
 }
@@ -34,7 +35,7 @@ const ORG_TYPES = [
   { value: 'FORWARDER',  label: 'Freight Forwarder' },
 ]
 
-export default function RoleOrgStep({ form, onChange, onRoleChange }: Props) {
+export default function RoleOrgStep({ form, errors, onChange, onRoleChange }: Props) {
   return (
     <div className="space-y-6">
       {/* Role selection */}
@@ -43,6 +44,7 @@ export default function RoleOrgStep({ form, onChange, onRoleChange }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
           {ROLES.map((r) => {
             const selected = form.role === r.value
+            const hasRoleError = !!errors?.role
             return (
               <button
                 key={r.value}
@@ -52,7 +54,9 @@ export default function RoleOrgStep({ form, onChange, onRoleChange }: Props) {
                   'text-left p-3 rounded-lg border-2 transition-colors',
                   selected
                     ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300',
+                    : hasRoleError
+                      ? 'border-red-300 hover:border-red-400'
+                      : 'border-gray-200 hover:border-gray-300',
                 ].join(' ')}
               >
                 <span className="text-sm font-semibold text-gray-800">{r.label}</span>
@@ -61,6 +65,9 @@ export default function RoleOrgStep({ form, onChange, onRoleChange }: Props) {
             )
           })}
         </div>
+        {errors?.role && (
+          <p className="mt-2 text-xs text-red-600 font-medium">{errors.role}</p>
+        )}
       </div>
 
       {/* Organization section */}
@@ -82,11 +89,19 @@ export default function RoleOrgStep({ form, onChange, onRoleChange }: Props) {
             placeholder="Enter invite code"
             value={form.join_code}
             onChange={onChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent ${
+              errors?.join_code
+                ? 'border-red-300 focus:ring-red-500'
+                : 'border-gray-300 focus:ring-blue-500'
+            }`}
           />
-          <p className="mt-1 text-xs text-gray-400">
-            Ask your admin for the organization invite code.
-          </p>
+          {errors?.join_code ? (
+            <p className="mt-1 text-xs text-red-600">{errors.join_code}</p>
+          ) : (
+            <p className="mt-1 text-xs text-gray-400">
+              Ask your admin for the organization invite code.
+            </p>
+          )}
         </div>
 
         {/* Divider */}
@@ -108,8 +123,15 @@ export default function RoleOrgStep({ form, onChange, onRoleChange }: Props) {
               value={form.org_name}
               onChange={onChange}
               disabled={!!form.join_code}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
+              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 ${
+                errors?.org_name
+                  ? 'border-red-300 focus:ring-red-500'
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
             />
+            {errors?.org_name && (
+              <p className="mt-1 text-xs text-red-600">{errors.org_name}</p>
+            )}
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Organization type</label>
@@ -118,12 +140,19 @@ export default function RoleOrgStep({ form, onChange, onRoleChange }: Props) {
               value={form.org_type}
               onChange={onChange}
               disabled={!!form.join_code}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
+              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400 ${
+                errors?.org_type
+                  ? 'border-red-300 focus:ring-red-500'
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
             >
               {ORG_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
+            {errors?.org_type && (
+              <p className="mt-1 text-xs text-red-600">{errors.org_type}</p>
+            )}
           </div>
         </div>
       </div>

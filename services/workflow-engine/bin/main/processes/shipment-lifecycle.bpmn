@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="shipment-lifecycle-process"
+                  targetNamespace="http://cargotrack.com/bpmn/shipment">
+
+  <bpmn:process id="shipment-lifecycle"
+                name="Shipment Lifecycle"
+                isExecutable="true"
+                camunda:historyTimeToLive="P30D">
+
+    <bpmn:startEvent id="StartEvent" name="Shipment Created">
+      <bpmn:outgoing>Flow_created_to_docs</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="Flow_created_to_docs" sourceRef="StartEvent" targetRef="Task_verify_docs"/>
+
+    <!-- Document Verification -->
+    <bpmn:serviceTask id="Task_verify_docs"
+                      name="Verify Documents"
+                      camunda:delegateExpression="${documentVerification}">
+      <bpmn:incoming>Flow_created_to_docs</bpmn:incoming>
+      <bpmn:outgoing>Flow_docs_to_gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_docs_to_gateway" sourceRef="Task_verify_docs" targetRef="Gateway_docs_ok"/>
+
+    <bpmn:exclusiveGateway id="Gateway_docs_ok" name="Documents OK?">
+      <bpmn:incoming>Flow_docs_to_gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_docs_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_docs_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_docs_yes" sourceRef="Gateway_docs_ok" targetRef="Task_assign_carrier">
+      <bpmn:conditionExpression>${documentsVerified}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_docs_no" sourceRef="Gateway_docs_ok" targetRef="Task_notify_doc_fail">
+      <bpmn:conditionExpression>${!documentsVerified}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:serviceTask id="Task_notify_doc_fail"
+                      name="Notify Document Failure"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_docs_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_doc_fail_done</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_doc_fail" name="Rejected">
+      <bpmn:incoming>Flow_doc_fail_done</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_doc_fail_done" sourceRef="Task_notify_doc_fail" targetRef="End_doc_fail"/>
+
+    <!-- Carrier Assignment -->
+    <bpmn:serviceTask id="Task_assign_carrier"
+                      name="Assign Carrier"
+                      camunda:delegateExpression="${carrierAssignment}">
+      <bpmn:incoming>Flow_docs_yes</bpmn:incoming>
+      <bpmn:outgoing>Flow_carrier_to_dispatch</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_carrier_to_dispatch" sourceRef="Task_assign_carrier" targetRef="Task_dispatch"/>
+
+    <!-- Dispatch -->
+    <bpmn:serviceTask id="Task_dispatch"
+                      name="Dispatch Shipment"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_carrier_to_dispatch</bpmn:incoming>
+      <bpmn:outgoing>Flow_dispatch_to_departure</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_dispatch_to_departure" sourceRef="Task_dispatch" targetRef="Task_departure"/>
+
+    <!-- Departure -->
+    <bpmn:serviceTask id="Task_departure"
+                      name="Record Departure"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_dispatch_to_departure</bpmn:incoming>
+      <bpmn:outgoing>Flow_departure_to_border</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_departure_to_border" sourceRef="Task_departure" targetRef="Task_customs"/>
+
+    <!-- Customs Assessment -->
+    <bpmn:serviceTask id="Task_customs"
+                      name="Customs Assessment"
+                      camunda:delegateExpression="${customsAssessment}">
+      <bpmn:incoming>Flow_departure_to_border</bpmn:incoming>
+      <bpmn:outgoing>Flow_customs_to_gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_customs_to_gateway" sourceRef="Task_customs" targetRef="Gateway_customs_green"/>
+
+    <bpmn:exclusiveGateway id="Gateway_customs_green" name="Green Lane?">
+      <bpmn:incoming>Flow_customs_to_gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_green_yes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_green_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_green_yes" sourceRef="Gateway_customs_green" targetRef="Task_in_transit">
+      <bpmn:conditionExpression>${greenLane}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_green_no" sourceRef="Gateway_customs_green" targetRef="Task_physical_inspection">
+      <bpmn:conditionExpression>${!greenLane}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Physical Inspection (non-green-lane) -->
+    <bpmn:userTask id="Task_physical_inspection"
+                   name="Physical Inspection"
+                   camunda:assignee="customs">
+      <bpmn:incoming>Flow_green_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_inspection_done</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:sequenceFlow id="Flow_inspection_done" sourceRef="Task_physical_inspection" targetRef="Task_in_transit"/>
+
+    <!-- In Transit -->
+    <bpmn:serviceTask id="Task_in_transit"
+                      name="In Transit"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_green_yes</bpmn:incoming>
+      <bpmn:incoming>Flow_inspection_done</bpmn:incoming>
+      <bpmn:outgoing>Flow_transit_to_lastmile</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_transit_to_lastmile" sourceRef="Task_in_transit" targetRef="Task_last_mile"/>
+
+    <!-- Last Mile -->
+    <bpmn:serviceTask id="Task_last_mile"
+                      name="Last Mile Delivery"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_transit_to_lastmile</bpmn:incoming>
+      <bpmn:outgoing>Flow_lastmile_to_delivered</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_lastmile_to_delivered" sourceRef="Task_last_mile" targetRef="Task_delivered"/>
+
+    <!-- Delivered -->
+    <bpmn:serviceTask id="Task_delivered"
+                      name="Confirm Delivery"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_lastmile_to_delivered</bpmn:incoming>
+      <bpmn:outgoing>Flow_delivered_to_invoice</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_delivered_to_invoice" sourceRef="Task_delivered" targetRef="Task_invoiced"/>
+
+    <!-- Invoiced -->
+    <bpmn:serviceTask id="Task_invoiced"
+                      name="Generate Invoice"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_delivered_to_invoice</bpmn:incoming>
+      <bpmn:outgoing>Flow_invoice_to_paid</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_invoice_to_paid" sourceRef="Task_invoiced" targetRef="Task_paid"/>
+
+    <!-- Paid -->
+    <bpmn:serviceTask id="Task_paid"
+                      name="Payment Received"
+                      camunda:delegateExpression="${notifyStakeholder}">
+      <bpmn:incoming>Flow_invoice_to_paid</bpmn:incoming>
+      <bpmn:outgoing>Flow_paid_to_closed</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_paid_to_closed" sourceRef="Task_paid" targetRef="End_closed"/>
+
+    <!-- Closed -->
+    <bpmn:endEvent id="End_closed" name="Closed">
+      <bpmn:incoming>Flow_paid_to_closed</bpmn:incoming>
+    </bpmn:endEvent>
+
+  </bpmn:process>
+
+  <!-- BPMN Diagram (visual layout) -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_shipment-lifecycle">
+    <bpmndi:BPMNPlane id="BPMNPlane_shipment-lifecycle" bpmnElement="shipment-lifecycle">
+      <!-- Layout is auto-arranged by Camunda Modeler -->
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

@@ -4,13 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, CreditCard, AlertTriangle, RefreshCw, X, DollarSign,
   TrendingUp, TrendingDown, ArrowUpRight, Download,
-  CheckCircle, Clock, XCircle, RotateCcw,
+  CheckCircle, Clock, XCircle, RotateCcw, FileText,
 } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, Legend,
 } from 'recharts'
 import { cn } from '@/lib/utils'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import { paymentsApi } from '@/api/payments'
 import { shipmentsApi } from '@/api/shipments'
 import DataTable, { type ColumnDef } from '@/components/ui/DataTable'
@@ -76,6 +78,27 @@ function StatusBadge({ status }: { status: InvoiceStatus }) {
 
 function Sk({ className }: { className?: string }) {
   return <div className={cn('rounded-lg bg-gray-100 dark:bg-white/8 animate-pulse', className)} />
+}
+
+function exportInvoicesCSV(invoices: Invoice[]) {
+  const headers = ['Invoice #', 'Shipment', 'Amount', 'Currency', 'Status', 'Provider', 'Date']
+  const rows = invoices.map((inv) => [
+    inv.invoice_number,
+    inv.shipment_tracking ?? '',
+    String(inv.amount_kes),
+    inv.currency,
+    inv.status,
+    inv.payments[0]?.provider ?? '—',
+    new Date(inv.created_at).toISOString().split('T')[0],
+  ])
+  const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `invoices-export-${new Date().toISOString().split('T')[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ── Create modal (unchanged) ──────────────────────────────────────────────────
@@ -185,6 +208,7 @@ export default function Payments() {
   const [error,       setError]       = useState<string | null>(null)
   const [showCreate,  setShowCreate]  = useState(false)
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'ALL'>('ALL')
+  const canManageFinance = usePermission(Permission.FINANCE_MANAGE)
 
   async function load() {
     setLoading(true); setError(null)
@@ -251,14 +275,17 @@ export default function Payments() {
             className="p-2 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8 transition-colors disabled:opacity-50">
             <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
           </button>
-          <button className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-gray-200 dark:border-white/8 text-gray-600 dark:text-white/60 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+          <button onClick={() => exportInvoicesCSV(filtered)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-gray-200 dark:border-white/8 text-gray-600 dark:text-white/60 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
-            style={{ background: 'var(--ct-orange)' }}>
-            <Plus className="w-4 h-4" /> Create Invoice
-          </button>
+          {canManageFinance && (
+            <button onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+              style={{ background: 'var(--ct-orange)' }}>
+              <Plus className="w-4 h-4" /> Create Invoice
+            </button>
+          )}
         </div>
       </motion.div>
 

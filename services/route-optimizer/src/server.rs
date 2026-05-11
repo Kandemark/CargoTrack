@@ -1,14 +1,13 @@
 ﻿// gRPC server — tonic endpoint for CargoTrack route optimization.
 // Listens on GRPC_PORT (default 50051). Health probe on /ready and /health.
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::cache::lru::hash_request;
 use crate::cache::SolutionCache;
-use crate::models::{self, RouteSolution, VehicleRoute, RouteStop};
+use crate::models::{self, RouteSolution};
 use crate::solver::mvrp::MVRPSolver;
 use crate::solver::tsp::TSPSolver;
 use crate::solver::Solver;
@@ -59,10 +58,9 @@ impl RouteOptimizer for OptimizerService {
         request: Request<OptimizeRequest>,
     ) -> Result<Response<OptimizeResponse>, Status> {
         let req = request.into_inner();
-        let request_json = serde_json::to_string(&req)
-            .map_err(|e| Status::internal(format!("serialization: {e}")))?;
-
         let model_request = proto_to_model(&req);
+        let request_json = serde_json::to_string(&model_request)
+            .map_err(|e| Status::internal(format!("serialization: {e}")))?;
         let request_hash = hash_request(&request_json);
 
         // Check cache
@@ -117,7 +115,6 @@ impl RouteOptimizer for OptimizerService {
 // ── Conversion helpers ─────────────────────────────────────────────────────
 
 fn proto_to_model(req: &OptimizeRequest) -> models::RouteOptimizationRequest {
-    use chrono::DateTime;
     models::RouteOptimizationRequest {
         request_id: req.request_id.clone(),
         depot: models::Location {

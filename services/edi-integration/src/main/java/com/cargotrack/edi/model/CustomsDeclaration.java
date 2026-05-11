@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.model;
+package com.cargotrack.edi.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

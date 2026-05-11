@@ -4,7 +4,7 @@ defmodule CargoTrackWsWeb.Endpoint do
   # CORS for the Vite dev server (matches Django's CORS_ALLOWED_ORIGINS).
   # Configured via :cargotrack_ws, :cors_origins — see config/runtime.exs.
   plug Corsica,
-    origins: (Application.compile_env(:cargotrack_ws, :cors_origins, "http://localhost:5173")
+    origins: (Application.get_env(:cargotrack_ws, :cors_origins, "http://localhost:5173")
               |> String.split(",")
               |> Enum.map(&String.trim/1)),
     allow_credentials: true,

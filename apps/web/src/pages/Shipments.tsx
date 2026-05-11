@@ -17,7 +17,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Package, ChevronRight, ChevronLeft, AlertTriangle, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useShipmentStore } from '@/store/shipmentStore'
-import { useAuthStore } from '@/store/authStore'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import DataTable, { type ColumnDef } from '@/components/ui/DataTable'
 import type { ShipmentStatus, ShipmentListItem } from '@/types'
 
@@ -31,15 +32,13 @@ const STATUS_CONFIG: Record<ShipmentStatus, { label: string; bg: string; text: s
 
 const PAGE_SIZE = 20
 
-const CAN_CREATE = ['ADMIN', 'LOGISTICS_MGR']
-
 export default function Shipments() {
   const {
     shipments, totalCount, currentPage, isLoading, error,
     fetchShipments, setPage,
   } = useShipmentStore()
 
-  const userRole = useAuthStore((s) => s.user?.role)
+  const canCreate = usePermission(Permission.SHIPMENTS_CREATE)
   const navigate = useNavigate()
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
@@ -63,7 +62,7 @@ export default function Shipments() {
           <h1 className="text-xl font-semibold text-gray-900">Shipments</h1>
           <p className="text-sm text-gray-500 mt-0.5">{totalCount.toLocaleString()} total shipments</p>
         </div>
-        {userRole && CAN_CREATE.includes(userRole) && (
+        {canCreate && (
           <Link
             to="/shipments/new"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"

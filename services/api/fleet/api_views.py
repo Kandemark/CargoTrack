@@ -22,6 +22,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from cargotrack.authz import (
+    CanViewFleet, CanManageFleet, CanAssignFleet, CanManageFinance,
+    OrgScopedQueryset, DriverScopedQueryset,
+)
+
 from .models import Driver, DriverJobHistory, DriverExpense, Truck, TruckMaintenanceLog
 from .serializers import (
     DriverListSerializer,
@@ -34,7 +39,7 @@ from tracking.models import TrackingEvent
 from shipments.models import Shipment
 
 
-class TruckViewSet(viewsets.ModelViewSet):
+class TruckViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
     """
     CRUD endpoint for Truck fleet records.
 
@@ -49,8 +54,13 @@ class TruckViewSet(viewsets.ModelViewSet):
         GET /fleet/trucks/stats/ — aggregate counts by status
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewFleet]
     queryset = Truck.objects.select_related('assigned_driver').prefetch_related('maintenance_logs')
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), CanManageFleet()]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         # Use lightweight list serializer to avoid N+1 on nested relations
@@ -60,6 +70,7 @@ class TruckViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = self.scope_by_org(qs)
         s = self.request.query_params.get('status')
         if s:
             qs = qs.filter(status=s.upper())
@@ -87,7 +98,7 @@ class TruckViewSet(viewsets.ModelViewSet):
         })
 
 
-class DriverViewSet(viewsets.ModelViewSet):
+class DriverViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
     """
     CRUD endpoint for Driver records.
 
@@ -102,7 +113,12 @@ class DriverViewSet(viewsets.ModelViewSet):
         GET /fleet/drivers/stats/ — aggregated performance metrics
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewFleet]
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAuthenticated(), CanManageFleet()]
+        return super().get_permissions()
     queryset = Driver.objects.prefetch_related('job_history', 'assigned_truck')
 
     def get_serializer_class(self):
@@ -113,6 +129,7 @@ class DriverViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = self.scope_by_org(qs)
         s = self.request.query_params.get('status')
         if s:
             qs = qs.filter(status=s.upper())
@@ -181,7 +198,7 @@ class DriverViewSet(viewsets.ModelViewSet):
 
 
 class FleetStatsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewFleet]
 
     def get(self, request, **kwargs):
         truck_total = Truck.objects.count()
@@ -203,7 +220,7 @@ class DriverAnalyticsView(APIView):
     GET /api/v1/fleet/drivers/stats/
     Detailed per-driver performance analytics for the analytics dashboard.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewFleet]
 
     def get(self, request, **kwargs):
         drivers = Driver.objects.prefetch_related('job_history').all()
@@ -236,7 +253,7 @@ class DriverTripSheetView(APIView):
     with route details, fuel stops (from FuelOptimizer), border crossings, and
     a delivery checklist. Includes real-time GPS position of the truck.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewFleet]
 
     def get(self, request):
         user = request.user
@@ -346,7 +363,7 @@ class DriverExpenseViewSet(viewsets.ModelViewSet):
 
     Drivers see only their own expenses. Finance officers and admins see all.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanManageFinance]
     serializer_class = DriverExpenseSerializer
 
     def get_queryset(self):
@@ -381,7 +398,7 @@ class OfflineSyncView(APIView):
 
     All items are processed in a single transaction.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewFleet]
 
     def post(self, request):
         user = request.user
@@ -490,7 +507,7 @@ class AssignTruckView(APIView):
     Assign or unassign a driver to/from a truck.
     Body: {driver_id: "DRV-001"} to assign, {driver_id: null} to unassign.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanAssignFleet]
 
     def post(self, request, pk=None):
         try:

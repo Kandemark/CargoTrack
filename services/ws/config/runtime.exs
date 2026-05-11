@@ -13,5 +13,5 @@ config :cargotrack_ws, CargoTrackWsWeb.Endpoint,
   http: [port: port],
   secret_key_base: secret_key_base
 
-config :cargotrack_ws, :redis_url, redis_url
-config :cargotrack_ws, :cors_origins, cors_origins
+Application.put_env(:cargotrack_ws, :redis_url, redis_url)
+Application.put_env(:cargotrack_ws, :cors_origins, cors_origins)

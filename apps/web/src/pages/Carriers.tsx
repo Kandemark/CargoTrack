@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Plus, ChevronDown, ChevronUp, Star, Phone, Mail, MapPin, Loader2, AlertCircle } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import { carriersApi, type Carrier } from '@/api/carriers'
 
 const fade = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }
@@ -20,6 +22,7 @@ export default function Carriers() {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const canManageRates = usePermission(Permission.RATES_MANAGE)
   const [form, setForm] = useState<Partial<Carrier>>({
     status: 'ACTIVE', country: 'Kenya', on_time_rate: 95, rating: 4.5,
   })
@@ -69,12 +72,14 @@ export default function Carriers() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Carriers</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Manage carrier companies and performance</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" /> Add Carrier
-        </button>
+        {canManageRates && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" /> Add Carrier
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -251,12 +256,14 @@ export default function Carriers() {
                       {c.email && <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><Mail className="w-3.5 h-3.5 text-gray-400" />{c.email}</div>}
                       {c.headquarters && <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><MapPin className="w-3.5 h-3.5 text-gray-400" />{c.headquarters}, {c.country}</div>}
                       {c.contract_end && <div className="text-xs text-amber-600 dark:text-amber-400">Contract expires: {new Date(c.contract_end).toLocaleDateString()}</div>}
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        className="text-xs text-red-500 hover:underline mt-2"
-                      >
-                        Delete carrier
-                      </button>
+                      {canManageRates && (
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          className="text-xs text-red-500 hover:underline mt-2"
+                        >
+                          Delete carrier
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 )}

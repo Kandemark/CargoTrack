@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
+import { useAuthStore } from '@/store/authStore'
 
 interface SignalingCallbacks {
   onIncomingCall?: (payload: { call_id: number; caller_id: number; caller_name: string; conversation_id: number }) => void
@@ -16,7 +17,7 @@ export function useVideoSignaling(conversationId: number | null, callbacks: Sign
   const connect = useCallback(() => {
     if (!conversationId) return
 
-    const token = localStorage.getItem('access_token')
+    const token = useAuthStore.getState().accessToken
     if (!token) return
 
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'

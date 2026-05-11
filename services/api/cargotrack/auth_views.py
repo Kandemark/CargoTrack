@@ -11,6 +11,7 @@ import datetime
 from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
@@ -72,17 +73,18 @@ class CookieTokenObtainPairView(APIView):
     Authenticates user credentials and returns JWT tokens both as httpOnly
     cookies (for web) and in the response body (for mobile/API clients).
     """
+    permission_classes = [AllowAny]
     from rest_framework.throttling import ScopedRateThrottle
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'auth'
 
     def post(self, request, *args, **kwargs):
-        # Delegate credential validation to the existing secure view
+        # Delegate credential validation to the existing secure view.
+        # Pass the underlying Django HttpRequest so the inner DRF view
+        # can wrap it into a fresh rest_framework Request.
         from accounts.api_views import SecureTokenObtainPairView
-        from django.test import RequestFactory
-        # Re-use the existing secure login view logic (lockout, audit logging)
         inner_view = SecureTokenObtainPairView.as_view()
-        response = inner_view(request)
+        response = inner_view(request._request)
 
         if response.status_code != 200:
             return response

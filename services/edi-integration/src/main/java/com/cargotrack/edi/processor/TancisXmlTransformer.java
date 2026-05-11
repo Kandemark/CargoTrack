@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.processor;
+package com.cargotrack.edi.processor;
 
 import com.cargotrack.edi.model.CustomsDeclaration;
 import com.cargotrack.edi.model.CustomsDeclaration.AssessmentChannel;
@@ -118,23 +118,22 @@ public class TancisXmlTransformer {
         var body = exchange.getIn().getBody(String.class);
         var doc = parseXml(body);
 
-        var response = CustomsDeclaration.builder()
+        var builder = CustomsDeclaration.builder()
             .customsSystem("TANCIS")
             .declarationId(xpath(doc, "//DeclarationId"))
             .status(DeclarationStatus.ASSESSED)
             .dutyAmount(parseBigDecimal(xpath(doc, "//DutyAmount")))
             .vatAmount(parseBigDecimal(xpath(doc, "//VatAmount")))
             .exciseAmount(parseBigDecimal(xpath(doc, "//ExciseAmount")))
-            .totalTaxAmount(parseBigDecimal(xpath(doc, "//TotalTaxAmount")))
-            .build();
+            .totalTaxAmount(parseBigDecimal(xpath(doc, "//TotalTaxAmount")));
 
         var channel = xpath(doc, "//AssessmentChannel");
         if (channel != null) {
-            try { response.assessmentChannel(AssessmentChannel.valueOf(channel)); }
+            try { builder.assessmentChannel(AssessmentChannel.valueOf(channel)); }
             catch (IllegalArgumentException e) { /* keep null */ }
         }
 
-        exchange.getIn().setBody(response.build());
+        exchange.getIn().setBody(builder.build());
     }
 
     public void parseReleaseResponse(Exchange exchange) throws Exception {
@@ -167,7 +166,7 @@ public class TancisXmlTransformer {
             .assessmentChannel(parseAssessmentChannel(xpath(doc, "//AssessmentChannel")))
             .build();
 
-        exchange.getIn().setBody(response.build());
+        exchange.getIn().setBody(response);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────

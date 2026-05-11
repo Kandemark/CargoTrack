@@ -26,6 +26,10 @@ impl SolutionCache {
     pub fn put(&self, request_hash: String, solution: RouteSolution) {
         self.inner.lock().put(request_hash, solution);
     }
+
+    pub fn len(&self) -> usize {
+        self.inner.lock().len()
+    }
 }
 
 /// Generate a deterministic hash for a route optimization request.

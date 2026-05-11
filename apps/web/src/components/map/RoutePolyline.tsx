@@ -10,42 +10,7 @@
 import { Polyline } from 'react-leaflet'
 import { along, lineString } from '@turf/turf'
 import type { ShipmentListItem } from '@/types'
-
-// ── City coords (mirrors LiveMap) ───────────────────────────────────────────
-const CITY_COORDS: Record<string, [number, number]> = {
-  Mombasa:         [-4.0435,  39.6682],
-  Nairobi:         [-1.2921,  36.8219],
-  Kampala:         [ 0.3476,  32.5825],
-  Kigali:          [-1.9441,  30.0619],
-  'Dar es Salaam': [-6.7924,  39.2083],
-  Kisumu:          [-0.1022,  34.7617],
-  Eldoret:         [ 0.5143,  35.2698],
-  Bujumbura:       [-3.3731,  29.3644],
-  Juba:            [ 4.8594,  31.5713],
-  Dodoma:          [-6.1731,  35.7395],
-  Nakuru:          [-0.3031,  36.0800],
-  Thika:           [-1.0332,  37.0693],
-  Garissa:         [-0.4532,  39.6461],
-  Nyeri:           [-0.4218,  36.9479],
-  Malindi:         [-3.2175,  40.1169],
-  Voi:             [-3.3969,  38.5565],
-  Machakos:        [-1.5177,  37.2634],
-  Kericho:         [-0.3687,  35.2863],
-  Kakamega:        [ 0.2827,  34.7519],
-  Taveta:          [-3.3961,  37.6761],
-  Kajiado:         [-1.8521,  36.7756],
-  Embu:            [-0.5303,  37.4501],
-  Lamu:            [-2.2694,  40.9022],
-  Nanyuki:         [ 0.0072,  37.0741],
-  Kwale:           [-4.1740,  39.4526],
-}
-
-function lookupCoords(city: string): [number, number] | null {
-  const key = Object.keys(CITY_COORDS).find(
-    (k) => city.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(city.toLowerCase()),
-  )
-  return key ? CITY_COORDS[key] : null
-}
+import { CITY_COORDS, lookupCoords } from '@/lib/coords'
 
 function riskColor(score: number): string {
   if (score >= 0.7) return '#ef4444'

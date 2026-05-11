@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.processor;
+package com.cargotrack.edi.processor;
 
 import com.cargotrack.edi.model.CustomsDeclaration;
 import com.cargotrack.edi.model.CustomsDeclaration.DeclarationLineItem;

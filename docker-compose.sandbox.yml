@@ -140,8 +140,10 @@ services:
   # ── Frontend ──────────────────────────────────────────────────────────────
   frontend:
     build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+      context: ./apps/web
+      dockerfile: Dockerfile
+      additional_contexts:
+        shared-types: ./libs/shared-types
     depends_on:
       - backend
     environment:

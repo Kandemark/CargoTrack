@@ -111,10 +111,12 @@ function KpiCard({ label, value, suffix, sub, trend, trendLabel, iconBg, icon: I
       initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       onAnimationComplete={() => setActive(true)}
-      className="group bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-5 flex flex-col gap-3 shadow-card hover:shadow-elevated hover:-translate-y-0.5 transition-all duration-200"
+      className="group bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-100 dark:border-white/8 p-5
+        flex flex-col gap-3 shadow-card hover:shadow-xl hover:shadow-gray-100 dark:hover:shadow-black/20
+        hover:-translate-y-0.5 transition-all duration-300"
     >
       <div className="flex items-start justify-between">
-        <div className={cn('p-2.5 rounded-xl shadow-sm', iconBg)}>
+        <div className={cn('p-2.5 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300', iconBg)}>
           <Icon className="w-5 h-5 text-white" />
         </div>
         <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', trendCls)}>
@@ -123,7 +125,7 @@ function KpiCard({ label, value, suffix, sub, trend, trendLabel, iconBg, icon: I
         </span>
       </div>
       <div>
-        <p className="text-3xl font-bold text-gray-900 dark:text-white font-heading tabular-nums">
+        <p className="text-3xl font-bold text-gray-900 dark:text-white font-heading tabular-nums tracking-tight">
           {prefix}{displayed.toLocaleString()}{suffix}
         </p>
         <p className="text-sm font-medium text-gray-500 dark:text-white/50 mt-1">{label}</p>
@@ -377,21 +379,31 @@ export default function Dashboard() {
 
       {/* ── Hero: globe + quick stats ─────────────────────────────────────────── */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.45 }}
-        className="relative rounded-2xl overflow-hidden border border-white/0"
+        className="relative rounded-2xl overflow-hidden border border-white/0 shadow-2xl shadow-[#0f2d5e]/20"
         style={{ background: 'linear-gradient(135deg, #0f2d5e 0%, #0a1e40 60%, #071428 100%)' }}>
-        <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #f97316 0%, transparent 50%), radial-gradient(circle at 80% 20%, #3b82f6 0%, transparent 40%)' }} />
+        {/* Ambient glow orbs */}
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-[0.08] blur-[80px]"
+          style={{ background: 'radial-gradient(circle, #f97316 0%, transparent 70%)' }} />
+        <div className="absolute bottom-0 left-1/4 w-48 h-48 rounded-full opacity-[0.06] blur-[60px]"
+          style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }} />
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03]"
+          style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #f97316 0%, transparent 50%), radial-gradient(circle at 80% 20%, #3b82f6 0%, transparent 40%)' }} />
         <div className="relative grid grid-cols-1 lg:grid-cols-5 gap-0 min-h-[220px]">
 
           {/* Left stats */}
           <div className="lg:col-span-3 p-7 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <Globe className="w-4 h-4 text-orange-400" />
+                <div className="w-6 h-6 rounded-lg bg-[#f5801e]/20 flex items-center justify-center">
+                  <Globe className="w-3.5 h-3.5 text-orange-400" />
+                </div>
                 <span className="text-xs font-semibold text-orange-400 uppercase tracking-widest">Global Operations</span>
               </div>
               <h2 className="text-2xl font-bold text-white font-heading leading-tight">
-                CargoTrack Intelligence<br />
-                <span className="text-orange-400">East Africa Hub</span>
+                CargoTrack Intelligence
+                <br />
+                <span className="bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent">East Africa Hub</span>
               </h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
@@ -402,7 +414,7 @@ export default function Dashboard() {
                 { label: 'Exceptions', value: summary?.exception_count ?? 0, icon: AlertTriangle },
               ].map(({ label, value, icon: Icon }, i) => (
                 <motion.div key={label} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + i * 0.07 }}
-                  className="bg-white/8 backdrop-blur-sm rounded-xl px-3 py-3">
+                  className="bg-white/6 hover:bg-white/10 backdrop-blur-sm rounded-xl px-3 py-3 border border-white/5 hover:border-white/10 transition-all duration-200">
                   <Icon className="w-4 h-4 text-white/50 mb-1.5" />
                   <p className="text-xl font-bold text-white tabular-nums">{loading ? '—' : value.toLocaleString()}</p>
                   <p className="text-[10px] text-white/40 mt-0.5 uppercase tracking-wide">{label}</p>
@@ -423,10 +435,13 @@ export default function Dashboard() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="absolute bottom-4 right-4 bg-black/30 backdrop-blur-sm rounded-lg px-2.5 py-1.5 border border-white/10">
+            <div className="absolute bottom-4 right-4 bg-black/40 backdrop-blur-md rounded-lg px-2.5 py-1.5 border border-white/10 shadow-lg">
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
-                <span className="text-[10px] text-white/60 font-medium">Nairobi Hub · Live</span>
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-400" />
+                </span>
+                <span className="text-[10px] text-white/70 font-medium">Nairobi Hub · Live</span>
               </div>
             </div>
           </div>
@@ -444,12 +459,12 @@ export default function Dashboard() {
           ))
         ) : (
           <>
-            <KpiCard label="Total Shipments" value={summary.total_shipments} sub={`${summary.carrier_count} carriers`} trend="up" trendLabel="All time" iconBg="bg-blue-500" icon={Package} delay={0} sparkline={[40,55,45,65,70,60,80,75,90,summary.total_shipments > 0 ? 100 : 0]} />
-            <KpiCard label="In Transit" value={summary.active_shipments} sub="Currently active" trend="flat" trendLabel="Live" iconBg="bg-amber-500" icon={Truck} delay={0.05} sparkline={[30,40,35,50,45,55,50,60,55,summary.active_shipments > 0 ? 65 : 0]} />
-            <KpiCard label="Delayed" value={summary.delayed_shipments} sub={`${summary.exception_count} exceptions`} trend="down" trendLabel="Need action" iconBg="bg-red-500" icon={AlertTriangle} delay={0.10} />
-            <KpiCard label="On-Time Rate" value={Math.round(summary.on_time_rate)} suffix="%" sub={`${summary.delivered_shipments} delivered`} trend={summary.on_time_rate >= 90 ? 'up' : 'down'} trendLabel="Last 30d" iconBg="bg-emerald-500" icon={CheckCircle} delay={0.15} sparkline={[70,72,75,78,74,80,82,79,85,Math.round(summary.on_time_rate)]} />
-            <KpiCard label="Revenue MTD" value={Math.round(totalRevenueMTD / 1000)} prefix="" suffix="K KES" sub="Paid invoices this month" trend="up" trendLabel="MTD" iconBg="bg-violet-500" icon={DollarSign} delay={0.20} sparkline={revenueData.slice(-10).map(d => d.income / 1000)} />
-            <KpiCard label="Profit Margin" value={profitMargin > 0 ? profitMargin : Math.round(((summary.total_revenue_mtd ?? 0) - (summary.total_cost_mtd ?? 0)) / Math.max((summary.total_revenue_mtd ?? 1), 1) * 100)} suffix="%" sub="Revenue vs cost MTD" trend={profitMargin >= 20 ? 'up' : profitMargin > 0 ? 'flat' : 'down'} trendLabel="MTD" iconBg="bg-emerald-500" icon={DollarSign} delay={0.25} />
+            <KpiCard label="Total Shipments" value={summary.total_shipments} sub={`${summary.carrier_count} carriers`} trend="up" trendLabel="All time" iconBg="bg-gradient-to-br from-blue-500 to-blue-600" icon={Package} delay={0} sparkline={[40,55,45,65,70,60,80,75,90,summary.total_shipments > 0 ? 100 : 0]} />
+            <KpiCard label="In Transit" value={summary.active_shipments} sub="Currently active" trend="flat" trendLabel="Live" iconBg="bg-gradient-to-br from-amber-500 to-orange-500" icon={Truck} delay={0.05} sparkline={[30,40,35,50,45,55,50,60,55,summary.active_shipments > 0 ? 65 : 0]} />
+            <KpiCard label="Delayed" value={summary.delayed_shipments} sub={`${summary.exception_count} exceptions`} trend="down" trendLabel="Need action" iconBg="bg-gradient-to-br from-red-500 to-rose-500" icon={AlertTriangle} delay={0.10} />
+            <KpiCard label="On-Time Rate" value={Math.round(summary.on_time_rate)} suffix="%" sub={`${summary.delivered_shipments} delivered`} trend={summary.on_time_rate >= 90 ? 'up' : 'down'} trendLabel="Last 30d" iconBg="bg-gradient-to-br from-emerald-500 to-teal-500" icon={CheckCircle} delay={0.15} sparkline={[70,72,75,78,74,80,82,79,85,Math.round(summary.on_time_rate)]} />
+            <KpiCard label="Revenue MTD" value={Math.round(totalRevenueMTD / 1000)} prefix="" suffix="K KES" sub="Paid invoices this month" trend="up" trendLabel="MTD" iconBg="bg-gradient-to-br from-violet-500 to-purple-500" icon={DollarSign} delay={0.20} sparkline={revenueData.slice(-10).map(d => d.income / 1000)} />
+            <KpiCard label="Profit Margin" value={profitMargin > 0 ? profitMargin : Math.round(((summary.total_revenue_mtd ?? 0) - (summary.total_cost_mtd ?? 0)) / Math.max((summary.total_revenue_mtd ?? 1), 1) * 100)} suffix="%" sub="Revenue vs cost MTD" trend={profitMargin >= 20 ? 'up' : profitMargin > 0 ? 'flat' : 'down'} trendLabel="MTD" iconBg="bg-gradient-to-br from-emerald-500 to-green-500" icon={DollarSign} delay={0.25} />
           </>
         )}
       </div>
@@ -787,24 +802,27 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      {/* ── Activity bar ─────────────────────────────────────────────────────── */}
+      {/* ── Quick actions ──────────────────────────────────────────────────── */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.70 }}
         className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'Quick Tracking', desc: 'Search any shipment by number', icon: Package, to: '/tracking', color: 'var(--ct-navy)' },
-          { label: 'Live Map', desc: 'View all active shipments on map', icon: Map, to: '/live-map', color: '#22c55e' },
-          { label: 'AI Predictions', desc: 'Delay risk & route intelligence', icon: Activity, to: '/predictions', color: 'var(--ct-orange)' },
-        ].map(({ label, desc, icon: Icon, to, color }) => (
+          { label: 'Quick Tracking', desc: 'Search any shipment by number', icon: Package, to: '/tracking', gradient: 'from-blue-500/10 to-blue-600/10', iconColor: '#3b82f6' },
+          { label: 'Live Map', desc: 'View all active shipments on map', icon: Map, to: '/live-map', gradient: 'from-emerald-500/10 to-teal-500/10', iconColor: '#22c55e' },
+          { label: 'AI Predictions', desc: 'Delay risk & route intelligence', icon: Activity, to: '/predictions', gradient: 'from-orange-500/10 to-amber-500/10', iconColor: '#f97316' },
+        ].map(({ label, desc, icon: Icon, to, iconColor }) => (
           <Link key={label} to={to}
-            className="group flex items-center gap-4 bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 px-5 py-4 hover:border-gray-300 dark:hover:border-white/15 hover:shadow-elevated transition-all duration-200">
-            <div className="p-2.5 rounded-xl shrink-0" style={{ backgroundColor: `${color}18` }}>
-              <Icon className="w-5 h-5" style={{ color }} />
+            className="group flex items-center gap-4 bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-100
+              dark:border-white/8 px-5 py-4 hover:border-gray-300 dark:hover:border-white/15
+              hover:shadow-xl hover:shadow-gray-100 dark:hover:shadow-black/20 hover:-translate-y-0.5 transition-all duration-300">
+            <div className="p-2.5 rounded-xl shrink-0 group-hover:scale-110 transition-transform duration-300"
+              style={{ backgroundColor: `${iconColor}15` }}>
+              <Icon className="w-5 h-5" style={{ color: iconColor }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800 dark:text-white/90 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{label}</p>
-              <p className="text-xs text-gray-400 dark:text-white/40 truncate">{desc}</p>
+              <p className="text-sm font-semibold text-gray-800 dark:text-white/90">{label}</p>
+              <p className="text-xs text-gray-400 dark:text-white/40 truncate mt-0.5">{desc}</p>
             </div>
-            <ChevronRight className="w-4 h-4 text-gray-300 dark:text-white/20 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
+            <ChevronRight className="w-4 h-4 text-gray-300 dark:text-white/20 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
           </Link>
         ))}
       </motion.div>

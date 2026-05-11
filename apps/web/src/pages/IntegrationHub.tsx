@@ -4,6 +4,8 @@ import {
   Link2, CheckCircle, XCircle, AlertCircle, Settings,
   ExternalLink, Plus, Loader2, RefreshCw,
 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import { integrationsApi, type Integration } from '@/api/integrations'
 
 const STATUS_CFG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -20,6 +22,7 @@ export default function IntegrationHub() {
   const [category, setCategory] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const canAdminSystem = usePermission(Permission.ADMIN_SYSTEM)
   const [form, setForm] = useState<Partial<Integration>>({ category: 'CUSTOMS', status: 'DISCONNECTED' })
 
   const load = () => {
@@ -67,12 +70,14 @@ export default function IntegrationHub() {
             {connected} of {items.length} integrations connected
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" /> Add Integration
-        </button>
+        {canAdminSystem && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" /> Add Integration
+          </button>
+        )}
       </div>
 
       {/* Add form */}
@@ -212,12 +217,14 @@ export default function IntegrationHub() {
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   )}
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="ml-auto text-xs text-red-500 hover:underline"
-                  >
-                    Remove
-                  </button>
+                  {canAdminSystem && (
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="ml-auto text-xs text-red-500 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               </motion.div>
             )

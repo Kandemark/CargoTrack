@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.route;
+package com.cargotrack.edi.route;
 
 import com.cargotrack.edi.config.EdiGatewayConfig;
 import com.cargotrack.edi.processor.AsycudaEdifactTransformer;
@@ -37,7 +37,7 @@ public class AsycudaRoute extends RouteBuilder {
     @Override
     public void configure() {
         var asycuda = config.getCustomsSystems().get("asycuda");
-        if (asycuda == null) return;
+        if (asycuda == null || asycuda.getSftpHost() == null || asycuda.getSftpHost().isBlank()) return;
 
         errorHandler(deadLetterChannel("file:{{cargotrack.edi.dlq-dir}}/asycuda")
             .maximumRedeliveries(asycuda.getMaxRetries())
@@ -49,7 +49,7 @@ public class AsycudaRoute extends RouteBuilder {
             + "@" + asycuda.getSftpHost() + ":" + asycuda.getSftpPort()
             + asycuda.getSftpPickupDir()
             + "?password=" + asycuda.getSftpPassword()
-            + "&include=*CUSRES*|*CUSREP*"
+            + "&include=.*CUSRES.*|.*CUSREP.*"
             + "&delete=true"
             + "&delay=30000"
             + "&bridgeErrorHandler=true")
@@ -64,7 +64,7 @@ public class AsycudaRoute extends RouteBuilder {
             + "@" + asycuda.getSftpHost() + ":" + asycuda.getSftpPort()
             + asycuda.getSftpPickupDir()
             + "?password=" + asycuda.getSftpPassword()
-            + "&include=*STATUS*|*REPORT*"
+            + "&include=.*STATUS.*|.*REPORT.*"
             + "&delete=true"
             + "&delay=60000")
             .routeId("asycuda-poll-status")
@@ -105,15 +105,17 @@ public class AsycudaRoute extends RouteBuilder {
                 + "?password=" + asycuda.getSftpPassword());
 
         // ── AS2 transport for countries that support it ────────────────
-        from("direct:asycuda-as2-send")
-            .routeId("asycuda-as2-submit")
-            .log("ASYCUDA: sending via AS2 to ${header.as2-recipient}")
-            .to("as2://" + asycuda.getAs2Url()
-                + "?requestUri=" + asycuda.getAs2Url()
-                + "&subject=CargoTrack-EDI"
-                + "&from=" + asycuda.getAs2Id()
-                + "&signingCertificateChain=" + asycuda.getAs2Certificate()
-                + "&signingPrivateKey=" + asycuda.getAs2PrivateKey()
-                + "&dispositionNotificationTo=cargotrack@edigateway.local");
+        if (asycuda.getAs2Url() != null && !asycuda.getAs2Url().isBlank()) {
+            from("direct:asycuda-as2-send")
+                .routeId("asycuda-as2-submit")
+                .log("ASYCUDA: sending via AS2 to ${header.as2-recipient}")
+                .to("as2://" + asycuda.getAs2Url()
+                    + "?requestUri=" + asycuda.getAs2Url()
+                    + "&subject=CargoTrack-EDI"
+                    + "&from=" + asycuda.getAs2Id()
+                    + "&signingCertificateChain=" + asycuda.getAs2Certificate()
+                    + "&signingPrivateKey=" + asycuda.getAs2PrivateKey()
+                    + "&dispositionNotificationTo=cargotrack@edigateway.local");
+        }
     }
 }

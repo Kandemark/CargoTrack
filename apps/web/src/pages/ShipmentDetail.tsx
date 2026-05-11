@@ -19,7 +19,8 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, MapPin, Clock, Truck, AlertTriangle, RefreshCw, CheckCircle, PlusCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { shipmentsApi } from '@/api/shipments'
-import { useAuthStore } from '@/store/authStore'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import type { Shipment, TrackingEvent, DelayPrediction, ShipmentStatus } from '@/types'
 
 const STATUS_CONFIG: Record<ShipmentStatus, { label: string; bg: string; text: string; border: string }> = {
@@ -51,11 +52,9 @@ function fmtDatetime(iso: string) {
   })
 }
 
-const CAN_LOG_EVENTS = ['ADMIN', 'LOGISTICS_MGR', 'CARRIER']
-
 export default function ShipmentDetail() {
   const { id } = useParams<{ id: string }>()
-  const userRole = useAuthStore((s) => s.user?.role)
+  const canLogEvents = usePermission(Permission.SHIPMENTS_UPDATE)
   const [shipment, setShipment]   = useState<Shipment | null>(null)
   const [events, setEvents]       = useState<TrackingEvent[]>([])
   const [prediction, setPrediction] = useState<DelayPrediction | null>(null)
@@ -165,7 +164,7 @@ export default function ShipmentDetail() {
           <span className={cn('inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border', status.bg, status.text, status.border)}>
             {status.label}
           </span>
-          {userRole && CAN_LOG_EVENTS.includes(userRole) && (
+          {canLogEvents && (
             <Link
               to={`/shipments/${shipment.id}/log-event`}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-90"

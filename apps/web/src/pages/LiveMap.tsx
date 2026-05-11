@@ -29,6 +29,7 @@ import { buildTruckMarkerSVG } from '@/components/map/TruckMarker'
 import DriverInfoCard from '@/components/map/DriverInfoCard'
 import RoutePolyline from '@/components/map/RoutePolyline'
 import ClusterMarker from '@/components/map/ClusterMarker'
+import { CITY_COORDS, lookupCoords, EAST_AFRICA_CENTER, MAP_DEFAULT_ZOOM, CORRIDORS, STATUS_COLORS } from '@/lib/coords'
 
 // ── Fix Leaflet default icon ──────────────────────────────────────────────────
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
@@ -37,42 +38,6 @@ L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
-
-// ── East Africa city coordinates ──────────────────────────────────────────────
-const CITY_COORDS: Record<string, [number, number]> = {
-  Mombasa:         [-4.0435,  39.6682],
-  Nairobi:         [-1.2921,  36.8219],
-  Kampala:         [ 0.3476,  32.5825],
-  Kigali:          [-1.9441,  30.0619],
-  'Dar es Salaam': [-6.7924,  39.2083],
-  Kisumu:          [-0.1022,  34.7617],
-  Eldoret:         [ 0.5143,  35.2698],
-  Bujumbura:       [-3.3731,  29.3644],
-  Juba:            [ 4.8594,  31.5713],
-  Dodoma:          [-6.1731,  35.7395],
-  Nakuru:          [-0.3031,  36.0800],
-  Thika:           [-1.0332,  37.0693],
-  Garissa:         [-0.4532,  39.6461],
-  Nyeri:           [-0.4218,  36.9479],
-  Malindi:         [-3.2175,  40.1169],
-  Voi:             [-3.3969,  38.5565],
-  Machakos:        [-1.5177,  37.2634],
-  Kericho:         [-0.3687,  35.2863],
-  Kakamega:        [ 0.2827,  34.7519],
-  Taveta:          [-3.3961,  37.6761],
-  Kajiado:         [-1.8521,  36.7756],
-  Embu:            [-0.5303,  37.4501],
-  Lamu:            [-2.2694,  40.9022],
-  Nanyuki:         [ 0.0072,  37.0741],
-  Kwale:           [-4.1740,  39.4526],
-}
-
-function lookupCoords(city: string): [number, number] | null {
-  const key = Object.keys(CITY_COORDS).find(
-    (k) => city.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(city.toLowerCase()),
-  )
-  return key ? CITY_COORDS[key] : null
-}
 
 function bearingDeg(from: [number, number], to: [number, number]): number {
   const lat1 = (from[0] * Math.PI) / 180
@@ -107,24 +72,17 @@ function fmtETA(iso: string): string {
   return 'Arriving soon'
 }
 
-const MAP_CENTER: [number, number] = [-1.5, 36.5]
-const MAP_ZOOM = 6
+const MAP_CENTER = EAST_AFRICA_CENTER
+const MAP_ZOOM = MAP_DEFAULT_ZOOM
 const FALLBACK: [number, number] = MAP_CENTER
-
-// ── Trade corridors ───────────────────────────────────────────────────────────
-const CORRIDORS = [
-  { name: 'Northern Corridor', color: '#f97316', coords: [CITY_COORDS.Mombasa, CITY_COORDS.Nairobi, CITY_COORDS.Nakuru, CITY_COORDS.Eldoret, CITY_COORDS.Kampala, CITY_COORDS.Kigali] },
-  { name: 'Central Corridor',  color: '#60a5fa', coords: [CITY_COORDS['Dar es Salaam'], CITY_COORDS.Dodoma, CITY_COORDS.Kigali, CITY_COORDS.Bujumbura] },
-  { name: 'LAPSSET',           color: '#34d399', coords: [CITY_COORDS.Lamu, CITY_COORDS.Garissa, CITY_COORDS.Juba] },
-]
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CFG: Record<string, { color: string; label: string; icon: React.ElementType }> = {
-  IN_TRANSIT: { color: '#3b82f6', label: 'In Transit',  icon: Activity      },
-  CUSTOMS:    { color: '#f59e0b', label: 'At Customs',  icon: Clock         },
-  DELAYED:    { color: '#ef4444', label: 'Delayed',     icon: AlertTriangle },
-  PENDING:    { color: '#94a3b8', label: 'Pending',     icon: Package       },
-  DELIVERED:  { color: '#22c55e', label: 'Delivered',   icon: CheckCircle2  },
+  IN_TRANSIT: { color: STATUS_COLORS.IN_TRANSIT, label: 'In Transit',  icon: Activity      },
+  CUSTOMS:    { color: STATUS_COLORS.CUSTOMS,    label: 'At Customs',  icon: Clock         },
+  DELAYED:    { color: STATUS_COLORS.DELAYED,    label: 'Delayed',     icon: AlertTriangle },
+  PENDING:    { color: STATUS_COLORS.PENDING,    label: 'Pending',     icon: Package       },
+  DELIVERED:  { color: STATUS_COLORS.DELIVERED,  label: 'Delivered',   icon: CheckCircle2  },
 }
 
 function riskColor(score: number): string {

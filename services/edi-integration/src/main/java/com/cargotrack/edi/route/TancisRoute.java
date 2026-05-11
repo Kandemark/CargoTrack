@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.route;
+package com.cargotrack.edi.route;
 
 import com.cargotrack.edi.config.EdiGatewayConfig;
 import com.cargotrack.edi.processor.TancisXmlTransformer;
@@ -43,7 +43,7 @@ public class TancisRoute extends RouteBuilder {
     @Override
     public void configure() {
         var tancis = config.getCustomsSystems().get("tancis");
-        if (tancis == null) return;
+        if (tancis == null || tancis.getBaseUrl() == null || tancis.getBaseUrl().isBlank()) return;
 
         errorHandler(deadLetterChannel("kafka:cargotrack.edi.dlq")
             .maximumRedeliveries(tancis.getMaxRetries())

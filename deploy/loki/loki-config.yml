@@ -1,12 +1,8 @@
-﻿# Loki 3.x — log aggregation for CargoTrack sandbox.
-# Serves as the log backend for Grafana (datasource already provisioned).
-
-auth_enabled: false
+﻿auth_enabled: false
 
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
-  log_level: info
 
 common:
   instance_addr: 127.0.0.1
@@ -22,7 +18,7 @@ common:
 
 schema_config:
   configs:
-    - from: 2025-01-01
+    - from: 2024-01-01
       store: tsdb
       object_store: filesystem
       schema: v13
@@ -30,16 +26,5 @@ schema_config:
         prefix: index_
         period: 24h
 
-limits_config:
-  max_entries_limit_per_query: 5000
-  max_global_streams_per_user: 10000
-  allow_structured_metadata: true
-  volume_enabled: true
-  retention_period: 168h  # 7 days in sandbox
-
 compactor:
   working_directory: /loki/compactor
-  compaction_interval: 10m
-  retention_enabled: true
-  retention_delete_delay: 2h
-  retention_delete_worker_count: 150

@@ -11,8 +11,10 @@ import {
   ClipboardList, Anchor, Warehouse, Banknote, ShieldCheck,
   Route, AlertTriangle, TrendingUp, Radio, Leaf,
   Link2, ScrollText, DollarSign, BarChart2, BellRing, Gavel,
+  ClipboardCheck, Thermometer, Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ROLE_COLOR, ROLE_LABELS } from '@/lib/roleUtils'
 import { useAuthStore } from '@/store/authStore'
 import { useAlertStore } from '@/store/alertStore'
 import { useSidebarStore } from '@/store/sidebarStore'
@@ -32,30 +34,6 @@ interface NavSection {
 }
 
 // ── Role metadata ─────────────────────────────────────────────────────────────
-
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN:           'Administrator',
-  LOGISTICS_MGR:   'Logistics Manager',
-  CARRIER:         'Carrier / Driver',
-  CLIENT:          'Client',
-  DISPATCHER:      'Dispatcher',
-  CUSTOMS_BROKER:  'Customs Broker',
-  WAREHOUSE_MGR:   'Warehouse Manager',
-  PORT_AGENT:      'Port Agent',
-  FINANCE_OFFICER: 'Finance Officer',
-}
-
-const ROLE_COLOR: Record<string, string> = {
-  ADMIN:           '#dc2626',
-  LOGISTICS_MGR:   '#0f2d5e',
-  CARRIER:         '#2563eb',
-  CLIENT:          '#7c3aed',
-  DISPATCHER:      '#0891b2',
-  CUSTOMS_BROKER:  '#b45309',
-  WAREHOUSE_MGR:   '#16a34a',
-  PORT_AGENT:      '#0f766e',
-  FINANCE_OFFICER: '#9333ea',
-}
 
 // ── Role → nav sections ───────────────────────────────────────────────────────
 
@@ -80,6 +58,9 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/shared/alerts',   label: 'Alerts',        icon: Bell, alertBadge: true },
         { to: '/notifications',   label: 'Notifications', icon: BellRing        },
         { to: '/sla',             label: 'SLA Monitor',   icon: AlertTriangle   },
+        { to: '/pod',             label: 'Proof of Delivery', icon: ClipboardCheck },
+        { to: '/cold-chain',      label: 'Cold Chain',     icon: Thermometer     },
+        { to: '/eta',             label: 'ETA Tracker',    icon: Clock           },
       ],
     },
     {
@@ -135,6 +116,9 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/shared/alerts',   label: 'Alerts',        icon: Bell, alertBadge: true },
         { to: '/sla',             label: 'SLA Monitor',   icon: AlertTriangle   },
         { to: '/documents',       label: 'Documents',     icon: FileText        },
+        { to: '/pod',             label: 'Proof of Delivery', icon: ClipboardCheck },
+        { to: '/cold-chain',      label: 'Cold Chain',     icon: Thermometer     },
+        { to: '/eta',             label: 'ETA Tracker',    icon: Clock           },
       ],
     },
     {
@@ -180,6 +164,8 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/live-map',         label: 'Live Map',     icon: Map             },
         { to: '/shared/alerts',    label: 'Alerts',       icon: Bell, alertBadge: true },
         { to: '/documents',        label: 'Documents',    icon: FileText        },
+        { to: '/pod',             label: 'Proof of Delivery', icon: ClipboardCheck },
+        { to: '/eta',             label: 'ETA Tracker',    icon: Clock           },
       ],
     },
     {
@@ -207,6 +193,8 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/shared/alerts',    label: 'Alerts',       icon: Bell, alertBadge: true },
         { to: '/documents',        label: 'Documents',    icon: FileText        },
         { to: '/compliance',       label: 'Compliance',   icon: ShieldCheck     },
+        { to: '/pod',             label: 'Proof of Delivery', icon: ClipboardCheck },
+        { to: '/eta',             label: 'ETA Tracker',    icon: Clock           },
       ],
     },
     {
@@ -241,6 +229,8 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/carriers',           label: 'Carriers',       icon: Truck           },
         { to: '/shared/alerts',      label: 'Alerts',         icon: Bell, alertBadge: true },
         { to: '/sla',                label: 'SLA Monitor',    icon: AlertTriangle   },
+        { to: '/pod',             label: 'Proof of Delivery', icon: ClipboardCheck },
+        { to: '/eta',             label: 'ETA Tracker',    icon: Clock           },
       ],
     },
     {
@@ -308,6 +298,8 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/warehouse/outbound', label: 'Outbound',       icon: Truck           },
         { to: '/shared/alerts',      label: 'Alerts',         icon: Bell, alertBadge: true },
         { to: '/compliance',         label: 'Compliance',     icon: ShieldCheck     },
+        { to: '/pod',             label: 'Proof of Delivery', icon: ClipboardCheck },
+        { to: '/cold-chain',      label: 'Cold Chain',     icon: Thermometer     },
       ],
     },
     {
@@ -342,6 +334,8 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/port/manifest',      label: 'Manifests',      icon: ClipboardList   },
         { to: '/shared/alerts',      label: 'Alerts',         icon: Bell, alertBadge: true },
         { to: '/compliance',         label: 'Compliance',     icon: ShieldCheck     },
+        { to: '/pod',             label: 'Proof of Delivery', icon: ClipboardCheck },
+        { to: '/eta',             label: 'ETA Tracker',    icon: Clock           },
       ],
     },
     {
@@ -376,6 +370,7 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/finance/reports',    label: 'Reports',        icon: BarChart3       },
         { to: '/rates',              label: 'Rate Cards',     icon: DollarSign      },
         { to: '/shared/alerts',      label: 'Alerts',         icon: Bell, alertBadge: true },
+        { to: '/pod',             label: 'Proof of Delivery', icon: ClipboardCheck },
       ],
     },
     {

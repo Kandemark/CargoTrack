@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.route;
+package com.cargotrack.edi.route;
 
 import com.cargotrack.edi.config.EdiGatewayConfig;
 import com.cargotrack.edi.processor.TradeNetRequestBuilder;
@@ -42,20 +42,10 @@ public class TradeNetRoute extends RouteBuilder {
     @Override
     public void configure() {
         var tradenet = config.getCustomsSystems().get("tradenet");
-        if (tradenet == null) return;
+        if (tradenet == null || tradenet.getBaseUrl() == null || tradenet.getBaseUrl().isBlank()) return;
 
         var jaxb = new JaxbDataFormat();
         jaxb.setContextPath("com.cargotrack.edi.tradenet");
-
-        // Circuit breaker for the upstream customs system
-        var cb = circuitBreaker()
-            .resilience4jConfiguration()
-            .timeoutEnabled(true)
-            .timeoutDuration(tradenet.getConnectTimeoutMs())
-            .minimumNumberOfCalls(3)
-            .failureRateThreshold(50)
-            .waitDurationInOpenState(30_000)
-            .end();
 
         // Dead-letter channel for failed customs submissions
         errorHandler(deadLetterChannel("kafka:cargotrack.edi.dlq")

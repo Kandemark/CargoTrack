@@ -14,3 +14,15 @@ media/
 .pytest_cache/
 htmlcov/
 .coverage
+# Build artifacts
+**/target/
+**/*.exe
+**/*.jar
+**/build/
+**/.gradle/
+**/deps/
+**/_build/
+# Large data
+**/postgres_data/
+**/kafka_data/
+**/redis_data/

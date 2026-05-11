@@ -19,9 +19,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShieldCheck, FileText, AlertTriangle, CheckCircle2, Clock,
   Package, RefreshCw, XCircle, ChevronDown, ChevronUp,
-  Stamp, Globe, Banknote, TrendingDown, AlertOctagon,
+  Stamp, Globe, Banknote, TrendingDown, AlertOctagon, Search,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { customsApi, type BorderCrossingsResponse } from '@/api/customs'
+import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { shipmentsApi } from '@/api/shipments'
 import { alertsApi } from '@/api/alerts'
@@ -216,7 +217,38 @@ export default function CustomsPortal() {
   const [pending,   setPending]   = useState<ShipmentListItem[]>([])
   const [alerts,    setAlerts]    = useState<{ id: number; message: string; severity: string }[]>([])
   const [loading,   setLoading]   = useState(true)
-  const [activeTab, setTab]       = useState<'queue' | 'pipeline' | 'compliance'>('queue')
+  const loc = useLocation()
+  function tabFromPath(): 'queue' | 'pipeline' | 'compliance' | 'borders' {
+    if (loc.pathname.includes('/customs/queue')) return 'queue'
+    return 'pipeline'
+  }
+  const [activeTab, setTab] = useState<'queue' | 'pipeline' | 'compliance' | 'borders'>(tabFromPath)
+
+  // Borders state
+  const [bordersData, setBordersData] = useState<BorderCrossingsResponse | null>(null)
+  const [bordersLoading, setBordersLoading] = useState(false)
+  const [tariffHs, setTariffHs] = useState('')
+  const [tariffCountry, setTariffCountry] = useState('KE')
+  const [tariffResult, setTariffResult] = useState<Record<string, unknown> | null>(null)
+  const [tariffLoading, setTariffLoading] = useState(false)
+
+  async function loadBorders() {
+    setBordersLoading(true)
+    try {
+      const { data } = await customsApi.getBorders()
+      setBordersData(data)
+    } catch { /* silent */ } finally { setBordersLoading(false) }
+  }
+
+  async function lookupTariff(e: React.FormEvent) {
+    e.preventDefault()
+    if (!tariffHs) return
+    setTariffLoading(true)
+    try {
+      const { data } = await customsApi.lookupTariff(tariffHs, tariffCountry)
+      setTariffResult(data)
+    } catch { /* silent */ } finally { setTariffLoading(false) }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -235,6 +267,7 @@ export default function CustomsPortal() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => { setTab(tabFromPath()) }, [loc.pathname])
 
   const ready    = atCustoms.filter(() => Math.random() > 0.4)
   const blocked  = atCustoms.filter(() => Math.random() > 0.6)
@@ -295,6 +328,7 @@ export default function CustomsPortal() {
             { key: 'queue',      label: 'Clearance Queue',  icon: Stamp,       count: atCustoms.length },
             { key: 'pipeline',   label: 'Incoming Pipeline',icon: Globe,       count: pending.length   },
             { key: 'compliance', label: 'Compliance Alerts',icon: ShieldCheck, count: alerts.length    },
+            { key: 'borders',    label: 'Borders & Tariff', icon: Globe,       count: 0 },
           ].map(({ key, label, icon: Icon, count }) => (
             <button key={key}
               onClick={() => setTab(key as typeof activeTab)}
@@ -378,6 +412,82 @@ export default function CustomsPortal() {
                     </div>
                   </motion.div>
                 ))}
+              </div>
+            )}
+
+            {activeTab === 'borders' && (
+              <div className="p-5">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {/* Border Crossings */}
+                  <div>
+                    <p className="text-sm font-bold text-gray-700 dark:text-white/80 mb-3">Border Crossings</p>
+                    {bordersData ? (
+                      <div className="space-y-2 max-h-80 overflow-y-auto">
+                        <p className="text-xs text-gray-400 dark:text-white/30 mb-2">{bordersData.border_crossings.length} crossings · {bordersData.customs_systems.length} customs systems</p>
+                        {bordersData.border_crossings.map((b, i) => (
+                          <div key={i} className="rounded-lg border border-gray-100 dark:border-white/6 p-3 bg-gray-50 dark:bg-white/3">
+                            <p className="text-xs font-semibold text-gray-800 dark:text-white">{b.name}</p>
+                            <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400 dark:text-white/30">
+                              <span>System: {b.customs_system}</span>
+                              <span>Office: {b.office_code}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {bordersData.customs_systems.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs font-semibold text-gray-500 dark:text-white/40 mb-1.5">Customs Systems</p>
+                            {bordersData.customs_systems.map((s, i) => (
+                              <div key={i} className="flex items-center justify-between text-xs px-3 py-1.5 rounded bg-gray-50 dark:bg-white/5 mb-1">
+                                <span className="font-mono text-gray-700 dark:text-white/70">{s.code}</span>
+                                <span className="text-gray-400">{s.country} — {s.description}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <button onClick={loadBorders} disabled={bordersLoading}
+                        className="w-full px-4 py-12 rounded-xl border-2 border-dashed border-gray-200 dark:border-white/10 text-sm text-gray-400 dark:text-white/30 hover:border-amber-300 dark:hover:border-amber-600 hover:text-amber-500 transition-colors">
+                        {bordersLoading ? 'Loading…' : 'Load Border Crossings'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Tariff Lookup */}
+                  <div>
+                    <p className="text-sm font-bold text-gray-700 dark:text-white/80 mb-3">Tariff Lookup</p>
+                    <form onSubmit={lookupTariff} className="space-y-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-white/40 mb-1">HS Code</label>
+                        <input type="text" value={tariffHs} onChange={(e) => setTariffHs(e.target.value)}
+                          placeholder="e.g. 8703.23"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-white/40 mb-1">Country</label>
+                        <select value={tariffCountry} onChange={(e) => setTariffCountry(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+                          <option value="KE">Kenya</option><option value="TZ">Tanzania</option><option value="UG">Uganda</option><option value="RW">Rwanda</option>
+                        </select>
+                      </div>
+                      <button type="submit" disabled={tariffLoading}
+                        className="w-full px-4 py-2 rounded-lg text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-60 transition-colors inline-flex items-center justify-center gap-1.5">
+                        <Search className="w-3.5 h-3.5" /> {tariffLoading ? 'Looking up…' : 'Lookup Tariff'}
+                      </button>
+                    </form>
+                    {tariffResult && (
+                      <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30">
+                        <p className="text-xs text-amber-600 dark:text-amber-300 mb-1">HS Code: {tariffHs}</p>
+                        {Object.entries(tariffResult).map(([k, v]) => (
+                          <div key={k} className="flex justify-between text-xs py-0.5">
+                            <span className="text-gray-500 dark:text-white/40">{k.replace(/_/g, ' ')}</span>
+                            <span className="font-mono font-semibold text-gray-800 dark:text-white">{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </motion.div>

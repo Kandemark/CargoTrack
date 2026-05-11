@@ -4,6 +4,8 @@ import {
   Search, Plus, Filter, AlertCircle, RefreshCw,
   Gavel, Package, ClipboardList, X,
 } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import { marketplaceApi } from '@/api/marketplace'
 import ListingCard from '@/components/marketplace/ListingCard'
 import BidModal from '@/components/marketplace/BidModal'
@@ -43,6 +45,7 @@ export default function JobBoard() {
   const [bidListing, setBidListing] = useState<FreightListing | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [detailListing, setDetailListing] = useState<FreightListing | null>(null)
+  const canManageMarketplace = usePermission(Permission.MARKETPLACE_MANAGE)
   const [acceptingBid, setAcceptingBid] = useState<number | null>(null)
 
   const loadListings = useCallback(async () => {
@@ -125,13 +128,15 @@ export default function JobBoard() {
             Browse, bid, and manage freight listings
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="px-4 py-2.5 rounded-xl bg-ct-orange text-white font-semibold text-sm hover:bg-orange-600
-            transition-colors flex items-center gap-2 shadow-lg shadow-orange-500/20"
-        >
-          <Plus className="w-4 h-4" /> Post Listing
-        </button>
+        {canManageMarketplace && (
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="px-4 py-2.5 rounded-xl bg-ct-orange text-white font-semibold text-sm hover:bg-orange-600
+              transition-colors flex items-center gap-2 shadow-lg shadow-orange-500/20"
+          >
+            <Plus className="w-4 h-4" /> Post Listing
+          </button>
+        )}
       </div>
 
       {/* Tabs */}

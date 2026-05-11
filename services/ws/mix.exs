@@ -7,6 +7,7 @@ defmodule CargoTrackWs.MixProject do
       version: "0.1.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
+      releases: [cargotrack_ws: [validate_compile_env: false]],
       deps: deps()
     ]
   end

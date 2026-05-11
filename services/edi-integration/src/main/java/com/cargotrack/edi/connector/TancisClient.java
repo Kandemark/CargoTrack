@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.connector;
+package com.cargotrack.edi.connector;
 
 import com.cargotrack.edi.config.EdiGatewayConfig;
 import com.cargotrack.edi.model.TariffQuery;

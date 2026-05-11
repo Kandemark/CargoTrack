@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, OpenApiExample
 
+from cargotrack.authz import CanViewPredictions
 from cargotrack.ml.delay_predictor import DelayPredictor
 from cargotrack.ml.demand_forecaster import DemandForecaster
 from cargotrack.ml.dynamic_pricing import DynamicPricingEngine
@@ -97,7 +98,7 @@ def _get_container_matcher() -> ContainerMatcher:
 # ── Prediction Endpoints ─────────────────────────────────────────────────
 
 class DelayPredictionView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     @extend_schema(
         description="Predict delay risk for a shipment given route and timing context.",
@@ -162,7 +163,7 @@ class DelayPredictionView(APIView):
 
 
 class DemandForecastView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     def post(self, request):
         corridor = request.data.get("corridor", "Mombasa-Nairobi")
@@ -179,7 +180,7 @@ class DemandForecastView(APIView):
 
 
 class PricingRecommendationView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     def post(self, request):
         booking = {
@@ -201,7 +202,7 @@ class PricingRecommendationView(APIView):
 
 
 class TheftRiskView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     def post(self, request):
         context = {
@@ -223,7 +224,7 @@ class TheftRiskView(APIView):
 
 
 class DriverScoreView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     def post(self, request):
         single = request.data.get("driver")
@@ -251,7 +252,7 @@ def _tier_distribution(scores: list[dict]) -> dict[str, int]:
 
 
 class BorderDelayView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     def post(self, request):
         predictor = _get_border_predictor()
@@ -270,7 +271,7 @@ class BorderDelayView(APIView):
 
 
 class FuelOptimizeView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     def post(self, request):
         waypoints = request.data.get("waypoints", [])
@@ -307,7 +308,7 @@ class FuelOptimizeView(APIView):
 
 
 class ContainerMatchView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     def post(self, request):
         shipments_data = request.data.get("shipments", [])
@@ -351,7 +352,7 @@ class ContainerMatchView(APIView):
 class ShipmentPredictionView(APIView):
     """Unified endpoint: returns all predictions for a given shipment context."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CanViewPredictions]
 
     def post(self, request):
         corridor = request.data.get("corridor", "Mombasa-Nairobi")

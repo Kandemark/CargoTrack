@@ -22,6 +22,13 @@ from rest_framework.views import APIView
 
 from cargotrack.async_cache import AsyncCacheMixin
 from cargotrack.cache import invalidate_dashboard_caches
+from cargotrack.authz import (              # Granular AuthZ shortcuts
+    CanViewShipments, CanDispatchShipments, CanViewRates,
+    CanViewFinance, CanManageFinance, CanViewCustoms, CanSubmitCustoms,
+    CanViewPorts, CanViewDocuments, CanUploadDocuments,
+    CanViewAnalytics, CanExportAnalytics,
+    OrgScopedQueryset,
+)
 from .models import ComplianceDoc, Document, Route, Shipment
 from .serializers import (
     ComplianceDocSerializer,
@@ -74,23 +81,24 @@ class RouteListAPIView(AsyncCacheMixin, generics.ListAPIView):
 
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewShipments]
     pagination_class = None
     cache_ttl = 300  # 5-min cache — routes rarely change
 
 
-class ShipmentListCreateAPIView(generics.ListCreateAPIView):
+class ShipmentListCreateAPIView(OrgScopedQueryset, generics.ListCreateAPIView):
     """
     GET  /shipments/  — paginated list of all shipments.
     POST /shipments/  — create a new shipment; tracking_number auto-generated.
     """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewShipments]
 
     def get_queryset(self):
         qs = Shipment.objects.select_related(
             "route", "carrier", "assigned_truck", "assigned_driver",
         ).order_by("-created_at")
+        qs = self.scope_by_org(qs)
         status_filter = self.request.query_params.get("status")
         if status_filter:
             qs = qs.filter(status=status_filter.upper())
@@ -126,7 +134,7 @@ class ShipmentDetailAPIView(generics.RetrieveUpdateAPIView):
     queryset = Shipment.objects.select_related(
         "route", "carrier", "assigned_truck", "assigned_driver",
     ).all()
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, CanViewShipments]
     http_method_names = ["get", "patch", "head", "options"]
 
     def get_serializer_class(self):
@@ -177,7 +185,7 @@ class PredictDelayAPIView(APIView):
     work runs on separate OS threads.
     """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewShipments]
     _executor = None
 
     @classmethod
@@ -244,7 +252,7 @@ class ShipmentDocumentListCreateAPIView(generics.ListCreateAPIView):
     POST /api/v1/shipments/<pk>/documents/ — upload a document (multipart/form-data).
     """
     serializer_class   = DocumentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewDocuments]
     parser_classes: list  # accept multipart uploads
 
     def get_queryset(self):
@@ -262,7 +270,7 @@ class ComplianceDocListCreateView(generics.ListCreateAPIView):
     GET  /api/v1/shipments/<pk>/compliance/    — docs for a specific shipment.
     """
     serializer_class   = ComplianceDocSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewDocuments]
 
     def get_queryset(self):
         shipment_pk = self.kwargs.get('pk')
@@ -278,7 +286,7 @@ class ComplianceDocListCreateView(generics.ListCreateAPIView):
 class ComplianceDocDetailView(generics.RetrieveUpdateDestroyAPIView):
     """GET/PATCH/DELETE /api/v1/compliance/<pk>/"""
     serializer_class   = ComplianceDocSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewDocuments]
     queryset = ComplianceDoc.objects.select_related('shipment').all()
 
 
@@ -287,7 +295,7 @@ class SLAListView(APIView):
     GET /api/v1/sla/ — SLA compliance data derived from shipments.
     Returns per-shipment SLA status based on scheduled vs actual arrival.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
         from django.utils import timezone
@@ -358,7 +366,7 @@ class AnalyticsView(AsyncCacheMixin, APIView):
     """
     GET /api/v1/analytics/ — aggregated analytics for dashboards.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
     cache_ttl = 120  # 2-min cache
 
     def get(self, request, **kwargs):
@@ -447,7 +455,7 @@ class CarbonView(AsyncCacheMixin, APIView):
     GET /api/v1/carbon/ — carbon emission analytics computed from shipments.
     Emission factor: 0.096 kg CO2 per tonne-km (average road freight EA).
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
     cache_ttl = 300  # 5-min cache
 
     def get(self, request, **kwargs):
@@ -560,7 +568,7 @@ class ProfitAnalyticsView(AsyncCacheMixin, APIView, DateRangeFilterMixin):
     Margin analysis: joins Shipment → Invoice → RateCard to estimate
     revenue, cost, and profit per shipment/month/carrier/route.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
     cache_ttl = 180  # 3-min cache
 
     def get(self, request, **kwargs):
@@ -694,7 +702,7 @@ class RouteAnalyticsView(APIView, DateRangeFilterMixin):
     GET /api/v1/analytics/routes/
     Per-route origin→destination aggregated KPIs.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
         shipments = Shipment.objects.select_related('route').all()
@@ -751,7 +759,7 @@ class CarrierBenchmarkView(APIView, DateRangeFilterMixin):
     GET /api/v1/analytics/carrier-benchmark/
     Per-carrier stats with percentile rankings across all carriers.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
         shipments = Shipment.objects.select_related('route').all()
@@ -821,7 +829,7 @@ class CorridorAnalyticsView(APIView, DateRangeFilterMixin):
     GET /api/v1/analytics/corridors/
     KPI comparison across the three East African trade corridors.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     # City → corridor mapping
     CORRIDOR_CITIES = {
@@ -900,7 +908,7 @@ class CustomerAnalyticsView(APIView, DateRangeFilterMixin):
     GET /api/v1/analytics/customers/
     Per-client shipment volume, spend, on-time rate, and retention metrics.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
         shipments = Shipment.objects.select_related('route', 'client').all()
@@ -966,7 +974,7 @@ class TemporalAnalyticsView(APIView, DateRangeFilterMixin):
     GET /api/v1/analytics/temporal/
     Hour-of-day, day-of-week, and monthly seasonality patterns.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
         shipments = Shipment.objects.all()
@@ -1027,7 +1035,7 @@ class AnalyticsExportView(APIView, DateRangeFilterMixin):
     GET /api/v1/analytics/export/?format=csv&dataset=shipments|carriers|financial|drivers
     Exports analytics as downloadable CSV.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanExportAnalytics]
 
     def get(self, request, **kwargs):
         fmt = request.query_params.get('format', 'csv')
@@ -1123,7 +1131,7 @@ class DispatchShipmentView(APIView):
     shipment's dispatch_status from UNASSIGNED to DISPATCHED through the
     proper state machine: UNASSIGNED → OFFERED → ACCEPTED → DISPATCHED.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanDispatchShipments]
 
     def post(self, request, pk, **kwargs):
         shipment = get_object_or_404(Shipment, pk=pk)
@@ -1158,7 +1166,7 @@ class DispatchShipmentView(APIView):
 
 class PerformanceAnalyticsView(APIView):
     """GET /api/v1/analytics/performance/ — on-time rates, avg miles, bid success."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
         from django.db.models import Avg, Count, Q, Sum, F
@@ -1218,7 +1226,7 @@ class PerformanceAnalyticsView(APIView):
 
 class DriverLeaderboardView(APIView):
     """GET /api/v1/analytics/driver-leaderboard/ — ranked driver performance."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
         from fleet.models import Driver
@@ -1261,7 +1269,7 @@ class DocumentExtractionView(APIView):
 
     Response: JSON with document_type, confidence, raw_text, and extracted_fields.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanUploadDocuments]
     parser_classes = []  # use default multipart/form-data parser
 
     def post(self, request):
@@ -1356,7 +1364,7 @@ class DocumentExtractionDetailView(APIView):
     GET    /api/v1/documents/<pk>/extraction/ — get extraction for a document.
     DELETE /api/v1/documents/<pk>/extraction/ — delete extraction (re-extract).
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewDocuments]
 
     def get(self, request, pk):
         from .models import DocumentExtraction
@@ -1386,7 +1394,7 @@ class DocumentExtractionDetailView(APIView):
 
 class BidAnalyticsView(APIView):
     """GET /api/v1/analytics/bid-analytics/ — bid trends and carrier success rates."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
         from marketplace.models import Bid, FreightListing
@@ -1436,7 +1444,7 @@ class BidAnalyticsView(APIView):
 
 class CustomsDeclarationView(APIView):
     """POST /api/v1/customs/declare/ — submit a customs declaration for a shipment."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanSubmitCustoms]
 
     def post(self, request, **kwargs):
         from .customs import (
@@ -1521,7 +1529,7 @@ class CustomsDeclarationView(APIView):
 
 class CustomsStatusView(APIView):
     """GET /api/v1/customs/status/?id=<declaration_id>&system=<TRADENET|ASYCUDA|TANCIS>"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewCustoms]
 
     def get(self, request, **kwargs):
         from .customs import customs_service, CustomsSystem
@@ -1544,7 +1552,7 @@ class CustomsStatusView(APIView):
 
 class TariffLookupView(APIView):
     """GET /api/v1/customs/tariff/?hs=<hs_code>&country=<KE|TZ|UG|RW|BI>"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewCustoms]
 
     def get(self, request, **kwargs):
         from .customs import customs_service
@@ -1564,7 +1572,7 @@ class TariffLookupView(APIView):
 
 class BorderCrossingInfoView(APIView):
     """GET /api/v1/customs/borders/ — list EAC border crossings and their customs systems."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewCustoms]
 
     def get(self, request, **kwargs):
         from .customs import BORDER_CROSSING_SYSTEM
@@ -1589,7 +1597,7 @@ class BorderCrossingInfoView(APIView):
 
 class RealTimeETAView(APIView):
     """GET /api/v1/eta/?tracking=<tracking_number>&lat=<lat>&lon=<lon>&speed=<kmh>"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewShipments]
 
     def get(self, request, **kwargs):
         from .eta_engine import eta_engine
@@ -1663,7 +1671,7 @@ class RealTimeETAView(APIView):
 
 class BatchETAView(APIView):
     """POST /api/v1/eta/batch/ — fleet-wide ETA calculation."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewShipments]
 
     def post(self, request, **kwargs):
         from .eta_engine import eta_engine
@@ -1697,7 +1705,7 @@ class BatchETAView(APIView):
 
 class CurrencyConvertView(APIView):
     """GET /api/v1/finance/convert/?from=USD&to=KES&amount=100"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewFinance]
 
     def get(self, request, **kwargs):
         from finance.services import get_exchange_rate, convert_currency
@@ -1726,7 +1734,7 @@ class CurrencyConvertView(APIView):
 
 class TaxSummaryView(APIView):
     """GET /api/v1/finance/taxes/ — EAC tax rates summary"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewFinance]
 
     def get(self, request, **kwargs):
         from finance.services import get_eac_tax_summary
@@ -1735,7 +1743,7 @@ class TaxSummaryView(APIView):
 
 class InvoiceCalculateView(APIView):
     """POST /api/v1/finance/calculate/ — calculate invoice with tax breakdown"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanManageFinance]
 
     def post(self, request, **kwargs):
         from finance.services import calculate_invoice_total
@@ -1766,7 +1774,7 @@ class InvoiceCalculateView(APIView):
 
 class RateLookupView(APIView):
     """GET /api/v1/rates/?origin=Mombasa&dest=Nairobi&weight=5000"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewRates]
 
     def get(self, request, **kwargs):
         from contracts.services import match_rate, compare_contract_vs_spot
@@ -1791,7 +1799,7 @@ class RateLookupView(APIView):
 
 class RateComparisonView(APIView):
     """GET /api/v1/rates/compare/?origin=Mombasa&dest=Nairobi&weight=5000"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewRates]
 
     def get(self, request, **kwargs):
         from contracts.services import compare_contract_vs_spot
@@ -1810,7 +1818,7 @@ class RateComparisonView(APIView):
 
 class DemurrageCalculateView(APIView):
     """GET /api/v1/demurrage/?port=KEMBA&container_type=40FT_DRY&type=IMPORT&arrival=yyyy-mm-dd&return=yyyy-mm-dd"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewPorts]
 
     def get(self, request, **kwargs):
         from demurrage.calculator import calculate_demurrage, calculate_detention
@@ -1844,7 +1852,7 @@ class DemurrageCalculateView(APIView):
 
 class DemurragePortStatusView(APIView):
     """GET /api/v1/demurrage/port/?port=KEMBA"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanViewPorts]
 
     def get(self, request, **kwargs):
         from demurrage.calculator import batch_port_status, PORT_FREE_DAYS

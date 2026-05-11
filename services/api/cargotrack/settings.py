@@ -64,6 +64,7 @@ if DEBUG:
 # ── Installed apps ────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
     'daphne',  # ASGI server — must be listed first
+    'django_prometheus',  # Prometheus /metrics — must be early
 
     # Django built-ins
     'django.contrib.admin',
@@ -104,6 +105,7 @@ INSTALLED_APPS = [
 # CorsMiddleware must appear before CommonMiddleware so preflight OPTIONS
 # requests are handled before Django's common checks run.
 MIDDLEWARE = [
+    'django_prometheus.middleware.PrometheusBeforeMiddleware',
     'django.middleware.security.SecurityMiddleware',
     # GZip compression: placed early so all downstream responses are compressed.
     'django.middleware.gzip.GZipMiddleware',
@@ -115,11 +117,13 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'cargotrack.middleware.TenantMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # N+1 query detection — warns when a request triggers excessive DB queries.
     # Set QUERY_PROFILER_THRESHOLD in .env to adjust (default 50).
     'cargotrack.query_profiler.QueryProfilerMiddleware',
+    'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
 
 ROOT_URLCONF = 'cargotrack.urls'
@@ -162,7 +166,8 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': config('REDIS_URL', default='redis://localhost:6379/1'),
         'OPTIONS': {
-            'CLIENT_CLASS': 'django.core.cache.backends.redis.RedisClient',
+            'socket_connect_timeout': 5,
+            'socket_timeout': 5,
         },
         'TIMEOUT': 300,  # 5-minute default TTL
         'KEY_PREFIX': 'ct',

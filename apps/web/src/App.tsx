@@ -20,6 +20,7 @@
  *                  /analytics /carriers /notifications /sla /carbon
  *                  /integrations /audit /rates /compliance
  */
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getRoleDashboard, ROLES } from '@/lib/roleUtils'
@@ -82,6 +83,9 @@ import RateCards          from '@/pages/RateCards'
 import Compliance         from '@/pages/Compliance'
 import JobBoard           from '@/pages/JobBoard'
 import PerformanceMetrics from '@/pages/PerformanceMetrics'
+import POD                 from '@/pages/POD'
+import ColdChain           from '@/pages/ColdChain'
+import ETA                 from '@/pages/ETA'
 
 // ── Landing gate — authenticated users go to their role dashboard ─────────────
 
@@ -92,11 +96,25 @@ function LandingRoute() {
     : <Landing />
 }
 
+// ── Auth token restoration — on page refresh, user is in localStorage but the
+//    access token (held in JS memory only) is lost.  Restore it via the refresh
+//    endpoint which reads the httpOnly refresh cookie.
+function AuthRestorer() {
+  const { isAuthenticated, accessToken, restoreAccessToken } = useAuthStore()
+  useEffect(() => {
+    if (isAuthenticated && !accessToken) {
+      restoreAccessToken()
+    }
+  }, [isAuthenticated, accessToken, restoreAccessToken])
+  return null
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthRestorer />
       <Routes>
 
         {/* ── Public ───────────────────────────────────────────────────────── */}
@@ -144,6 +162,9 @@ export default function App() {
             <Route path="/compliance"              element={<Compliance />} />
             <Route path="/job-board"               element={<JobBoard />} />
             <Route path="/performance"             element={<PerformanceMetrics />} />
+            <Route path="/pod"                     element={<POD />} />
+            <Route path="/cold-chain"              element={<ColdChain />} />
+            <Route path="/eta"                     element={<ETA />} />
             {/* Legacy shared routes */}
             <Route path="/shared/tracking"         element={<Tracking />} />
             <Route path="/shared/alerts"           element={<Alerts />} />

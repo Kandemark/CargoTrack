@@ -2,7 +2,8 @@
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN chmod +x gradlew && ./gradlew bootJar --no-daemon 2>/dev/null || true
+RUN apk add --no-cache gradle
+RUN gradle bootJar --no-daemon -q
 
 FROM eclipse-temurin:21-jre-alpine
 RUN apk add --no-cache ca-certificates

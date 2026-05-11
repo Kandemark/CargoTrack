@@ -27,6 +27,12 @@ DDD Building Blocks
   ``InvoiceGenerated``, ``PaymentReceived``, etc.
   — past-tense, immutable, published via ``event_bus``.
 
+- **Authorization** (``domains._authz``):
+  ``Permission`` enum (30+ granular permissions), ``RolePermissions`` mapping
+  (10 roles × permissions), ``has_permission(user, perm)`` checker,
+  DRF permission classes (``HasPermission``, ``HasObjectPermission``),
+  and queryset scoping mixins (org / carrier / driver).
+
 - **Aggregate Roots** (documented in each domain module):
   The single entry point for modifying a cluster of related entities.
   All invariants are enforced through the aggregate root.
@@ -51,25 +57,20 @@ Conventions
 
 Registry
 ────────
+
+Domain modules are NOT eagerly imported at package level (avoids circular
+imports with ``shipments.api_views``).  Import them directly::
+
+    from domains.shipments import ETAEngine, Shipment
+    from domains.contracts import match_rate
 """
+# NOTE: Domain modules (analytics, coldchain, ...) are deliberately NOT
+# imported here.  Import them directly — e.g. ``from domains.shipments import ...``.
+# The eager import in prior versions created a circular dependency chain:
+#   domains/__init__.py → domains.analytics → shipments.api_views
+#       → cargotrack.authz → domains._authz → domains/__init__.py  💥
 
-# ── Domain modules ──────────────────────────────────────────────────────────
-from . import (
-    analytics,
-    coldchain,
-    communications,
-    contracts,
-    customs,
-    documents,
-    finance,
-    fleet,
-    identity,
-    partners,
-    ports,
-    shipments,
-)
-
-# ── DDD primitives ──────────────────────────────────────────────────────────
+# ── DDD primitives (safe — no Django model imports) ──────────────────────────
 from ._value_objects import (
     ContainerType,
     Corridor,
@@ -81,21 +82,43 @@ from ._value_objects import (
     Weight,
 )
 from ._events import DomainEvent, DomainEventBus, event_bus
+from ._authz import (                      # Authorization layer
+    Permission,
+    has_permission,
+    assert_permission,
+    require_permission,
+    audit_user_permissions,
+    audit_all_role_permissions,
+    HasPermission,
+    HasObjectPermission,
+    OrgScopedQueryset,
+    CarrierScopedQueryset,
+    DriverScopedQueryset,
+    get_user_role,
+    get_permissions_for_user,
+)
+from ._abac import (                       # ABAC engine
+    EACountry,
+    SubjectAttributes,
+    ResourceAttributes,
+    EnvironmentAttributes,
+    ABACPolicy,
+    PolicyDecision,
+    ABACPolicyEngine,
+    default_engine,
+    extract_subject_attributes,
+    extract_resource_attributes,
+    extract_environment_attributes,
+    register_resource_extractor,
+)
+from ._tenants import (                    # Tenant isolation & geo-restrictions
+    TenantScopedModelViewSet,
+    CountryRestrictedQueryset,
+    CarrierLegVisibility,
+    normalize_country_fields,
+)
 
 __all__ = [
-    # Domains
-    "analytics",
-    "coldchain",
-    "communications",
-    "contracts",
-    "customs",
-    "documents",
-    "finance",
-    "fleet",
-    "identity",
-    "partners",
-    "ports",
-    "shipments",
     # Value Objects
     "ContainerType",
     "Corridor",
@@ -109,4 +132,36 @@ __all__ = [
     "DomainEvent",
     "DomainEventBus",
     "event_bus",
+    # Authorization (RBAC)
+    "Permission",
+    "has_permission",
+    "assert_permission",
+    "require_permission",
+    "audit_user_permissions",
+    "audit_all_role_permissions",
+    "HasPermission",
+    "HasObjectPermission",
+    "OrgScopedQueryset",
+    "CarrierScopedQueryset",
+    "DriverScopedQueryset",
+    "get_user_role",
+    "get_permissions_for_user",
+    # ABAC engine
+    "EACountry",
+    "SubjectAttributes",
+    "ResourceAttributes",
+    "EnvironmentAttributes",
+    "ABACPolicy",
+    "PolicyDecision",
+    "ABACPolicyEngine",
+    "default_engine",
+    "extract_subject_attributes",
+    "extract_resource_attributes",
+    "extract_environment_attributes",
+    "register_resource_extractor",
+    # Tenant isolation & geo-restrictions
+    "TenantScopedModelViewSet",
+    "CountryRestrictedQueryset",
+    "CarrierLegVisibility",
+    "normalize_country_fields",
 ]

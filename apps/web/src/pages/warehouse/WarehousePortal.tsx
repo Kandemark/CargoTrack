@@ -20,7 +20,7 @@ import {
   Clock, Truck, RefreshCw, ChevronRight, ArrowDownToLine,
   ArrowUpFromLine, BarChart3, Grid3x3,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { shipmentsApi } from '@/api/shipments'
 import type { ShipmentListItem } from '@/types'
@@ -97,7 +97,15 @@ export default function WarehousePortal() {
   const [inbound,  setInbound]  = useState<ShipmentListItem[]>([])
   const [outbound, setOutbound] = useState<ShipmentListItem[]>([])
   const [loading,  setLoading]  = useState(true)
-  const [activeTab, setTab]     = useState<'inbound' | 'outbound' | 'inventory' | 'docks'>('inbound')
+  const loc = useLocation()
+  function tabFromPath(): 'inbound' | 'outbound' | 'inventory' | 'docks' {
+    const p = loc.pathname
+    if (p.includes('/warehouse/inventory')) return 'inventory'
+    if (p.includes('/warehouse/outbound')) return 'outbound'
+    if (p.includes('/warehouse/inbound')) return 'inbound'
+    return 'inbound'
+  }
+  const [activeTab, setTab] = useState<'inbound' | 'outbound' | 'inventory' | 'docks'>(tabFromPath)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -114,6 +122,7 @@ export default function WarehousePortal() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => { setTab(tabFromPath()) }, [loc.pathname])
 
   const totalBays     = BAY_ZONES.reduce((acc, z) => acc + z.bays, 0)
   const occupiedBays  = BAY_ZONES.reduce((acc, z) => acc + z.occupied, 0)

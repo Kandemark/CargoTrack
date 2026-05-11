@@ -21,6 +21,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useAlertStore } from '@/store/alertStore'
 import { useThemeStore } from '@/store/themeStore'
 import { cn } from '@/lib/utils'
+import { ROLE_COLOR, ROLE_LABELS } from '@/lib/roleUtils'
 
 // ── Breadcrumb helpers ────────────────────────────────────────────────────────
 
@@ -168,30 +169,6 @@ function NotificationDropdown({ onClose }: { onClose: () => void }) {
 }
 
 // ── User menu dropdown ────────────────────────────────────────────────────────
-
-const ROLE_COLOR: Record<string, string> = {
-  ADMIN:           '#dc2626',
-  LOGISTICS_MGR:   '#0f2d5e',
-  CARRIER:         '#2563eb',
-  CLIENT:          '#7c3aed',
-  DISPATCHER:      '#0891b2',
-  CUSTOMS_BROKER:  '#b45309',
-  WAREHOUSE_MGR:   '#16a34a',
-  PORT_AGENT:      '#0f766e',
-  FINANCE_OFFICER: '#9333ea',
-}
-
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN:           'Administrator',
-  LOGISTICS_MGR:   'Logistics Manager',
-  CARRIER:         'Carrier / Driver',
-  CLIENT:          'Client',
-  DISPATCHER:      'Dispatcher',
-  CUSTOMS_BROKER:  'Customs Broker',
-  WAREHOUSE_MGR:   'Warehouse Manager',
-  PORT_AGENT:      'Port Agent',
-  FINANCE_OFFICER: 'Finance Officer',
-}
 
 function UserMenuDropdown({ user, onClose }: { user: { first_name: string; last_name: string; role: string; email?: string; org_name?: string | null; date_joined?: string }; onClose: () => void }) {
   const { logout } = useAuthStore()

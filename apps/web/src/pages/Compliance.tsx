@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Loader2, AlertCircle, CheckCircle, Clock, XCircle, FileText, X } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import { complianceApi, type ComplianceDoc } from '@/api/compliance'
 import { shipmentsApi } from '@/api/shipments'
 import DataTable, { type ColumnDef } from '@/components/ui/DataTable'
@@ -25,6 +27,7 @@ export default function Compliance() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const canUpload = usePermission(Permission.DOCUMENTS_UPLOAD)
   const [shipments, setShipments] = useState<ShipmentListItem[]>([])
   const [form, setForm] = useState<Partial<ComplianceDoc>>({
     doc_type: 'CERTIFICATE', status: 'PENDING', is_required: true,
@@ -98,12 +101,14 @@ export default function Compliance() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Compliance</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Regulatory document tracking and compliance status</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" /> Add Document
-        </button>
+        {canUpload && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" /> Add Document
+          </button>
+        )}
       </div>
 
       {/* Score hero */}

@@ -3,14 +3,14 @@ FROM node:22-alpine
 WORKDIR /app
 
 # Install dependencies first for better layer caching
-COPY apps/web/package.json apps/web/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm install
 
 # Copy frontend source — overridden at runtime by the docker-compose volume mount
-COPY apps/web/ .
+COPY . .
 
-# Copy shared types so tsc can resolve the @shared/* path alias.
-COPY libs/shared-types/ /app/shared/
+# Copy shared types from additional context so tsc can resolve @shared/*.
+COPY --from=shared-types . /app/shared/
 
 EXPOSE 5173
 

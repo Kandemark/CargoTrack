@@ -2,11 +2,11 @@
 import json
 
 from asgiref.sync import sync_to_async
-from channels.generic.websocket import AsyncWebSocketConsumer
+from channels.generic.websocket import AsyncWebsocketConsumer
 from django.core.exceptions import ObjectDoesNotExist
 
 
-class ColdChainMonitorConsumer(AsyncWebSocketConsumer):
+class ColdChainMonitorConsumer(AsyncWebsocketConsumer):
     """
     WebSocket consumer for real-time temperature monitoring.
 

@@ -1,4 +1,4 @@
-﻿package com.cargotrack.edi.processor;
+package com.cargotrack.edi.processor;
 
 import com.cargotrack.edi.model.CargoManifest;
 import com.cargotrack.edi.model.CargoManifest.ManifestLineItem;

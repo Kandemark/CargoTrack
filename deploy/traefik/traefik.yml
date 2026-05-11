@@ -83,11 +83,10 @@ metrics:
       - 10.0
 
 tracing:
-  jaeger:
-    samplingServerURL: "http://jaeger:5778/sampling"
-    samplingType: const
-    samplingParam: 0.1
-    localAgentHostPort: "jaeger:6831"
+  otlp:
+    grpc:
+      endpoint: "jaeger:4317"
+      insecure: true
 
 certificatesResolvers:
   letsencrypt:

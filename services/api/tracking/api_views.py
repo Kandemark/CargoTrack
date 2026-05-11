@@ -27,6 +27,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from cargotrack.authz import CanTrackShipments
 from cargotrack.cache import invalidate_dashboard_caches
 from shipments.models import Shipment
 from .models import TrackingEvent
@@ -35,7 +36,7 @@ from .serializers import ShipmentEventCreateSerializer, TrackingEventSerializer
 
 class TrackingEventListCreateView(generics.ListCreateAPIView):
     serializer_class = TrackingEventSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanTrackShipments]
 
     def get_queryset(self):
         qs = TrackingEvent.objects.select_related("shipment", "recorded_by")
@@ -60,12 +61,12 @@ class TrackingEventListCreateView(generics.ListCreateAPIView):
 class TrackingEventDetailView(generics.RetrieveAPIView):
     queryset = TrackingEvent.objects.select_related("shipment", "recorded_by")
     serializer_class = TrackingEventSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanTrackShipments]
 
 
 class ShipmentEventsView(APIView):
     """Return all events for a shipment by tracking number (legacy endpoint)."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanTrackShipments]
 
     def get(self, request, tracking_number):
         shipment = get_object_or_404(Shipment, tracking_number=tracking_number.upper())
@@ -84,7 +85,7 @@ class ShipmentTrackingEventsAPIView(generics.ListCreateAPIView):
            The shipment FK is injected from the URL — do not include it in
            the request body.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, CanTrackShipments]
 
     def get_serializer_class(self):
         if self.request.method == 'POST':

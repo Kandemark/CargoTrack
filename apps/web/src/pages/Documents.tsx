@@ -7,9 +7,12 @@ import {
   FileText, Upload, X, AlertTriangle, RefreshCw, Eye,
   Search, Download, Filter, FolderOpen, Folder,
   ChevronRight, Clock, User, Shield, Package,
-  FileArchive, FileCog, Grid, List as ListIcon,
+  FileArchive, FileCog, Grid, List as ListIcon, ScanText,
 } from 'lucide-react'
+import { ocrApi, type DocumentExtraction } from '@/api/ocr'
 import { cn } from '@/lib/utils'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import { documentsApi } from '@/api/payments'
 import { shipmentsApi } from '@/api/shipments'
 import type { Document as ShipDoc, DocType, ShipmentListItem } from '@/types'
@@ -219,6 +222,25 @@ export default function Documents() {
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState<DocType | 'ALL'>('ALL')
   const [gridView,   setGridView]   = useState(true)
+  const canUpload = usePermission(Permission.DOCUMENTS_UPLOAD)
+
+  // OCR state
+  const [ocrFile, setOcrFile] = useState<File | null>(null)
+  const [ocrResult, setOcrResult] = useState<DocumentExtraction | null>(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrError, setOcrError] = useState<string | null>(null)
+  const ocrFileRef = useRef<HTMLInputElement>(null)
+
+  async function runOCR() {
+    if (!ocrFile) return
+    setOcrLoading(true); setOcrError(null); setOcrResult(null)
+    try {
+      const { data } = await ocrApi.extract(ocrFile, shipId ? Number(shipId) : undefined)
+      setOcrResult(data)
+    } catch {
+      setOcrError('OCR extraction failed.')
+    } finally { setOcrLoading(false) }
+  }
 
   async function loadShipments() {
     const res = await shipmentsApi.getShipments({ page_size: 200 })
@@ -276,11 +298,13 @@ export default function Documents() {
             className="p-2 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/8 transition-colors">
             {gridView ? <ListIcon className="w-4 h-4" /> : <Grid className="w-4 h-4" />}
           </button>
-          <button onClick={() => setShowUpload(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
-            style={{ background: 'var(--ct-orange)' }}>
-            <Upload className="w-4 h-4" /> Upload
-          </button>
+          {canUpload && (
+            <button onClick={() => setShowUpload(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+              style={{ background: 'var(--ct-orange)' }}>
+              <Upload className="w-4 h-4" /> Upload
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -365,11 +389,13 @@ export default function Documents() {
           {!shipId && (
             <p className="text-xs text-gray-400 dark:text-white/25">Select a shipment above to view its documents</p>
           )}
-          <button onClick={() => setShowUpload(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white mt-2"
-            style={{ background: 'var(--ct-orange)' }}>
-            <Upload className="w-3.5 h-3.5" /> Upload First Document
-          </button>
+          {canUpload && (
+            <button onClick={() => setShowUpload(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white mt-2"
+              style={{ background: 'var(--ct-orange)' }}>
+              <Upload className="w-3.5 h-3.5" /> Upload First Document
+            </button>
+          )}
         </div>
       ) : gridView ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -444,6 +470,78 @@ export default function Documents() {
       <AnimatePresence>
         {showUpload && <UploadModal onClose={() => setShowUpload(false)} onUploaded={() => { setShowUpload(false); void loadDocs() }} />}
       </AnimatePresence>
+
+      {/* OCR Extraction Panel */}
+      <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 shadow-card p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <ScanText className="w-5 h-5 text-orange-500" />
+          <h2 className="text-sm font-bold text-gray-900 dark:text-white">Document OCR</h2>
+          <span className="text-[10px] text-gray-400 dark:text-white/30">Extract text from uploaded documents</span>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <div onClick={() => ocrFileRef.current?.click()}
+              className={cn('flex flex-col items-center justify-center gap-2 px-4 py-6 rounded-xl border-2 border-dashed cursor-pointer transition-colors',
+                ocrFile ? 'border-orange-300 dark:border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'border-gray-200 dark:border-white/15 hover:border-orange-300 dark:hover:border-orange-600')}>
+              <Upload className="w-5 h-5 text-gray-400" />
+              {ocrFile ? (
+                <p className="text-xs text-orange-700 dark:text-orange-300 font-medium">{ocrFile.name} ({(ocrFile.size / 1024).toFixed(0)} KB)</p>
+              ) : (
+                <p className="text-xs text-gray-400 dark:text-white/30">Drop a document for OCR text extraction</p>
+              )}
+            </div>
+            <input ref={ocrFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden"
+              onChange={(e) => { setOcrFile(e.target.files?.[0] ?? null); setOcrResult(null); setOcrError(null) }} />
+            <button onClick={runOCR} disabled={!ocrFile || ocrLoading}
+              className="mt-3 w-full px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-60 transition-colors inline-flex items-center justify-center gap-1.5">
+              <ScanText className="w-3.5 h-3.5" /> {ocrLoading ? 'Extracting…' : 'Extract Text'}
+            </button>
+            {ocrError && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg mt-2">{ocrError}</p>}
+          </div>
+          <div>
+            {ocrResult ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-gray-50 dark:bg-white/5 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-gray-400">Type</p>
+                    <p className="text-xs font-semibold text-gray-800 dark:text-white">{ocrResult.document_type}</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-white/5 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-gray-400">Confidence</p>
+                    <p className="text-xs font-semibold text-gray-800 dark:text-white">{(ocrResult.ocr_confidence * 100).toFixed(0)}%</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-white/5 rounded-lg p-2 text-center">
+                    <p className="text-[10px] text-gray-400">Pages</p>
+                    <p className="text-xs font-semibold text-gray-800 dark:text-white">{ocrResult.page_count}</p>
+                  </div>
+                </div>
+                {ocrResult.extracted_fields && Object.keys(ocrResult.extracted_fields).length > 0 && (
+                  <div className="bg-gray-50 dark:bg-white/5 rounded-lg p-3">
+                    <p className="text-[10px] text-gray-400 mb-1.5">Extracted Fields</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {Object.entries(ocrResult.extracted_fields).map(([k, v]) => (
+                        <div key={k} className="flex justify-between text-xs">
+                          <span className="text-gray-400">{k.replace(/_/g, ' ')}</span>
+                          <span className="font-mono text-gray-700 dark:text-white/70 truncate ml-2">{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <details className="text-xs">
+                  <summary className="text-gray-400 cursor-pointer">Raw Text ({ocrResult.word_count} words)</summary>
+                  <pre className="mt-1 p-2 rounded-lg bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-white/50 max-h-32 overflow-y-auto whitespace-pre-wrap text-[11px]">{ocrResult.raw_text}</pre>
+                </details>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full py-8 gap-2 text-gray-300 dark:text-white/15">
+                <ScanText className="w-10 h-10" />
+                <p className="text-xs text-gray-400 dark:text-white/25">Extracted text will appear here</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -82,6 +82,12 @@ apiClient.interceptors.response.use(
       return apiClient(original)
     } catch (refreshError) {
       drainQueue(refreshError, null)
+      // Clear auth state from Zustand localStorage BEFORE redirect, otherwise
+      // LandingRoute sees isAuthenticated=true and redirects back, looping forever.
+      try {
+        const { useAuthStore } = await import('@/store/authStore')
+        useAuthStore.getState().clearAuth()
+      } catch { /* non-critical */ }
       // Clear cookies by calling logout endpoint
       await axios.post(`${BASE_URL}/api/auth/token/logout/`, {}, { withCredentials: true }).catch(() => {})
       window.location.href = '/login'

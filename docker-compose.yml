@@ -59,10 +59,11 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD", "bash", "-c", "kafka-topics --bootstrap-server localhost:9092 --list 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
+      test: ["CMD", "bash", "-c", "timeout 8 kafka-topics --bootstrap-server localhost:9092 --list 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 15s
+      retries: 8
+      start_period: 60s
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.8.0
@@ -91,7 +92,7 @@ services:
 
   # ── PostgreSQL 16 + TimescaleDB 2.16 ─────────────────────────────────────────
   db:
-    image: timescale/timescaledb:2.16-pg16
+    image: timescale/timescaledb:latest-pg16
     environment:
       POSTGRES_DB:       ${DB_NAME:-cargotrack}
       POSTGRES_USER:     ${DB_USER:-postgres}
@@ -160,11 +161,12 @@ services:
       TRACKING_DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD}@db:5432/${DB_NAME:-cargotrack}?sslmode=disable
       TRACKING_PORT: "8080"
     ports:
-      - "8080:8080"
+      - "8086:8080"
 
   # ── EMQX MQTT Broker (IoT device connectivity) ──────────────────────────────
   emqx:
-    image: emqx/emqx:5.7-alpine
+    image: emqx/emqx:5.10.3
+    hostname: emqx
     environment:
       EMQX_NAME: cargotrack-mqtt
       EMQX_HOST: emqx
@@ -175,10 +177,11 @@ services:
     volumes:
       - emqx_data:/opt/emqx/data
     healthcheck:
-      test: ["CMD", "/opt/emqx/bin/emqx", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "/bin/sh", "-c", "curl -sf http://localhost:18083/api/v5/status || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
 
   # ── Rust GPS Telematics Ingestion (MQTT → Kafka) ──────────────────────────
   gps-ingest:
@@ -232,7 +235,11 @@ services:
     build:
       context: ./services/route-optimizer
       dockerfile: Dockerfile
-    command: ["echo", "Route optimizer ready — invoke via: docker compose run route-optimizer < request.json"]
+    environment:
+      GRPC_PORT: "50051"
+      CACHE_CAPACITY: "1024"
+    ports:
+      - "50052:50051"
 
   # ── Java Camunda Workflow Engine (BPMN + DMN) ─────────────────────────────
   workflow-engine:
@@ -265,11 +272,16 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      KAFKA_BROKERS: kafka:29092
-      EDI_PORT: "8085"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SERVER_PORT: "8085"
       EDI_SFTP_HOST: ${EDI_SFTP_HOST:-sftp-partner}
       EDI_SFTP_USER: ${EDI_SFTP_USER:-edi-partner}
       EDI_SFTP_PASSWORD: ${EDI_SFTP_PASSWORD:-change-me}
+      TRADENET_BASE_URL: ""
+      TANCIS_BASE_URL: ""
+      ASYCUDA_SFTP_HOST: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_METRICS_EXPORTER: none
     ports:
       - "8085:8085"
 
@@ -288,15 +300,15 @@ services:
       - ./deploy/keycloak/cargotrack-realm.json:/opt/keycloak/data/import/cargotrack-realm.json:ro
     command: start-dev --import-realm --features=preview
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080; echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\n\r\n' >&3; grep -q UP <&3"]
+      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080' || exit 1"]
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 15
-      start_period: 60s
+      start_period: 90s
 
   # ── Traefik API Gateway (TLS termination, routing, rate limiting) ──────────
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.7
     ports:
       - "80:80"
       - "443:443"
@@ -310,7 +322,7 @@ services:
     depends_on:
       backend:
         condition: service_started
-      frontend:
+      web:
         condition: service_started
       keycloak:
         condition: service_healthy
@@ -329,7 +341,7 @@ services:
 
   # ── Prometheus (metrics collection) ────────────────────────────────────────
   prometheus:
-    image: prom/prometheus:v3.2
+    image: prom/prometheus:v3.11.3
     ports:
       - "9090:9090"
     volumes:
@@ -344,7 +356,7 @@ services:
 
   # ── Grafana (dashboards) ───────────────────────────────────────────────────
   grafana:
-    image: grafana/grafana:11.6
+    image: grafana/grafana:latest
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
@@ -364,24 +376,19 @@ services:
 
   # ── Jaeger (distributed tracing) ──────────────────────────────────────────
   jaeger:
-    image: jaegertracing/all-in-one:1.66
+    image: jaegertracing/all-in-one:1.76.0
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
-      SPAN_STORAGE_TYPE: badger
-      BADGER_EPHEMERAL: "false"
-      BADGER_DIRECTORY_KEY: /badger/data
-      BADGER_DIRECTORY_VALUE: /badger/data
+      SPAN_STORAGE_TYPE: memory
     ports:
       - "16686:16686"   # Query UI
       - "4317:4317"     # OTLP gRPC
       - "4318:4318"     # OTLP HTTP
       - "14250:14250"   # gRPC (legacy collector)
-    volumes:
-      - jaeger_data:/badger
 
   # ── Loki (log aggregation) ─────────────────────────────────────────────────
   loki:
-    image: grafana/loki:3.3
+    image: grafana/loki:3.6.10
     ports:
       - "3100:3100"
     volumes:
@@ -391,7 +398,7 @@ services:
 
   # ── Promtail (log collection agent) ────────────────────────────────────────
   promtail:
-    image: grafana/promtail:3.3
+    image: grafana/promtail:3.6.10
     volumes:
       - ./deploy/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -420,7 +427,7 @@ services:
 
   # ── PostgreSQL Exporter (Prometheus metrics for Postgres) ─────────────────
   postgres-exporter:
-    image: quay.io/prometheuscommunity/postgres-exporter:v0.16
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
     environment:
       DATA_SOURCE_NAME: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:?DB_PASSWORD}@db:5432/${DB_NAME:-cargotrack}?sslmode=disable
     ports:
@@ -431,7 +438,7 @@ services:
 
   # ── Redis Exporter (Prometheus metrics for Redis) ─────────────────────────
   redis-exporter:
-    image: oliver006/redis_exporter:v1.67
+    image: oliver006/redis_exporter:v1.67.0
     environment:
       REDIS_ADDR: redis://redis:6379
     ports:
@@ -440,11 +447,13 @@ services:
       redis:
         condition: service_healthy
 
-  # ── React / Vite frontend ──────────────────────────────────────────────────────
-  frontend:
+  # ── React / Vite web app ──────────────────────────────────────────────────────
+  web:
     build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+      context: ./apps/web
+      dockerfile: Dockerfile
+      additional_contexts:
+        shared-types: ./libs/shared-types
     depends_on:
       - backend
     environment:

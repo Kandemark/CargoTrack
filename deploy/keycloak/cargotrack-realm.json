@@ -1,227 +1,27 @@
 ﻿{
-  "id": "cargotrack",
   "realm": "cargotrack",
-  "displayName": "CargoTrack — East African Logistics Backbone",
   "enabled": true,
-  "sslRequired": "external",
-  "registrationAllowed": false,
-  "loginWithEmailAllowed": true,
-  "duplicateEmails": false,
+  "displayName": "CargoTrack",
+  "registrationAllowed": true,
   "resetPasswordAllowed": true,
-  "editUsernameAllowed": false,
-  "bruteForceProtected": true,
-  "permanentLockout": false,
-  "maxFailureWaitSeconds": 900,
-  "minimumQuickLoginWaitSeconds": 60,
-  "waitIncrementSeconds": 60,
-  "quickLoginCheckMilliSeconds": 1000,
-  "maxDeltaTimeSeconds": 43200,
-  "failureFactor": 5,
+  "duplicateEmailsAllowed": false,
+  "loginWithEmailAllowed": true,
+  "verifyEmail": false,
   "accessTokenLifespan": 3600,
-  "ssoSessionIdleTimeout": 28800,
-  "ssoSessionMaxLifespan": 86400,
-  "offlineSessionIdleTimeout": 2592000,
-  "accessCodeLifespan": 300,
-  "accessCodeLifespanUserAction": 300,
-  "accessCodeLifespanLogin": 1800,
-  "actionTokenGeneratedByAdminLifespan": 43200,
-  "actionTokenGeneratedByUserLifespan": 300,
-  "oauth2DeviceCodeLifespan": 600,
-  "oauth2DevicePollingInterval": 5,
-
-  "smtpServer": {
-    "host": "smtp.cargotrack.io",
-    "port": 587,
-    "from": "noreply@cargotrack.io",
-    "fromDisplayName": "CargoTrack Identity",
-    "replyTo": "ops@cargotrack.io",
-    "ssl": false,
-    "starttls": true
-  },
-
-  "browserSecurityHeaders": {
-    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
-    "strictTransportSecurity": "max-age=31536000; includeSubDomains",
-    "xContentTypeOptions": "nosniff",
-    "xRobotsTag": "none",
-    "xFrameOptions": "SAMEORIGIN",
-    "xXSSProtection": "1; mode=block"
-  },
-
-  "defaultRole": {
-    "name": "default-roles-cargotrack",
-    "description": "Default roles for every CargoTrack user",
-    "composite": true,
-    "clientRole": false,
-    "containerId": "cargotrack"
-  },
-
-  "roles": {
-    "realm": [
-      {"name": "admin",           "description": "Full platform access"},
-      {"name": "logistics_mgr",   "description": "Logistics Manager"},
-      {"name": "client",          "description": "Shipper / cargo owner"},
-      {"name": "carrier",         "description": "Carrier company"},
-      {"name": "dispatcher",      "description": "Dispatcher"},
-      {"name": "customs_broker",  "description": "Customs broker"},
-      {"name": "warehouse_mgr",   "description": "Warehouse manager"},
-      {"name": "port_agent",      "description": "Port agent"},
-      {"name": "finance_officer", "description": "Finance officer"},
-      {"name": "driver",          "description": "Truck driver"},
-      {"name": "viewer",          "description": "Read-only access"},
-      {"name": "api_client",      "description": "M2M API access"}
-    ]
-  },
-
+  "ssoSessionMaxLifespan": 72000,
   "clients": [
     {
-      "clientId": "cargotrack-api",
-      "name": "CargoTrack Django API",
-      "description": "Confidential client for the Django REST backend",
-      "enabled": true,
-      "publicClient": false,
-      "bearerOnly": false,
-      "serviceAccountsEnabled": true,
-      "standardFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "implicitFlowEnabled": false,
-      "authorizationServicesEnabled": true,
-      "protocol": "openid-connect",
-      "secret": "cargotrack-api-secret-change-in-production",
-      "attributes": {
-        "access.token.lifespan": "3600",
-        "client.session.idle.timeout": "1800"
-      }
-    },
-    {
       "clientId": "cargotrack-web",
-      "name": "CargoTrack React SPA",
-      "description": "Public client for the React web frontend",
+      "name": "CargoTrack Web App",
       "enabled": true,
       "publicClient": true,
-      "bearerOnly": false,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "implicitFlowEnabled": false,
-      "protocol": "openid-connect",
       "redirectUris": [
         "http://localhost:5173/*",
-        "http://localhost:3000/*",
-        "https://app.cargotrack.io/*",
-        "https://staging.cargotrack.io/*"
+        "http://localhost:8000/*"
       ],
-      "webOrigins": [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://app.cargotrack.io",
-        "https://staging.cargotrack.io"
-      ],
-      "attributes": {
-        "access.token.lifespan": "1800",
-        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:3000/*##https://app.cargotrack.io/*",
-        "pkce.code.challenge.method": "S256"
-      }
-    },
-    {
-      "clientId": "cargotrack-mobile",
-      "name": "CargoTrack Mobile App",
-      "description": "Public client for the Kotlin/Expo mobile driver app",
-      "enabled": true,
-      "publicClient": true,
-      "bearerOnly": false,
-      "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
-      "implicitFlowEnabled": false,
-      "protocol": "openid-connect",
-      "redirectUris": [
-        "cargotrack://oauth/callback",
-        "exp://localhost:19000/*"
-      ],
-      "attributes": {
-        "access.token.lifespan": "86400",
-        "refresh.token.lifespan": "2592000",
-        "pkce.code.challenge.method": "S256"
-      }
-    },
-    {
-      "clientId": "cargotrack-cli",
-      "name": "CargoTrack CLI Tools",
-      "description": "Confidential client for CI/CD and local dev scripts",
-      "enabled": true,
-      "publicClient": false,
-      "bearerOnly": false,
-      "serviceAccountsEnabled": true,
-      "standardFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "protocol": "openid-connect",
-      "secret": "cargotrack-cli-secret-change-in-production"
+      "webOrigins": ["+"]
     }
-  ],
-
-  "clientScopes": [
-    {
-      "name": "profile",
-      "protocol": "openid-connect",
-      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "true"},
-      "protocolMappers": [
-        {"name": "full_name", "protocol": "openid-connect", "protocolMapper": "oidc-full-name-mapper", "config": {"access.token.claim": "true", "id.token.claim": "true"}},
-        {"name": "email",     "protocol": "openid-connect", "protocolMapper": "oidc-usermodel-property-mapper", "config": {"user.attribute": "email", "claim.name": "email", "access.token.claim": "true", "id.token.claim": "true"}},
-        {"name": "org_name",  "protocol": "openid-connect", "protocolMapper": "oidc-usermodel-attribute-mapper", "config": {"user.attribute": "org_name", "claim.name": "org_name", "access.token.claim": "true"}},
-        {"name": "country",   "protocol": "openid-connect", "protocolMapper": "oidc-usermodel-attribute-mapper", "config": {"user.attribute": "country", "claim.name": "country", "access.token.claim": "true"}}
-      ]
-    },
-    {
-      "name": "roles",
-      "protocol": "openid-connect",
-      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "true"},
-      "protocolMappers": [
-        {"name": "realm roles", "protocol": "openid-connect", "protocolMapper": "oidc-usermodel-realm-role-mapper", "config": {"multivalued": "true", "userinfo.token.claim": "true", "claim.name": "roles", "access.token.claim": "true"}}
-      ]
-    }
-  ],
-
-  "identityProviders": [
-    {
-      "alias": "azure-ad",
-      "displayName": "Microsoft Entra ID",
-      "providerId": "oidc",
-      "enabled": false,
-      "config": {
-        "clientId": "",
-        "clientSecret": "",
-        "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-        "tokenUrl": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-        "issuer": "https://login.microsoftonline.com/{tenantid}/v2.0",
-        "defaultScopes": "openid profile email",
-        "syncMode": "IMPORT",
-        "hideOnLoginPage": false
-      }
-    },
-    {
-      "alias": "google-workspace",
-      "displayName": "Google Workspace",
-      "providerId": "google",
-      "enabled": false,
-      "config": {
-        "clientId": "",
-        "clientSecret": "",
-        "defaultScopes": "openid profile email",
-        "syncMode": "IMPORT",
-        "hideOnLoginPage": false
-      }
-    }
-  ],
-
-  "users": [
-    {"username": "admin", "email": "admin@cargotrack.io", "firstName": "Platform", "lastName": "Administrator", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "admin", "temporary": true}], "realmRoles": ["admin", "default-roles-cargotrack"], "attributes": {"org_name": "CargoTrack Inc", "country": "KE"}},
-    {"username": "logistics_mgr", "email": "logistics@cargotrack.io", "firstName": "Amina", "lastName": "Wanjiku", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["logistics_mgr", "default-roles-cargotrack"], "attributes": {"org_name": "Great Lakes Logistics", "country": "KE"}},
-    {"username": "shipper", "email": "shipper@cargotrack.io", "firstName": "David", "lastName": "Mugisha", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["client", "default-roles-cargotrack"], "attributes": {"org_name": "East African Commodities Ltd", "country": "UG"}},
-    {"username": "carrier", "email": "carrier@cargotrack.io", "firstName": "Peter", "lastName": "Ochieng", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["carrier", "default-roles-cargotrack"], "attributes": {"org_name": "Nairobi Haulers Ltd", "country": "KE"}},
-    {"username": "driver", "email": "driver@cargotrack.io", "firstName": "James", "lastName": "Mwangi", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["driver", "default-roles-cargotrack"], "attributes": {"org_name": "Nairobi Haulers Ltd", "country": "KE"}},
-    {"username": "dispatcher", "email": "dispatcher@cargotrack.io", "firstName": "Grace", "lastName": "Nakamya", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["dispatcher", "default-roles-cargotrack"], "attributes": {"org_name": "Great Lakes Logistics", "country": "UG"}},
-    {"username": "customs_broker", "email": "customs@cargotrack.io", "firstName": "Fatima", "lastName": "Hassan", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["customs_broker", "default-roles-cargotrack"], "attributes": {"org_name": "Coast Customs Clearing Ltd", "country": "TZ"}},
-    {"username": "warehouse_mgr", "email": "warehouse@cargotrack.io", "firstName": "Samuel", "lastName": "Habimana", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["warehouse_mgr", "default-roles-cargotrack"], "attributes": {"org_name": "Kigali Distribution Centre", "country": "RW"}},
-    {"username": "port_agent", "email": "port@cargotrack.io", "firstName": "Mary", "lastName": "Kamau", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["port_agent", "default-roles-cargotrack"], "attributes": {"org_name": "Mombasa Port Agency", "country": "KE"}},
-    {"username": "finance_officer", "email": "finance@cargotrack.io", "firstName": "Robert", "lastName": "Kyagulanyi", "enabled": true, "emailVerified": true, "credentials": [{"type": "password", "value": "sandbox", "temporary": true}], "realmRoles": ["finance_officer", "default-roles-cargotrack"], "attributes": {"org_name": "CargoTrack Inc", "country": "KE"}}
   ]
 }

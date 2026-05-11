@@ -1,12 +1,7 @@
-# CargoTrack GPS Telematics Ingestion Service
-# MQTT → Kafka bridge with protocol adapters and geofencing
-FROM rust:1.85-alpine AS builder
-RUN apk add --no-cache musl-dev cmake make g++ openssl-dev
+FROM rust:1.86-alpine AS builder
+RUN apk add --no-cache musl-dev cmake make g++ openssl-dev curl-dev zlib-dev zlib-static
 WORKDIR /app
-COPY Cargo.toml Cargo.lock* ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release 2>/dev/null || true
-COPY src/ src/
+COPY . .
 RUN cargo build --release
 
 FROM alpine:3.21

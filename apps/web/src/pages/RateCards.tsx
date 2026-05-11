@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Plus, Edit, RefreshCw, Loader2, AlertCircle } from 'lucide-react'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 import { carriersApi, type RateCard, type Carrier } from '@/api/carriers'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -25,6 +27,7 @@ export default function RateCards() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const canManageRates = usePermission(Permission.RATES_MANAGE)
   const [form, setForm] = useState<Partial<RateCard>>({
     status: 'ACTIVE', currency: 'KES', is_hazmat: false, is_reefer: false,
     valid_from: new Date().toISOString().slice(0, 10),
@@ -87,12 +90,14 @@ export default function RateCards() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Rate Cards</h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Carrier pricing and route rates</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" /> New Rate Card
-        </button>
+        {canManageRates && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" /> New Rate Card
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -275,6 +280,7 @@ export default function RateCards() {
                   {days < 0 && <span className="ml-2 text-red-500 font-medium">Expired {Math.abs(days)}d ago</span>}
                 </div>
 
+                {canManageRates && (
                 <div className="flex gap-2">
                   <button
                     onClick={() => setEditingId(editingId === card.id ? null : card.id)}
@@ -291,6 +297,7 @@ export default function RateCards() {
                     </button>
                   )}
                 </div>
+                )}
               </motion.div>
             )
           })}

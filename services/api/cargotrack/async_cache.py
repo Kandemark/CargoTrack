@@ -128,8 +128,12 @@ class AsyncCacheMixin:
         cache_key = _build_cache_key(request)
         cached = cache.get(cache_key)
         if cached is not None:
-            from rest_framework.response import Response
-            return Response(cached)
+            # DRF Response needs accepted_renderer set (by finalize_response),
+            # which hasn't run yet.  Bypass DRF rendering and return a plain
+            # JsonResponse — safe for ASGI where _get_response_async calls
+            # response.render() explicitly.
+            from django.http import JsonResponse
+            return JsonResponse(cached, safe=False)
 
         response = super().dispatch(request, *args, **kwargs)
 
@@ -151,8 +155,8 @@ class AsyncCacheAPIViewMixin(AsyncCacheMixin):
         cache_key = _build_cache_key(request)
         cached = await sync_to_async(cache.get)(cache_key)
         if cached is not None:
-            from rest_framework.response import Response
-            return Response(cached)
+            from django.http import JsonResponse
+            return JsonResponse(cached, safe=False)
 
         response = await super().dispatch(request, *args, **kwargs)
 

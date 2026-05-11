@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils'
 import apiClient from '@/api/client'
 import type { User } from '@/types'
 import { useAuthStore } from '@/store/authStore'
+import { usePermission } from '@/hooks/usePermission'
+import { Permission } from '@/lib/roleUtils'
 
 interface TeamMember extends User {
   is_active: boolean
@@ -15,20 +17,32 @@ interface TeamMember extends User {
   date_joined: string
 }
 
-type UserRole = 'ADMIN' | 'LOGISTICS_MGR' | 'CARRIER' | 'CLIENT'
+type UserRole =
+  | 'ADMIN' | 'LOGISTICS_MGR' | 'CARRIER' | 'CLIENT'
+  | 'DISPATCHER' | 'CUSTOMS_BROKER' | 'WAREHOUSE_MGR' | 'PORT_AGENT' | 'FINANCE_OFFICER'
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  ADMIN:         'Admin',
-  LOGISTICS_MGR: 'Logistics Mgr',
-  CARRIER:       'Carrier',
-  CLIENT:        'Client',
+  ADMIN:           'Admin',
+  LOGISTICS_MGR:   'Logistics Mgr',
+  CARRIER:         'Carrier',
+  CLIENT:          'Client',
+  DISPATCHER:      'Dispatcher',
+  CUSTOMS_BROKER:  'Customs Broker',
+  WAREHOUSE_MGR:   'Warehouse Mgr',
+  PORT_AGENT:      'Port Agent',
+  FINANCE_OFFICER: 'Finance Officer',
 }
 
 const ROLE_COLORS: Record<UserRole, string> = {
-  ADMIN:         'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300',
-  LOGISTICS_MGR: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
-  CARRIER:       'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
-  CLIENT:        'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
+  ADMIN:           'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300',
+  LOGISTICS_MGR:   'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+  CARRIER:         'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+  CLIENT:          'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
+  DISPATCHER:      'bg-cyan-50 text-cyan-700 dark:bg-cyan-900/20 dark:text-cyan-300',
+  CUSTOMS_BROKER:  'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300',
+  WAREHOUSE_MGR:   'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300',
+  PORT_AGENT:      'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-300',
+  FINANCE_OFFICER: 'bg-pink-50 text-pink-700 dark:bg-pink-900/20 dark:text-pink-300',
 }
 
 function InviteModal({ onClose, onInvited }: { onClose: () => void; onInvited: () => void }) {
@@ -97,6 +111,11 @@ function InviteModal({ onClose, onInvited }: { onClose: () => void; onInvited: (
                 <option value="CLIENT">Client</option>
                 <option value="CARRIER">Carrier</option>
                 <option value="LOGISTICS_MGR">Logistics Manager</option>
+                <option value="DISPATCHER">Dispatcher</option>
+                <option value="CUSTOMS_BROKER">Customs Broker</option>
+                <option value="WAREHOUSE_MGR">Warehouse Mgr</option>
+                <option value="PORT_AGENT">Port Agent</option>
+                <option value="FINANCE_OFFICER">Finance Officer</option>
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
@@ -137,6 +156,11 @@ function RoleSelect({ member, onChanged }: { member: TeamMember; onChanged: (m: 
       <option value="CLIENT">Client</option>
       <option value="CARRIER">Carrier</option>
       <option value="LOGISTICS_MGR">Logistics Mgr</option>
+      <option value="DISPATCHER">Dispatcher</option>
+      <option value="CUSTOMS_BROKER">Customs Broker</option>
+      <option value="WAREHOUSE_MGR">Warehouse Mgr</option>
+      <option value="PORT_AGENT">Port Agent</option>
+      <option value="FINANCE_OFFICER">Finance Officer</option>
       <option value="ADMIN">Admin</option>
     </select>
   )
@@ -176,7 +200,7 @@ export default function Team() {
 
   useEffect(() => { void load() }, [])
 
-  const isAdmin = currentUser?.role === 'ADMIN'
+  const canAdminUsers = usePermission(Permission.ADMIN_USERS)
 
   return (
     <div className="space-y-5">
@@ -185,7 +209,7 @@ export default function Team() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-heading">Team</h1>
           <p className="text-sm text-gray-500 dark:text-white/50 mt-0.5">{members.length} members</p>
         </div>
-        {isAdmin && (
+        {canAdminUsers && (
           <button onClick={() => setShowInvite(true)}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90 transition-opacity"
             style={{ background: 'var(--ct-orange)' }}>
@@ -224,7 +248,7 @@ export default function Team() {
                     <th className="px-5 py-3.5 text-left font-medium">Last Login</th>
                     <th className="px-5 py-3.5 text-left font-medium">Joined</th>
                     <th className="px-5 py-3.5 text-left font-medium">Status</th>
-                    {isAdmin && <th className="px-5 py-3.5 text-left font-medium">Actions</th>}
+                    {canAdminUsers && <th className="px-5 py-3.5 text-left font-medium">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-white/5">
@@ -257,7 +281,7 @@ export default function Team() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5">
-                          {isAdmin && m.id !== currentUser?.id ? (
+                          {canAdminUsers && m.id !== currentUser?.id ? (
                             <RoleSelect member={m} onChanged={(updated) => setMembers((ms) => ms.map((x) => x.id === m.id ? updated : x))} />
                           ) : (
                             <span className={cn('inline-flex px-2 py-0.5 rounded-full text-xs font-semibold', ROLE_COLORS[m.role as UserRole])}>
@@ -288,7 +312,7 @@ export default function Team() {
                             {m.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        {isAdmin && (
+                        {canAdminUsers && (
                           <td className="px-5 py-3.5">
                             {m.id !== currentUser?.id && (
                               <button

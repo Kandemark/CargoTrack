@@ -30,7 +30,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from cargotrack.permissions import IsAdminUser, IsClientUser, IsManagerUser
+from cargotrack.authz import CanAdminUsers, CanAdminSystem, CanViewAudit, OrgScopedQueryset
 from .models import APIKey, AuditEntry, CustomUser, Integration, Notification, Organization
 from .serializers import (
     APIKeyCreateSerializer,
@@ -93,6 +93,7 @@ class SecureTokenObtainPairView(TokenObtainPairView):
     ``totp_required`` response is returned so the client can prompt the user
     for their authenticator code without re-entering the password.
     """
+    permission_classes = [AllowAny]
     from rest_framework.throttling import ScopedRateThrottle
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'auth'
@@ -200,7 +201,7 @@ class SecureTokenObtainPairView(TokenObtainPairView):
         return response
 
 
-class UserAdminViewSet(viewsets.ModelViewSet):
+class UserAdminViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
     """
     GET   /api/v1/accounts/users/       — paginated list of all users.
     GET   /api/v1/accounts/users/<id>/  — retrieve a single user.
@@ -210,10 +211,14 @@ class UserAdminViewSet(viewsets.ModelViewSet):
     are enforced by UserAdminSerializer.
     """
 
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, CanAdminUsers]
     serializer_class = UserAdminSerializer
     queryset = CustomUser.objects.all().order_by('-date_joined')
     http_method_names = ['get', 'patch', 'head', 'options']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return self.scope_by_org(qs)
 
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
@@ -228,7 +233,7 @@ class MeAPIView(generics.RetrieveUpdateAPIView):
     Email, username, and role are immutable via this endpoint.
     """
     serializer_class = UserMeSerializer
-    permission_classes = [IsClientUser]
+    permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'patch', 'head', 'options']
 
     def get_object(self):  # type: ignore[override]
@@ -270,6 +275,21 @@ class NotificationPrefsView(APIView):
         profile.notification_prefs = {**profile.notification_prefs, **request.data}
         profile.save(update_fields=['notification_prefs'])
         return Response(profile.notification_prefs)
+
+
+class UserPreferencesView(APIView):
+    """GET/PATCH /api/v1/accounts/me/preferences/ — read or update display & locale preferences."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, **kwargs):
+        return Response(request.user.profile.display_prefs)
+
+    def patch(self, request, **kwargs):
+        profile = request.user.profile
+        profile.display_prefs = {**profile.display_prefs, **request.data}
+        profile.save(update_fields=['display_prefs'])
+        return Response(profile.display_prefs)
 
 
 class APIKeyListCreateView(APIView):
@@ -368,7 +388,7 @@ class NotificationDismissView(APIView):
 class AuditEntryListView(generics.ListAPIView):
     """GET /api/v1/audit/ — list audit entries (manager/admin only)."""
     serializer_class = AuditEntrySerializer
-    permission_classes = [IsManagerUser]
+    permission_classes = [IsAuthenticated, CanViewAudit]
 
     def get_queryset(self):
         qs = AuditEntry.objects.select_related('user').all()
@@ -399,7 +419,7 @@ class AuditEntryCreateView(generics.CreateAPIView):
 class IntegrationListView(generics.ListCreateAPIView):
     """GET/POST /api/v1/integrations/ — list or create integrations."""
     serializer_class = IntegrationSerializer
-    permission_classes = [IsManagerUser]
+    permission_classes = [IsAuthenticated, CanAdminSystem]
 
     def get_queryset(self):
         qs = Integration.objects.all()
@@ -412,7 +432,7 @@ class IntegrationListView(generics.ListCreateAPIView):
 class IntegrationDetailView(generics.RetrieveUpdateDestroyAPIView):
     """GET/PATCH/DELETE /api/v1/integrations/<pk>/"""
     serializer_class = IntegrationSerializer
-    permission_classes = [IsManagerUser]
+    permission_classes = [IsAuthenticated, CanAdminSystem]
     queryset = Integration.objects.all()
 
 
