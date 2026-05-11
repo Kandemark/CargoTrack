@@ -28,6 +28,13 @@ Thanks for your interest in contributing. CargoTrack is a B2B logistics intellig
 - Ensure CI (tests, type-check, lint) passes.
 - Keep PRs scoped — large refactors should be discussed in an issue first.
 
+## Code and content rules
+
+- Never reference universities, course codes, group numbers, or student names in code, comments, docs, or UI.
+- All UI must be enterprise SaaS quality — think Flexport/ShipBob.
+- No tutorial-style comments. Code should be self-documenting through clear naming.
+- Docs and messages must use professional, B2B-appropriate language.
+
 ## Code style
 
 - Backend: PEP 8, 100-column limit, type hints on public functions.

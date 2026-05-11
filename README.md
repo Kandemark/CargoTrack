@@ -1,22 +1,35 @@
 # CargoTrack
 
-**Real-time freight tracking, ML-powered delay prediction, and logistics management for the East African corridor.**
+**B2B SaaS for real-time freight tracking, ML-powered delay prediction, and logistics management across East Africa.**
 
-CargoTrack is a B2B SaaS platform connecting freight forwarders, 3PLs, carriers, and importers across Kenya, Uganda, Tanzania, Rwanda, and beyond.
+CargoTrack connects freight forwarders, 3PLs, carriers, importers, customs brokers, and port agents across Kenya, Uganda, Tanzania, Rwanda, and Burundi.
 
 ---
 
-## Stack
+## Tech Stack
 
 | Layer | Technology |
-| --- | --- |
-| API | Django 4.2 + Django REST Framework |
-| Auth | JWT (simplejwt) with refresh rotation |
-| Database | PostgreSQL 16 |
-| Frontend | React 18 + Vite + Tailwind CSS v4 |
+|---|---|
+| Core API | Django 4.2 + Django REST Framework + Daphne ASGI |
+| Database | PostgreSQL 16 + TimescaleDB 2.16 |
+| Event Bus | Apache Kafka (KRaft mode) + Schema Registry |
+| Cache | Redis 7 |
+| Identity | Keycloak 26 (OIDC) |
+| API Gateway | Traefik v3 |
+| Frontend | React 18 + Vite + TypeScript + Tailwind CSS v4 |
 | Mobile | Expo (React Native) — development builds, not Expo Go |
-| ML | scikit-learn RandomForestClassifier |
-| Containerisation | Docker Compose |
+| ML | scikit-learn (RandomForestClassifier) + XGBoost |
+| Workflow Engine | Java 21 + Camunda 7 (BPMN + DMN) |
+| EDI Gateway | Java 21 + Apache Camel (EDIFACT + X12 + AS2) |
+| WebSocket | Elixir + Phoenix |
+| GPS Ingest | Rust (tokio, rumqttc, rdkafka) |
+| Route Optimizer | Rust (tonic gRPC, geo) |
+| Notification | Go (Kafka consumer, FCM/Email/SMS/WhatsApp/USSD) |
+| Webhook Dispatcher | Go (HMAC-SHA256, exponential backoff) |
+| Observability | Prometheus + Grafana + Jaeger + Loki + Promtail |
+| Object Storage | MinIO (S3-compatible) |
+
+Full architecture details: [docs/architecture.md](docs/architecture.md)
 
 ---
 
@@ -24,8 +37,8 @@ CargoTrack is a B2B SaaS platform connecting freight forwarders, 3PLs, carriers,
 
 ### Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) 24+
-- A `.env` file in the project root (see below)
+- Docker Desktop 24+
+- A `.env` file in the project root
 
 ### 1. Create your `.env`
 
@@ -33,7 +46,7 @@ CargoTrack is a B2B SaaS platform connecting freight forwarders, 3PLs, carriers,
 cp .env.example .env
 ```
 
-Open `.env` and set at minimum:
+Edit `.env` and set at minimum:
 
 ```env
 DEBUG=True
@@ -41,73 +54,76 @@ SECRET_KEY=<generate with: python -c "from django.core.management.utils import g
 DB_PASSWORD=a-strong-local-password
 ```
 
-> `DB_HOST` does **not** need to be changed — Docker Compose overrides it to `db` (the Postgres service name) automatically.
-
 ### 2. Build and start
 
-```bash
-make build   # first run — builds images
-make up      # start all services
-```
-
-Or without Make:
+**Sandbox (lightweight dev — recommended for first run):**
 
 ```bash
-docker compose build --no-cache
-docker compose up
+docker compose -f docker-compose.sandbox.yml up -d
 ```
+
+**Full production stack (30+ services):**
+
+```bash
+docker compose up -d
+```
+
+Migrations run automatically on backend startup.
 
 ### 3. Access the services
 
 | Service | URL |
-| --- | --- |
-| React frontend (Vite) | <http://localhost:5173> |
-| Django API | <http://localhost:8000/api/> |
-| Django Admin | <http://localhost:8000/admin/> |
-| PostgreSQL | `localhost:5432` |
-
-Migrations run automatically on backend startup. The first `make up` will apply all pending migrations before the server accepts requests.
+|---|---|
+| React frontend | http://localhost:5173 |
+| Django API | http://localhost:8000/api/ |
+| Django Admin | http://localhost:8000/admin/ |
+| Keycloak Admin | http://localhost:8080 (admin/admin) |
+| Traefik Dashboard | http://localhost:8082 |
+| Kafka UI | http://localhost:8088 |
+| EMQX Dashboard | http://localhost:18083 |
+| Grafana | http://localhost:3000 (admin/admin) |
+| Jaeger | http://localhost:16686 |
+| MinIO Console | http://localhost:9001 |
 
 ---
 
-## Common Makefile targets
+## Makefile Targets
 
 ```bash
-make up               # docker compose up (foreground)
-make down             # stop and remove containers
-make build            # rebuild all images from scratch
-make logs             # tail backend logs
-make shell            # Django management shell
-make migrate          # run pending migrations
-make createsuperuser  # create a Django admin account
-make seed             # load demo data (seed_data management command)
-make frontend-install # npm install inside the frontend container
+make up                # docker compose up (foreground)
+make down              # stop and remove containers
+make build             # rebuild all images
+make logs              # tail backend logs
+make shell             # Django management shell
+make migrate           # run pending migrations
+make createsuperuser   # create Django admin account
+make seed              # load demo data
+make test              # run tests
+make check             # run full CI suite (lint, type-check, test)
+make lint              # run linters across all languages
+make proto             # regenerate gRPC protobuf stubs
+make clean             # remove containers, volumes, built assets
+make sandbox-up        # start sandbox environment
+make sandbox-seed      # seed sandbox with demo data
+make train-model       # train ML delay prediction model
 ```
 
 ---
 
 ## Local Development (without Docker)
 
-### Backend (Windows)
+### Backend
 
 ```powershell
+# Windows
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# Start the server — opens firewall, binds to 0.0.0.0:8000, prints LAN IPs
 .\scripts\run-dev.ps1
 ```
 
-The script automatically:
-- Opens Windows Firewall for inbound TCP port 8000
-- Applies pending database migrations
-- Detects and prints your LAN IP addresses (use these in the mobile app)
-- Starts Daphne ASGI on `0.0.0.0:8000`
-
-### Backend (macOS / Linux)
-
 ```bash
+# macOS / Linux
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
@@ -117,23 +133,14 @@ daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application
 ### Frontend
 
 ```bash
-cd frontend
+cd apps/web
 npm install
 npm run dev
 ```
 
----
+### Mobile App (Android)
 
-## Mobile App (Android)
-
-> **The mobile app requires a development build, not Expo Go.** It uses native modules (biometrics, maps, notifications) that are not available in Expo Go.
-
-### Prerequisites
-
-- Android device (physical or emulator) with USB debugging enabled, OR
-- An EAS account for cloud builds (`npx eas login`)
-
-### Run on Android (USB-connected device or emulator)
+> Requires a development build, not Expo Go (uses native modules for biometrics, maps, notifications).
 
 ```bash
 cd mobile
@@ -141,113 +148,117 @@ npm install
 npx expo run:android
 ```
 
-This compiles a debug APK, installs it, and starts Metro. First build takes 2-5 minutes; subsequent builds use incremental compilation (~30 seconds).
+For EAS cloud builds: `npx eas build --platform android --profile development`
 
-### EAS Development Build (no USB required)
-
-```bash
-cd mobile
-npx eas build --platform android --profile development
-```
-
-When the build completes, scan the QR code or download the APK from the provided link. Install it on your device, then run:
-
-```bash
-npx expo start --dev-client
-```
-
-The app will connect to the Metro dev server over your WiFi network.
-
-### Connect the app to the Django server
-
-The app needs to reach the Django API running on your computer:
-
-| Device type | Server address |
-|---|---|
-| **Android emulator** (same PC) | `http://10.0.2.2:8000` |
-| **Physical device** (same WiFi) | `http://<lan-ip>:8000` (e.g. `http://192.168.1.25:8000`) |
-
-If the app cannot connect, tap the **gear icon** (⚙) on the login screen to open Server Settings and configure the address manually.
-
-### Network troubleshooting
-
-1. **Confirm Django is reachable:** open `http://<lan-ip>:8000/api/health/` in your phone's browser
-2. **Same WiFi:** your computer and phone must be on the same network
-3. **Windows Firewall:** run `.\scripts\run-dev.ps1` which opens port 8000 automatically
-4. **Corporate VPN:** VPNs often block local network traffic — disconnect and try again
-5. **Android emulator:** use `http://10.0.2.2:8000` (this is the special alias for the host machine's `127.0.0.1`)
-
-### Biometric authentication
-
-The app supports fingerprint/face unlock for sign-in:
-
-1. Sign in with your password once
-2. When prompted, tap **Enable** to store credentials securely
-3. Next time, tap **Sign in with Fingerprint** (or Face ID)
-
-Credentials are encrypted in the hardware-backed Android Keystore / iOS Keychain. The biometric signature never leaves the device. Disable at any time from the Account tab.
+Connect the app to Django:
+- **Emulator:** `http://10.0.2.2:8000`
+- **Physical device (same WiFi):** `http://<lan-ip>:8000`
 
 ---
 
-## Architecture overview
-
-```text
-cargotrack/          Django project root (settings, urls, wsgi)
-accounts/            Custom user model + JWT auth endpoints
-shipments/           Shipment & Route models, CRUD API
-tracking/            TrackingEvent model, log-event endpoint
-alerts/              Alert model, AlertManager, severity pipeline
-dashboard/           KPI aggregation views
-frontend/            React SPA (Vite + Tailwind CSS)
-mobile/              Expo app (React Native + NativeWind)
-shared/              Platform-agnostic API factories (web + mobile)
-```
-
----
-
-## API reference
-
-The REST API is versioned under `/api/v1/`. Authentication uses JWT Bearer tokens.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| POST | `/api/auth/register/` | Create account, returns token pair |
-| POST | `/api/token/` | Obtain access + refresh tokens |
-| POST | `/api/token/refresh/` | Rotate refresh token |
-| GET | `/api/v1/shipments/` | Paginated shipment list |
-| POST | `/api/v1/shipments/` | Create shipment |
-| GET | `/api/v1/shipments/:id/` | Shipment detail |
-| GET | `/api/v1/shipments/:id/tracking-events/` | Event timeline |
-| POST | `/api/v1/shipments/:id/tracking-events/` | Log tracking event |
-| GET | `/api/v1/routes/` | Available routes (flat array) |
-| GET | `/api/v1/dashboard/` | KPI summary |
-| GET | `/api/v1/alerts/` | Alert list |
-| GET | `/api/v1/predictions/` | Delay risk scores |
-
----
-
-## Environment variables
+## Environment Variables
 
 | Variable | Default | Description |
-| --- | --- | --- |
+|---|---|---|
 | `SECRET_KEY` | insecure dev key | Django secret — must be rotated in production |
 | `DEBUG` | `False` | Enable debug mode |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated allowed hostnames |
 | `DB_NAME` | `cargotrack` | PostgreSQL database name |
 | `DB_USER` | `postgres` | PostgreSQL user |
 | `DB_PASSWORD` | *(required)* | PostgreSQL password |
-| `DB_HOST` | `localhost` | PostgreSQL host (auto-overridden to `db` in Docker) |
+| `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection string |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Allowed CORS origins |
+| `OIDC_ENABLED` | `true` | Enable Keycloak OIDC |
+| `KEYCLOAK_SERVER_URL` | `http://localhost:8080` | Keycloak base URL |
+| `JWT_SECRET_KEY` | insecure dev key | JWT signing key for cross-service auth |
 
 ---
 
-## Running tests
+## API Overview
+
+**Base URL:** `http://localhost:8000` | **Version:** `v1` | **Auth:** JWT Bearer token
+
+```text
+POST /api/auth/register/          Create account, returns JWT pair
+POST /api/auth/token/             Obtain access + refresh tokens
+POST /api/auth/token/refresh/     Rotate refresh token
+POST /api/auth/token/logout/      Blacklist refresh token
+GET  /api/v1/shipments/           Paginated shipment list
+POST /api/v1/shipments/           Create shipment
+GET  /api/v1/shipments/<id>/      Shipment detail
+POST /api/v1/shipments/<id>/tracking-events/   Log tracking event
+GET  /api/v1/dashboard/           KPI summary
+GET  /api/v1/alerts/              Alert list
+POST /api/v1/predict-delay/       ML delay prediction
+```
+
+Full API reference: [docs/api-reference.md](docs/api-reference.md)
+
+---
+
+## Repository Structure
+
+```
+cargotrack/
+├── services/
+│   ├── api/                     # Django REST API — core business logic
+│   ├── ws/                      # Phoenix WebSocket server (Elixir)
+│   ├── tracking-ingest/         # GPS batch ingestion (Go)
+│   ├── gps-ingest/              # Real-time GPS → Kafka (Rust)
+│   ├── route-optimizer/         # TSP/MVRP solver via gRPC (Rust)
+│   ├── notification/            # Push/SMS/Email/WhatsApp/USSD (Go)
+│   ├── webhook-dispatcher/      # External webhook fan-out (Go)
+│   ├── workflow-engine/         # Camunda BPMN workflow engine (Java)
+│   └── edi-integration/         # Apache Camel EDI gateway (Java)
+├── apps/web/                    # React + Vite + TypeScript frontend
+├── mobile/                      # Expo React Native mobile app
+├── libs/shared-types/           # Shared TypeScript types
+├── deploy/                      # Traefik, Keycloak, Prometheus, Grafana, Loki, K8s, Terraform
+├── docs/                        # Full documentation → docs/index.md
+├── docker-compose.yml           # Full production stack (30+ services)
+├── docker-compose.sandbox.yml   # Lightweight sandbox environment
+├── Makefile                     # 30+ convenience targets
+├── README.md                    # This file
+├── CONTRIBUTING.md              # Contribution guidelines
+├── LICENSE                      # GNU AGPL v3.0
+└── FUNDING.yml                  # Funding configuration
+```
+
+---
+
+## Documentation
+
+All detailed documentation lives in [`docs/`](docs/index.md):
+
+| Document | Covers |
+|---|---|
+| [Index](docs/index.md) | Documentation hub with port map and architecture overview |
+| [Project Overview](docs/project-overview.md) | Product identity, design decisions, stack rationale |
+| [Architecture](docs/architecture.md) | System diagram, Kafka event flows, security model |
+| [Services](docs/services.md) | All microservices detailed with ports, env vars, key files |
+| [API Reference](docs/api-reference.md) | 100+ endpoints, JWT auth flow, RBAC |
+| [Data Models](docs/data-models.md) | Full DB schemas across 17 Django apps |
+| [Features](docs/features.md) | OCR, customs, USSD, ETA, finance, cold chain, ML |
+| [Development](docs/development.md) | Setup guide, Makefile targets, troubleshooting |
+| [Deployment](docs/deployment.md) | Docker, Kubernetes, Terraform, monitoring |
+| [Webhook Events](docs/webhook-events.md) | 8 event types, delivery guarantees, retry schedule |
+
+---
+
+## Running Tests
 
 ```bash
-# From the project root with venv active:
+# With venv active
 pytest tests/ -q
 
-# Or inside Docker:
+# Inside Docker
 docker compose exec backend pytest tests/ -q
 ```
+
+---
+
+## License
+
+GNU Affero General Public License v3.0 — see [LICENSE](LICENSE).
