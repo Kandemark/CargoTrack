@@ -3,7 +3,9 @@ const { getDefaultConfig } = require('expo/metro-config')
 
 const projectRoot   = __dirname
 const workspaceRoot = path.resolve(projectRoot, '..')   // apps/
-const sharedRoot    = path.resolve(workspaceRoot, 'shared')
+const monorepoRoot  = path.resolve(workspaceRoot, '..')  // repo root
+const sharedTypes   = path.resolve(monorepoRoot, 'libs', 'shared-types')
+const designTokens  = path.resolve(monorepoRoot, 'libs', 'design-tokens')
 
 // With npm workspaces, expo-router is hoisted to root node_modules.
 // getDefaultConfig() looks for it in mobile/node_modules and never finds it,
@@ -19,7 +21,8 @@ const config = getDefaultConfig(projectRoot)
 // Watch shared/ and the root node_modules so Metro picks up packages that
 // npm workspaces hoisted out of mobile/node_modules into the repo root.
 config.watchFolders = [
-  sharedRoot,
+  sharedTypes,
+  designTokens,
   path.resolve(workspaceRoot, '..', 'node_modules'),
 ]
 
@@ -35,7 +38,8 @@ config.resolver = {
   extraNodeModules: {
     ...config.resolver?.extraNodeModules,
     '@': projectRoot,
-    '@shared': sharedRoot,
+    '@shared': sharedTypes,
+    '@cargotrack/design-tokens': designTokens,
   },
 }
 

@@ -11,8 +11,9 @@ import {
   Alert,
   Modal,
   StyleSheet,
+  StatusBar,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import axios from 'axios'
@@ -36,6 +37,7 @@ import {
 } from '@/lib/biometrics'
 import { Button, Input, Toast } from '@/components/ui'
 import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 
 // ── Server settings modal ────────────────────────────────────────────────────────
 function ServerSettingsModal({
@@ -283,6 +285,7 @@ export default function LoginScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current
   const { setTokens, setUser, setBiometricEnabled } = useAuthStore()
   const { colors, font, spacing, radius, isDark } = useAppTheme()
+  const L = T.light // force light mode on login screen
 
   const showError = useCallback((msg: string) => {
     setToastMessage(msg)
@@ -420,8 +423,10 @@ export default function LoginScreen() {
     }, 800)
   }
 
+  const insets = useSafeAreaInsets()
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
+    <View style={{ flex: 1, backgroundColor: L.surface.background }}>
       <Toast message={toastMessage} visible={toastVisible} type={toastType} onDismiss={() => setToastVisible(false)} />
       <ServerSettingsModal visible={serverModalVisible} onClose={() => setServerModalVisible(false)} />
 
@@ -433,6 +438,7 @@ export default function LoginScreen() {
         >
           {/* Hero header */}
           <SafeAreaView edges={['top']} style={{ backgroundColor: '#0f2d5e', overflow: 'hidden' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#0f2d5e" />
             {/* Connection badge */}
             <TouchableOpacity
               onPress={() => setServerModalVisible(true)}
@@ -549,13 +555,13 @@ export default function LoginScreen() {
             style={[
               {
                 flex: 1,
-                backgroundColor: colors.card,
+                backgroundColor: L.surface.card,
                 borderTopLeftRadius: radius['2xl'],
                 borderTopRightRadius: radius['2xl'],
                 marginTop: -22,
                 paddingHorizontal: 24,
                 paddingTop: 32,
-                paddingBottom: 40,
+                paddingBottom: 40 + (insets.bottom || 0),
               },
               { opacity: fadeAnim },
             ]}
@@ -615,11 +621,11 @@ export default function LoginScreen() {
                 </TouchableOpacity>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-                  <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />
-                  <Text style={{ marginHorizontal: spacing.md, fontSize: font.size.sm, fontWeight: font.weight.medium, color: colors.textFaint }}>
+                  <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: L.border.light }} />
+                  <Text style={{ marginHorizontal: spacing.md, fontSize: font.size.sm, fontWeight: font.weight.medium, color: L.text.faint }}>
                     or use password
                   </Text>
-                  <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />
+                  <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: L.border.light }} />
                 </View>
               </>
             )}
@@ -633,6 +639,7 @@ export default function LoginScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="next"
+              inputBackground={L.surface.muted}
               containerStyle={{ marginBottom: 18 }}
             />
 
@@ -645,6 +652,7 @@ export default function LoginScreen() {
               secureTextEntry
               returnKeyType="done"
               onSubmitEditing={handleLogin}
+              inputBackground={L.surface.muted}
               containerStyle={{ marginBottom: 28 }}
             />
 
@@ -657,13 +665,13 @@ export default function LoginScreen() {
               style={{ marginTop: 20, alignItems: 'center' }}
               activeOpacity={0.7}
             >
-              <Text style={{ fontSize: font.size.base, color: colors.textMuted }}>
+              <Text style={{ fontSize: font.size.base, color: L.text.muted }}>
                 Don't have an account?{' '}
                 <Text style={{ color: isDark ? '#f5801e' : '#0f2d5e', fontWeight: font.weight.bold }}>Create one</Text>
               </Text>
             </TouchableOpacity>
 
-            <Text style={{ marginTop: 22, textAlign: 'center', fontSize: font.size.xs, color: isDark ? '#4b5563' : '#d1d5db', lineHeight: 17 }}>
+            <Text style={{ marginTop: 22, textAlign: 'center', fontSize: font.size.xs, color: L.text.faint, lineHeight: 17 }}>
               {bioAvailable && !bioEnabled ? 'Sign in to enable biometric access.\n' : ''}
               {new Date().getFullYear()} CargoTrack Ltd
             </Text>

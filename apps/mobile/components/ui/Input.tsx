@@ -10,6 +10,7 @@ interface InputProps extends TextInputProps {
   error?: string
   rightSlot?: React.ReactNode
   containerStyle?: ViewProps['style']
+  inputBackground?: string
 }
 
 export default function Input({
@@ -18,6 +19,7 @@ export default function Input({
   error,
   rightSlot,
   containerStyle,
+  inputBackground,
   secureTextEntry,
   ...rest
 }: InputProps) {
@@ -35,10 +37,10 @@ export default function Input({
       {label && (
         <Text style={{
           fontSize: font.size.xs,
-          fontFamily: 'SpaceGrotesk',
+          fontFamily: font.family.heading,
           fontWeight: font.weight.bold,
           color: colors.textSecondary,
-          marginBottom: 6,
+          marginBottom: 4,
           textTransform: 'uppercase',
           letterSpacing: 0.8,
         }}>
@@ -49,18 +51,18 @@ export default function Input({
         flexDirection: 'row',
         alignItems: 'center',
         borderRadius: radius.lg,
-        backgroundColor: colors.card,
-        borderWidth: 1.5,
+        backgroundColor: inputBackground ?? colors.muted,
+        borderWidth: 1,
         borderColor: focusBorder ?? (error ? T.color.ui.danger : colors.border),
-        minHeight: 52,
+        height: 40,
         ...(error && { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2' }),
       }]}>
         {icon && (
           <Ionicons
             name={icon}
-            size={20}
+            size={18}
             color={iconColor}
-            style={{ marginLeft: 14 }}
+            style={{ marginLeft: 12 }}
           />
         )}
         <TextInput
@@ -77,12 +79,10 @@ export default function Input({
           placeholderTextColor={placeholderColor}
           style={[{
             flex: 1,
-            paddingVertical: 14,
             paddingHorizontal: 12,
-            fontFamily: 'DMSans',
+            fontFamily: font.family.body,
             fontSize: font.size.base,
             color: colors.text,
-            minHeight: 48,
             paddingLeft: icon ? undefined : 16,
             paddingRight: (isPassword || !!rightSlot) ? 0 : undefined,
           }, rest.style]}
@@ -90,12 +90,12 @@ export default function Input({
         {isPassword && (
           <TouchableOpacity
             onPress={() => setShowPassword((v) => !v)}
-            style={{ paddingHorizontal: 12, height: '100%', justifyContent: 'center' }}
+            style={{ paddingHorizontal: 10, justifyContent: 'center' }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={20}
+              size={18}
               color={colors.textFaint}
             />
           </TouchableOpacity>

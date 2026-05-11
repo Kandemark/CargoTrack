@@ -11,7 +11,10 @@
     "./api/types": "./api/types.ts",
     "./api/shipments": "./api/shipments.ts",
     "./api/dashboard": "./api/dashboard.ts",
-    "./api/*": "./api/*"
+    "./api/*": "./api/*",
+    "./utils/statusColors": "./utils/statusColors.ts",
+    "./utils/formatters": "./utils/formatters.ts",
+    "./utils/*": "./utils/*"
   },
   "peerDependencies": {
     "axios": "^1.7.0"

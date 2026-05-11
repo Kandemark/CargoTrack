@@ -28,11 +28,12 @@ module.exports = function (api) {
           root: ['./'],
           alias: {
             '@': './',
-            '@shared': '../shared',
+            '@shared': '../../libs/shared-types',
           },
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
         },
       ],
+      'react-native-reanimated/plugin',
     ],
   }
 }

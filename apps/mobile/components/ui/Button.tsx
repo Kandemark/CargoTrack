@@ -1,5 +1,6 @@
 import { TouchableOpacity, Text, ActivityIndicator, View, type ViewProps } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { T } from '@/lib/theme'
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
@@ -56,6 +57,7 @@ export default function Button({
   onPress,
   style,
 }: ButtonProps) {
+  const { font } = useAppTheme()
   const isDisabled = disabled || loading
   const isOutlineOrGhost = variant === 'outline' || variant === 'ghost'
   const spinnerColor = isOutlineOrGhost ? T.color.brand.primary : '#fff'
@@ -93,8 +95,8 @@ export default function Button({
             />
           )}
           <Text style={{
-            fontFamily: 'SpaceGrotesk',
-            fontWeight: '700',
+            fontFamily: font.family.heading,
+            fontWeight: font.weight.bold,
             color: textColor,
             fontSize: sizeText[size],
           }}>

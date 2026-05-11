@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { View, Text, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import axios from 'axios'
 import { authApi } from '@/lib/api'
 import { Button, Input } from '@/components/ui'
 import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 import type { RegisterPayload } from '@shared/api/auth'
 
 type FieldErrors = Partial<Record<keyof RegisterPayload | 'non_field_errors', string>>
@@ -48,6 +49,8 @@ export default function RegisterScreen() {
   const [generalError, setGE] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const { colors, font, spacing, radius, isDark } = useAppTheme()
+  const L = T.light
+  const insets = useSafeAreaInsets()
 
   function set<K extends keyof RegisterPayload>(key: K, value: RegisterPayload[K]) {
     setForm((p) => ({ ...p, [key]: value }))
@@ -72,7 +75,7 @@ export default function RegisterScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#0f2d5e' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: L.surface.background }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <SafeAreaView edges={['top']} style={{ backgroundColor: '#0f2d5e', overflow: 'hidden' }}>
@@ -155,13 +158,13 @@ export default function RegisterScreen() {
         {/* Form card */}
         <View style={{
           flex: 1,
-          backgroundColor: colors.card,
+          backgroundColor: L.surface.card,
           borderTopLeftRadius: radius['2xl'],
           borderTopRightRadius: radius['2xl'],
           marginTop: -22,
           paddingHorizontal: 24,
           paddingTop: 32,
-          paddingBottom: 48,
+          paddingBottom: 48 + (insets.bottom || 0),
         }}>
           {generalError && (
             <View style={{
@@ -188,6 +191,7 @@ export default function RegisterScreen() {
                 label="First name" icon="person-outline" placeholder="Jane"
                 value={form.first_name} error={fieldErrors.first_name}
                 onChangeText={(v) => set('first_name', v)} autoCapitalize="words" returnKeyType="next"
+                inputBackground={L.surface.muted}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -195,6 +199,7 @@ export default function RegisterScreen() {
                 label="Last name" icon="person-outline" placeholder="Mwangi"
                 value={form.last_name} error={fieldErrors.last_name}
                 onChangeText={(v) => set('last_name', v)} autoCapitalize="words" returnKeyType="next"
+                inputBackground={L.surface.muted}
               />
             </View>
           </View>
@@ -204,6 +209,7 @@ export default function RegisterScreen() {
             value={form.email} error={fieldErrors.email}
             onChangeText={(v) => set('email', v)} keyboardType="email-address"
             autoCapitalize="none" autoCorrect={false}
+            inputBackground={L.surface.muted}
             containerStyle={{ marginBottom: 18 }}
           />
 
@@ -214,6 +220,7 @@ export default function RegisterScreen() {
                 label="Organization" icon="briefcase-outline" placeholder="Acme Freight"
                 value={form.org_name ?? ''} error={fieldErrors.org_name}
                 onChangeText={(v) => set('org_name', v)} autoCapitalize="words"
+                inputBackground={L.surface.muted}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -221,6 +228,7 @@ export default function RegisterScreen() {
                 label="Phone" icon="call-outline" placeholder="+254 700 000 000"
                 value={form.phone} error={fieldErrors.phone}
                 onChangeText={(v) => set('phone', v)} keyboardType="phone-pad"
+                inputBackground={L.surface.muted}
               />
             </View>
           </View>
@@ -252,10 +260,10 @@ export default function RegisterScreen() {
                       borderWidth: 1.5,
                       borderColor: selected
                         ? '#0f2d5e'
-                        : colors.border,
+                        : L.border.light,
                       backgroundColor: selected
                         ? (isDark ? 'rgba(30,58,138,0.2)' : '#eff6ff')
-                        : colors.muted,
+                        : L.surface.muted,
                     }}
                   >
                     <Ionicons
@@ -270,7 +278,7 @@ export default function RegisterScreen() {
                       textAlign: 'center',
                       color: selected
                         ? (isDark ? '#93c5fd' : '#0f2d5e')
-                        : colors.textSecondary,
+                        : L.text.secondary,
                     }}>
                       {opt.label}
                     </Text>
@@ -281,7 +289,7 @@ export default function RegisterScreen() {
                       lineHeight: 13,
                       color: selected
                         ? (isDark ? '#60a5fa' : '#3b82f6')
-                        : colors.textFaint,
+                        : L.text.faint,
                     }}>
                       {opt.sub}
                     </Text>
@@ -300,6 +308,7 @@ export default function RegisterScreen() {
             label="Password" icon="lock-closed-outline" placeholder="Min. 10 characters, 1 upper, 1 digit, 1 symbol"
             value={form.password} error={fieldErrors.password}
             onChangeText={(v) => set('password', v)} secureTextEntry
+            inputBackground={L.surface.muted}
             containerStyle={{ marginBottom: 18 }}
           />
 
@@ -308,6 +317,7 @@ export default function RegisterScreen() {
             value={form.password2} error={fieldErrors.password2}
             onChangeText={(v) => set('password2', v)} secureTextEntry
             returnKeyType="done" onSubmitEditing={handleSubmit}
+            inputBackground={L.surface.muted}
             containerStyle={{ marginBottom: 28 }}
           />
 
@@ -320,13 +330,13 @@ export default function RegisterScreen() {
             style={{ marginTop: 20, alignItems: 'center' }}
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: font.size.base, color: colors.textMuted }}>
+            <Text style={{ fontSize: font.size.base, color: L.text.muted }}>
               Already have an account?{' '}
               <Text style={{ color: isDark ? '#f5801e' : '#0f2d5e', fontWeight: font.weight.bold }}>Sign in</Text>
             </Text>
           </TouchableOpacity>
 
-          <Text style={{ marginTop: 24, textAlign: 'center', fontSize: font.size.xs, color: isDark ? '#4b5563' : '#d1d5db' }}>
+          <Text style={{ marginTop: 24, textAlign: 'center', fontSize: font.size.xs, color: L.text.faint }}>
             {new Date().getFullYear()} CargoTrack Ltd
           </Text>
         </View>
