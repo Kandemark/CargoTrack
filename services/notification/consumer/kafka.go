@@ -65,12 +65,6 @@ func (c *KafkaConsumer) Run(ctx context.Context) error {
 	return nil
 }
 
-// notificationHandler implements sarama.ConsumerGroupHandler
-type notificationHandler struct {
-	dispatcher *dispatcher.Dispatcher
-	limiter    *ratelimit.Limiter
-}
-
 // ProcessEvent decodes a raw Kafka message and dispatches it.
 // Called from the consumer group handler or dev HTTP endpoint.
 func ProcessEvent(dispatch *dispatcher.Dispatcher, limiter *ratelimit.Limiter, raw []byte) error {

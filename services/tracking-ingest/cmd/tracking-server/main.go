@@ -131,7 +131,7 @@ func (ing *Ingestor) copyInsert(ctx context.Context, batch []TrackingEvent) erro
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	_, err = tx.CopyFrom(
 		ctx,
@@ -153,7 +153,7 @@ func (ing *Ingestor) rowInsert(ctx context.Context, batch []TrackingEvent) error
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	for i := 0; i < len(batch); i += 100 {
 		end := i + 100
