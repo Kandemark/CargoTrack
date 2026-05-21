@@ -21,30 +21,40 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      api: ${{ steps.filter.outputs.api }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      go-tracking: ${{ steps.filter.outputs.go-tracking }}
+      # These include CI config changes to always run lint+test
+      api: ${{ steps.filter.outputs.api == 'true' || steps.filter.outputs.ci == 'true' }}
+      frontend: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
+      go-tracking: ${{ steps.filter.outputs.go-tracking == 'true' || steps.filter.outputs.ci == 'true' }}
       elixir-ws: ${{ steps.filter.outputs.elixir-ws }}
-      gps-ingest: ${{ steps.filter.outputs.gps-ingest }}
-      notification: ${{ steps.filter.outputs.notification }}
-      webhook: ${{ steps.filter.outputs.webhook }}
-      workflow-engine: ${{ steps.filter.outputs.workflow-engine }}
+      gps-ingest: ${{ steps.filter.outputs.gps-ingest == 'true' || steps.filter.outputs.ci == 'true' }}
+      notification: ${{ steps.filter.outputs.notification == 'true' || steps.filter.outputs.ci == 'true' }}
+      webhook: ${{ steps.filter.outputs.webhook == 'true' || steps.filter.outputs.ci == 'true' }}
+      workflow-engine: ${{ steps.filter.outputs.workflow-engine == 'true' || steps.filter.outputs.ci == 'true' }}
       edi: ${{ steps.filter.outputs.edi }}
+      # Build-only outputs (NOT triggered by CI config changes)
+      build-api: ${{ steps.filter.outputs.api }}
+      build-frontend: ${{ steps.filter.outputs.frontend }}
+      build-go-tracking: ${{ steps.filter.outputs.go-tracking }}
+      build-gps-ingest: ${{ steps.filter.outputs.gps-ingest }}
+      build-notification: ${{ steps.filter.outputs.notification }}
+      build-webhook: ${{ steps.filter.outputs.webhook }}
+      build-workflow-engine: ${{ steps.filter.outputs.workflow-engine }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
-            api: services/api/**
-            frontend: frontends/web/**|libs/shared-types/**
-            go-tracking: services/tracking-ingest/**
+            api: services/api/**|.github/workflows/**
+            frontend: frontends/web/**|libs/shared-types/**|.github/workflows/**
+            go-tracking: services/tracking-ingest/**|.github/workflows/**
             elixir-ws: services/ws/**
-            gps-ingest: services/gps-ingest/**
-            notification: services/notification/**
-            webhook: services/webhook-dispatcher/**
-            workflow-engine: services/workflow-engine/**
+            gps-ingest: services/gps-ingest/**|.github/workflows/**
+            notification: services/notification/**|.github/workflows/**
+            webhook: services/webhook-dispatcher/**|.github/workflows/**
+            workflow-engine: services/workflow-engine/**|.github/workflows/**
             edi: services/edi-integration/**
+            ci: .github/workflows/**
 
   # ── Lint ────────────────────────────────────────────────────────────────
   lint:
@@ -70,7 +80,8 @@ jobs:
         if: matrix.service == 'frontend'
         run: |
           cd frontends/web
-          npx biome check --max-diagnostics=50 src/
+          npm ci
+          npx eslint . --max-warnings=0
 
   # ── Test ────────────────────────────────────────────────────────────────
   test:
@@ -175,31 +186,31 @@ jobs:
           - name: backend
             context: services/api
             dockerfile: services/api/Dockerfile
-            if: ${{ needs.changes.outputs.api == 'true' }}
+            if: ${{ needs.changes.outputs.build-api == 'true' }}
           - name: frontend
             context: .
             dockerfile: frontends/web/Dockerfile
-            if: ${{ needs.changes.outputs.frontend == 'true' }}
+            if: ${{ needs.changes.outputs.build-frontend == 'true' }}
           - name: go-tracking
             context: services/tracking-ingest
             dockerfile: services/tracking-ingest/Dockerfile
-            if: ${{ needs.changes.outputs.go-tracking == 'true' }}
+            if: ${{ needs.changes.outputs.build-go-tracking == 'true' }}
           - name: gps-ingest
             context: services/gps-ingest
             dockerfile: services/gps-ingest/Dockerfile
-            if: ${{ needs.changes.outputs.gps-ingest == 'true' }}
+            if: ${{ needs.changes.outputs.build-gps-ingest == 'true' }}
           - name: notification
             context: services/notification
             dockerfile: services/notification/Dockerfile
-            if: ${{ needs.changes.outputs.notification == 'true' }}
+            if: ${{ needs.changes.outputs.build-notification == 'true' }}
           - name: webhook-dispatcher
             context: services/webhook-dispatcher
             dockerfile: services/webhook-dispatcher/Dockerfile
-            if: ${{ needs.changes.outputs.webhook == 'true' }}
+            if: ${{ needs.changes.outputs.build-webhook == 'true' }}
           - name: workflow-engine
             context: services/workflow-engine
             dockerfile: services/workflow-engine/Dockerfile
-            if: ${{ needs.changes.outputs.workflow-engine == 'true' }}
+            if: ${{ needs.changes.outputs.build-workflow-engine == 'true' }}
     permissions:
       contents: read
       packages: write
