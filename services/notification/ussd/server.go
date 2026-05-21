@@ -2,7 +2,7 @@
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/cargotrack/notification/providers"
@@ -45,8 +45,8 @@ func (s *Server) Start() error {
 	// Health check for Africa's Talking
 	mux.HandleFunc("/ussd/health", s.handleHealth)
 
-	log.Printf("[INFO] USSD server listening on %s", s.addr)
-	log.Printf("[INFO] USSD endpoints: /ussd (session), /ussd/delivery (reports), /ussd/health")
+	slog.Info("USSD server listening", "addr", s.addr)
+	slog.Info("USSD endpoints: /ussd (session), /ussd/delivery (reports), /ussd/health")
 	return http.ListenAndServe(s.addr, mux)
 }
 
@@ -59,23 +59,23 @@ func (s *Server) handleUSSD(w http.ResponseWriter, r *http.Request) {
 
 	var req providers.USSDRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("[ERROR] USSD decode: %v", err)
+		slog.Error("USSD decode failed", "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("[INFO] USSD session %s from %s: text=%q network=%s",
-		req.SessionID, maskPhone(req.PhoneNumber), req.Text, req.NetworkCode)
+	slog.Info("USSD session", "session_id", req.SessionID, "phone", maskPhone(req.PhoneNumber),
+		"text", req.Text, "network", req.NetworkCode)
 
 	response := s.atClient.HandleUSSD(&req, s.menuTree, s.sessions)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("[ERROR] USSD response encode: %v", err)
+		slog.Error("USSD response encode failed", "error", err)
 	}
 
 	if response.ShouldClose {
-		log.Printf("[INFO] USSD session %s ended at menu level %d", req.SessionID, response.MenuLevel)
+		slog.Info("USSD session ended", "session_id", req.SessionID, "menu_level", response.MenuLevel)
 	}
 }
 
@@ -88,7 +88,7 @@ func (s *Server) handleDeliveryReport(w http.ResponseWriter, r *http.Request) {
 
 	var report map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&report); err != nil {
-		log.Printf("[ERROR] Delivery report decode: %v", err)
+		slog.Error("delivery report decode failed", "error", err)
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}

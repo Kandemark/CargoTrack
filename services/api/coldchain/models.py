@@ -108,6 +108,9 @@ class TemperatureExcursion(models.Model):
         ordering = ['-started_at']
         verbose_name = 'Temperature Excursion'
         verbose_name_plural = 'Temperature Excursions'
+        indexes = [
+            models.Index(fields=["coldchain_shipment", "resolved_at"], name="tempex_coldship_res_idx"),
+        ]
 
     def try_auto_resolve(self, current_temp_c, tolerance_minutes, now=None):
         """Auto-resolve if temperature is back in range and tolerance window elapsed."""

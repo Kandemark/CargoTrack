@@ -93,6 +93,9 @@ class Bid(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=["listing", "status", "amount"], name="bid_listing_status_amt_idx"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=['listing', 'carrier'],

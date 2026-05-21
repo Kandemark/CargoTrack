@@ -5,7 +5,7 @@ Custom user model and profile model for CargoTrack.
 OOP:
     - Encapsulation: user role and permissions bundled in CustomUser.
     - Composition:   UserProfile extends CustomUser via OneToOneField,
-                     adding the RBAC role from cargotrack.roles.UserRole.
+                     adding the RBAC role from CustomUser.Role (TextChoices enum).
 """
 import hashlib
 import secrets
@@ -279,6 +279,9 @@ class Notification(models.Model):
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Notification'
+        indexes = [
+            models.Index(fields=["user", "is_dismissed", "type", "is_read"], name="notif_user_filter_idx"),
+        ]
 
     def __str__(self):
         return f'{self.type} — {self.title}'

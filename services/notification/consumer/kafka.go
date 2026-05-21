@@ -3,7 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -43,8 +43,7 @@ func NewKafkaConsumer(
 
 // Run starts consuming from Kafka topics. It blocks until SIGINT/SIGTERM.
 func (c *KafkaConsumer) Run(ctx context.Context) error {
-	log.Printf("[INFO] Kafka consumer starting: brokers=%v group=%s topics=%v",
-		c.brokers, c.group, c.topics)
+	slog.Info("Kafka consumer starting", "brokers", c.brokers, "group", c.group, "topics", c.topics)
 
 	// In production, this initializes sarama consumer group:
 	//   config := sarama.NewConfig()
@@ -57,11 +56,11 @@ func (c *KafkaConsumer) Run(ctx context.Context) error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	log.Println("[INFO] Notification consumer ready (dev mode — Kafka consumer stub)")
-	log.Println("[INFO] Waiting for notification events...")
+	slog.Info("Notification consumer ready (dev mode — Kafka consumer stub)")
+	slog.Info("Waiting for notification events...")
 
 	<-sigCh
-	log.Println("[INFO] Shutting down notification consumer")
+	slog.Info("Shutting down notification consumer")
 	return nil
 }
 
@@ -78,7 +77,7 @@ func ProcessEvent(dispatch *dispatcher.Dispatcher, limiter *ratelimit.Limiter, r
 	}
 
 	if err := limiter.Allow(evt.UserID); err != nil {
-		log.Printf("[RATELIMIT] %s: %v", evt.UserID, err)
+		slog.Warn("rate limit exceeded", "user_id", evt.UserID, "error", err)
 		return err
 	}
 

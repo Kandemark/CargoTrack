@@ -115,6 +115,9 @@ class Shipment(models.Model):
             models.Index(fields=["tracking_number"]),
             models.Index(fields=["status"]),
             models.Index(fields=["dispatch_status"]),
+            models.Index(fields=["status", "-created_at"], name="shipment_status_created_idx"),
+            models.Index(fields=["scheduled_departure"], name="shipment_sched_dep_idx"),
+            models.Index(fields=["scheduled_arrival"], name="shipment_sched_arr_idx"),
         ]
 
 

@@ -102,4 +102,5 @@ class TrackingEvent(models.Model):
         indexes = [
             models.Index(fields=["shipment", "timestamp"]),
             models.Index(fields=["event_type"]),
+            models.Index(fields=["recorded_by", "timestamp"], name="tracking_recby_ts_idx"),
         ]

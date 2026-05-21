@@ -23,7 +23,6 @@ route:
         severity: critical
       receiver: 'pagerduty-cargotrack'
       repeat_interval: 15m
-      continue: true
 
     - match:
         severity: warning
@@ -40,7 +39,7 @@ receivers:
   - name: 'slack-cargotrack-alerts'
     slack_configs:
       - api_url: '${SLACK_WEBHOOK_URL}'
-        channel: '#alerts-cargotrack'
+        channel: '${SLACK_ALERT_CHANNEL}'
         title: '{{ template "slack.cargotrack.title" . }}'
         text: '{{ template "slack.cargotrack.text" . }}'
         send_resolved: true
@@ -53,19 +52,34 @@ receivers:
 
   - name: 'email-digest'
     email_configs:
-      - to: 'ops@cargotrack.io'
-        from: 'alertmanager@cargotrack.io'
+      - to: '${ALERT_EMAIL_TO}'
+        from: '${ALERT_EMAIL_FROM}'
         smarthost: '${SMTP_HOST}:587'
         auth_username: '${SMTP_USER}'
         auth_password: '${SMTP_PASSWORD}'
+        headers:
+          Subject: '{{ template "email.cargotrack.subject" . }}'
+        html: '{{ template "email.cargotrack.body" . }}'
         send_resolved: false
 
 # ── Inhibition rules ───────────────────────────────────────────────────────
 # Suppress lower-severity alerts when a higher-severity alert is already firing
-# for the same service.
+# for the same service and alert name.
 inhibit_rules:
   - source_match:
       severity: 'critical'
     target_match:
       severity: 'warning'
-    equal: ['service']
+    equal: ['alertname', 'service']
+
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'info'
+    equal: ['alertname', 'service']
+
+  - source_match:
+      severity: 'warning'
+    target_match:
+      severity: 'info'
+    equal: ['alertname', 'service']

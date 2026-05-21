@@ -379,6 +379,15 @@ services:
     volumes:
       - ./deploy/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./deploy/prometheus/templates:/etc/alertmanager/templates:ro
+    environment:
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      SLACK_ALERT_CHANNEL: ${SLACK_ALERT_CHANNEL:-#alerts-cargotrack}
+      PAGERDUTY_ROUTING_KEY: ${PAGERDUTY_ROUTING_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-ops@cargotrack.io}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-alertmanager@cargotrack.io}
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"

@@ -52,6 +52,9 @@ class ProofOfDelivery(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Proof of Delivery'
         verbose_name_plural = 'Proofs of Delivery'
+        indexes = [
+            models.Index(fields=["verification_code"], name="pod_verify_code_idx"),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.verification_code:

@@ -2,7 +2,7 @@ package retry
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"math"
 	"time"
 )
@@ -51,7 +51,7 @@ func (b *Backoffer) Do(ctx context.Context, fn func() error) error {
 	for attempt := 0; attempt < b.MaxRetries; attempt++ {
 		if attempt > 0 {
 			delay := b.Delay(attempt)
-			log.Printf("[RETRY] attempt %d/%d after %v", attempt+1, b.MaxRetries, delay)
+			slog.Info("retrying webhook", "attempt", attempt+1, "max", b.MaxRetries, "delay", delay)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()

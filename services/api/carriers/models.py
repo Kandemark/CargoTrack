@@ -41,6 +41,9 @@ class Carrier(models.Model):
 
     class Meta:
         ordering = ['name']
+        indexes = [
+            models.Index(fields=["status"], name="carrier_status_idx"),
+        ]
 
     def __str__(self):
         return f'{self.code} — {self.name}'

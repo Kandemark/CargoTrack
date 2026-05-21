@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -80,7 +80,7 @@ func (d *Dispatcher) Deliver(ctx context.Context, regs []*WebhookRegistration, e
 func (d *Dispatcher) deliverOne(ctx context.Context, reg *WebhookRegistration, event string, data json.RawMessage) {
 	breaker := d.getBreaker(reg.URL)
 	if !breaker.Allow() {
-		log.Printf("[CIRCUIT-OPEN] %s for %s", reg.URL, event)
+		slog.Warn("circuit open — skipping delivery", "url", reg.URL, "event", event)
 		return
 	}
 
@@ -93,7 +93,7 @@ func (d *Dispatcher) deliverOne(ctx context.Context, reg *WebhookRegistration, e
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("[ERROR] marshal webhook payload: %v", err)
+		slog.Error("marshal webhook payload failed", "error", err)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (d *Dispatcher) deliverOne(ctx context.Context, reg *WebhookRegistration, e
 		}
 		if resp.StatusCode >= 400 {
 			// Client errors don't trip the circuit breaker — they won't succeed on retry
-			log.Printf("[WEBHOOK-CLIENT-ERROR] %s returned %d", reg.URL, resp.StatusCode)
+			slog.Warn("webhook endpoint returned client error", "url", reg.URL, "status", resp.StatusCode)
 			return nil
 		}
 
@@ -136,7 +136,7 @@ func (d *Dispatcher) deliverOne(ctx context.Context, reg *WebhookRegistration, e
 	})
 
 	if err != nil {
-		log.Printf("[WEBHOOK-FAILED] %s for event %s: %v", reg.URL, event, err)
+		slog.Error("webhook delivery failed", "url", reg.URL, "event", event, "error", err)
 	}
 }
 

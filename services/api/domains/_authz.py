@@ -125,6 +125,7 @@ class Permission(str, Enum):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # These align with ``accounts.models.CustomUser.Role``.
+# When adding a role to CustomUser.Role, add the corresponding entry here.
 RolePermissions: dict[str, set[Permission]] = {
     # ── Platform Owner — unrestricted access to all data across orgs ────
     "PLATFORM_OWNER": {

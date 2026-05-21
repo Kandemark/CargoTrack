@@ -3,7 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"time"
 
@@ -33,13 +33,13 @@ func (d *Dispatcher) Dispatch(ctx context.Context, evt *NotificationEvent) error
 	for _, channel := range evt.Channels {
 		provider, ok := d.providers[channel]
 		if !ok {
-			log.Printf("[WARN] no provider configured for channel: %s", channel)
+			slog.Warn("no provider configured for channel", "channel", channel)
 			continue
 		}
 
 		title, body, err := d.templates.Render(channel, evt)
 		if err != nil {
-			log.Printf("[ERROR] template render for %s: %v", channel, err)
+			slog.Error("template render failed", "channel", channel, "error", err)
 			continue
 		}
 
@@ -54,7 +54,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, evt *NotificationEvent) error
 		}
 
 		if err := d.sendWithRetry(ctx, provider, msg); err != nil {
-			log.Printf("[ERROR] %s send to %s failed: %v", channel, evt.UserID, err)
+			slog.Error("send failed", "channel", channel, "user_id", evt.UserID, "error", err)
 			lastErr = err
 		} else {
 			success++
@@ -75,8 +75,8 @@ func (d *Dispatcher) sendWithRetry(ctx context.Context, p providers.Provider, ms
 			if backoff > 60*time.Second {
 				backoff = 60 * time.Second
 			}
-			log.Printf("[INFO] retry %d/%d for %s to %s (backoff %v)",
-				attempt, d.maxRetry, p.Name(), msg.Recipient, backoff)
+			slog.Info("retrying", "attempt", attempt, "max", d.maxRetry,
+				"provider", p.Name(), "recipient", msg.Recipient, "backoff", backoff)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -88,7 +88,7 @@ func (d *Dispatcher) sendWithRetry(ctx context.Context, p providers.Provider, ms
 		if err == nil {
 			return nil
 		}
-		log.Printf("[WARN] %s send attempt %d failed: %v", p.Name(), attempt+1, err)
+		slog.Warn("send attempt failed", "provider", p.Name(), "attempt", attempt+1, "error", err)
 	}
 
 	return fmt.Errorf("exhausted %d retries: %w", d.maxRetry, err)

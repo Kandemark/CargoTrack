@@ -690,70 +690,8 @@ def extract_environment_attributes(request: HttpRequest) -> EnvironmentAttribute
 # DRF Integration
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class HasObjectPermission:
-    """Mixin that uses the ABAC engine for object-level permission checks.
-
-    Usage::
-
-        class ShipmentDetailView(HasObjectPermission, generics.RetrieveAPIView):
-            resource_type = "shipment"
-            permission_classes = [IsAuthenticated, CanViewShipments]
-
-    The view must set ``resource_type`` as a class attribute.
-    """
-
-    resource_type: str = ""
-
-    def check_object_permission(self, request, obj) -> bool:
-        """Evaluate ABAC policies for object-level access."""
-        if not self.resource_type:
-            return True  # No resource type configured — allow (defer to RBAC)
-
-        try:
-            subject = extract_subject_attributes(request.user)
-            resource = extract_resource_attributes(obj, self.resource_type)
-            environment = extract_environment_attributes(request)
-
-            decision = default_engine.evaluate(subject, resource, environment)
-
-            if not decision.allowed:
-                logger.warning(
-                    "ABAC object denial: user=%d resource=%s/%d policy=%s reason=%s",
-                    request.user.pk, self.resource_type,
-                    getattr(obj, 'pk', 0),
-                    decision.matched_policy, decision.reason,
-                )
-
-                if "AUDIT_LOG" in decision.obligations:
-                    _log_abac_denial(request, self.resource_type, obj, decision)
-
-            return decision.allowed
-
-        except Exception:
-            logger.exception("ABAC evaluation failed for %s/%s",
-                             self.resource_type, getattr(obj, 'pk', 0))
-            return False
-
-
-def _log_abac_denial(request, resource_type: str, obj, decision: PolicyDecision) -> None:
-    """Write an AuditEntry for ABAC denials (best-effort)."""
-    try:
-        from accounts.models import AuditEntry
-        AuditEntry.objects.create(
-            user=request.user if request.user.is_authenticated else None,
-            action='ACCESS_DENIED',
-            resource=f'{resource_type}/{getattr(obj, "pk", "?")}',
-            description=f'ABAC: {decision.reason}',
-            ip_address=request.META.get('REMOTE_ADDR', ''),
-            result='FAILURE',
-            metadata={
-                'policy': decision.matched_policy,
-                'reason': decision.reason,
-                'obligations': list(decision.obligations),
-            },
-        )
-    except Exception:
-        logger.exception("Failed to write ABAC denial audit entry")
+# HasObjectPermission is defined in domains/_authz.py (the authoritative location).
+# It imports ABAC primitives from this module at runtime to avoid circular imports.
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -793,6 +731,4 @@ __all__ = [
     "extract_resource_attributes",
     "extract_environment_attributes",
     "register_resource_extractor",
-    # DRF integration
-    "HasObjectPermission",
 ]

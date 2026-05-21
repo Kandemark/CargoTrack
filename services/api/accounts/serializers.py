@@ -132,6 +132,8 @@ class ChangePasswordSerializer(serializers.Serializer):
 
     def validate_new_password(self, value):
         validate_password_strength(value)
+        from django.contrib.auth.password_validation import validate_password as django_validate
+        django_validate(value)
         return value
 
 
@@ -270,6 +272,8 @@ class RegisterSerializer(serializers.Serializer):
 
         user = CustomUser(username=email, **validated_data)
         user.set_password(password)
+        from django.contrib.auth.password_validation import validate_password as django_validate
+        django_validate(password, user=user)
         user.onboarding_completed = True
 
         # Create or join organization

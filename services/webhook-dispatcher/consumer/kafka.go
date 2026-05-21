@@ -2,7 +2,7 @@ package consumer
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -64,8 +64,7 @@ func NewKafkaWebhookConsumer(
 
 // Run starts consuming from Kafka topics. Blocks until SIGINT/SIGTERM.
 func (c *KafkaWebhookConsumer) Run(ctx context.Context) error {
-	log.Printf("[INFO] Webhook consumer starting: brokers=%v group=%s topics=%v",
-		c.brokers, c.group, c.topics)
+	slog.Info("Webhook consumer starting", "brokers", c.brokers, "group", c.group, "topics", c.topics)
 
 	// In production: sarama consumer group with per-partition handlers.
 	// For now: dev mode stub that signals readiness.
@@ -73,11 +72,11 @@ func (c *KafkaWebhookConsumer) Run(ctx context.Context) error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	log.Println("[INFO] Webhook dispatcher ready (dev mode)")
-	log.Println("[INFO] Waiting for events...")
+	slog.Info("Webhook dispatcher ready (dev mode)")
+	slog.Info("Waiting for events...")
 
 	<-sigCh
-	log.Println("[INFO] Shutting down webhook dispatcher")
+	slog.Info("Shutting down webhook dispatcher")
 	return nil
 }
 
@@ -92,7 +91,7 @@ func ProcessEvent(store RegistrationStore, dispatch *dispatcher.Dispatcher, topi
 		return err
 	}
 	if len(regs) == 0 {
-		log.Printf("[DEBUG] No webhook registrations for event: %s", event)
+		slog.Debug("no webhook registrations", "event", event)
 		return nil
 	}
 
