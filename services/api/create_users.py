@@ -3,7 +3,6 @@ import secrets
 import sys
 
 from accounts.models import CustomUser, Organization
-from django.utils.text import slugify
 
 
 def _require_env(name: str) -> str:

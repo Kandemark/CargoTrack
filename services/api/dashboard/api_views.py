@@ -203,7 +203,6 @@ class PlatformRevenueView(APIView):
     permission_classes = [IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
-        from accounts.models import CustomUser, Organization
         from payments.models import Invoice
         from shipments.models import Shipment
 
@@ -351,12 +350,9 @@ class PublicLandingStatsView(AsyncCacheMixin, APIView):
         dots = []
         for s in Shipment.objects.select_related('route').exclude(status='DELIVERED')[:20]:
             origin_pos = None
-            dest_pos = None
             for name, coords in self.CITY_COORDS.items():
                 if name.lower() in s.route.origin.lower() or s.route.origin.lower() in name.lower():
                     origin_pos = coords
-                if name.lower() in s.route.destination.lower() or s.route.destination.lower() in name.lower():
-                    dest_pos = coords
             if origin_pos:
                 dots.append({'lat': origin_pos[0], 'lng': origin_pos[1], 'status': s.status})
 

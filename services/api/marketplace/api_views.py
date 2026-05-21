@@ -10,7 +10,6 @@ from cargotrack.authz import CanViewMarketplace, CanBidMarketplace, CanManageMar
 from carriers.models import Carrier
 from .models import FreightListing, Bid
 from .serializers import (
-    BidAcceptSerializer,
     BidCreateSerializer,
     BidSerializer,
     FreightListingCreateSerializer,

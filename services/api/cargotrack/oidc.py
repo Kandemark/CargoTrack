@@ -125,7 +125,6 @@ def sync_keycloak_role_to_user(user, keycloak_roles: list[str]) -> bool:
 
     Returns True if the role was changed.
     """
-    from accounts.models import CustomUser
 
     # Find the matching CustomUser.Role from Keycloak roles
     mapped_role = None

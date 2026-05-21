@@ -1,5 +1,4 @@
 """coldchain/views.py — Temperature monitoring, bulk IoT ingest, and compliance reporting."""
-import json
 
 from asgiref.sync import async_to_sync
 from django.utils import timezone

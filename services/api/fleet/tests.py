@@ -1,5 +1,5 @@
 """Tests for fleet module — driver expenses, trip sheet, offline sync."""
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 

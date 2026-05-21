@@ -8,7 +8,6 @@ Enabled via OTLP_TRACING_ENABLED=true in .env (off by default in dev).
 """
 import os
 
-from django.conf import settings
 
 OTLP_TRACING_ENABLED = os.getenv("OTLP_TRACING_ENABLED", "false").lower() in (
     "1", "true", "yes",

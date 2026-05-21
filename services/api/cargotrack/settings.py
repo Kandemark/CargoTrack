@@ -53,10 +53,10 @@ ALLOWED_HOSTS = config(
 if DEBUG:
     ALLOWED_HOSTS = ['*']
 
-    print(f'[CargoTrack] DEBUG mode — accepting connections from all hosts.')
-    print(f'[CargoTrack] Android emulator: http://10.0.2.2:8000')
-    print(f'[CargoTrack] Physical device:  port 8000 on this machine')
-    print(f'[CargoTrack] Run .\\scripts\\dev.ps1 status to see your LAN IPs.')
+    print('[CargoTrack] DEBUG mode — accepting connections from all hosts.')
+    print('[CargoTrack] Android emulator: http://10.0.2.2:8000')
+    print('[CargoTrack] Physical device:  port 8000 on this machine')
+    print('[CargoTrack] Run .\\scripts\\dev.ps1 status to see your LAN IPs.')
 
 # ── Installed apps ────────────────────────────────────────────────────────────
 INSTALLED_APPS = [

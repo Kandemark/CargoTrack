@@ -14,7 +14,6 @@ EAC Port free time defaults (2024 typical values):
     Kigali ICD (RW):   3 free days after arrival
 """
 from django.db import models
-from django.utils import timezone
 from shipments.models import Shipment
 
 

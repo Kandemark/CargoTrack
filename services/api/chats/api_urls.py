@@ -6,7 +6,6 @@ from .api_views import (
     ConversationListCreateView,
     ConversationDetailView,
     MessageCreateView,
-    MessageDeleteView,
     MessageEditView,
     MarkReadView,
     SocialFeedView,

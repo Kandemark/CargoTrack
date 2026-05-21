@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.db import connections
 from django.http import JsonResponse
 from django.utils import timezone

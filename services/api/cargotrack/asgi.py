@@ -10,7 +10,7 @@ django_asgi_app = get_asgi_application()
 # via dictConfig during setup(), but Daphne's CLI later calls basicConfig()
 # and the http_protocol module emits per-request DEBUG logs that flood the
 # console.  Force them to WARNING after all imports have settled.
-import logging
+import logging  # noqa: E402
 for _name in ('daphne', 'daphne.http_protocol', 'daphne.server',
               'daphne.websocket_protocol', 'daphne.ws_protocol'):
     _lg = logging.getLogger(_name)
@@ -18,9 +18,9 @@ for _name in ('daphne', 'daphne.http_protocol', 'daphne.server',
     _lg.propagate = False
 logging.getLogger('daphne.access').setLevel(logging.INFO)
 
-from channels.routing import ProtocolTypeRouter, URLRouter
-from .routing import websocket_urlpatterns
-from .middleware import WebSocketAuthMiddleware
+from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
+from .routing import websocket_urlpatterns  # noqa: E402
+from .middleware import WebSocketAuthMiddleware  # noqa: E402
 
 application = ProtocolTypeRouter({
     'http': django_asgi_app,

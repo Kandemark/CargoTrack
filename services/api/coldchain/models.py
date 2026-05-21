@@ -223,8 +223,8 @@ class ColdChainCertificate(models.Model):
 
 # ── Signals — Excursion → Alert Integration ──────────────────────────────────
 
-from django.db.models.signals import post_save
-from django.dispatch import receiver
+from django.db.models.signals import post_save  # noqa: E402
+from django.dispatch import receiver  # noqa: E402
 
 
 @receiver(post_save, sender=TemperatureExcursion)

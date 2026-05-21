@@ -1,11 +1,9 @@
 """pod/models.py — Digital Proof of Delivery with signature, photos, verification, and disputes."""
-import hashlib
 import secrets
 from django.conf import settings
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.utils import timezone
 
 from cargotrack.encryption import EncryptedTextField
 

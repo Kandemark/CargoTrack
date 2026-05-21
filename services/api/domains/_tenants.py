@@ -15,7 +15,6 @@ Provides:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from django.db import models
 from rest_framework import viewsets
@@ -66,11 +65,6 @@ class TenantScopedModelViewSet(viewsets.ModelViewSet):
 
         # Probe common FK patterns for multi-tenant models
         for field_name in ('client__organization', 'shipment__client__organization'):
-            if '__' in field_name:
-                lookup = f"{field_name}_id"
-            else:
-                lookup = f"{field_name}_id"
-            # Django supports __ lookups directly
             try:
                 return qs.filter(**{f"{field_name}_id": tenant_id})
             except Exception:

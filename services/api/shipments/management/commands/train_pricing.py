@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 
 from cargotrack.ml.dynamic_pricing import DynamicPricingEngine
 from payments.models import Invoice
-from shipments.models import Route, Shipment
+from shipments.models import Shipment
 
 
 class Command(BaseCommand):

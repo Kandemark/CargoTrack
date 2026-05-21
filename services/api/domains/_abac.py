@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Iterable, Optional, Protocol, Sequence
+from typing import Any, Callable, Iterable, Optional, Sequence
 
 from django.http import HttpRequest
 
@@ -118,7 +118,7 @@ class EACountry(str, Enum):
             "KENYA": cls.KE, "TANZANIA": cls.TZ, "UGANDA": cls.UG,
             "RWANDA": cls.RW, "BURUNDI": cls.BI,
             "DRC": cls.CD, "DR CONGO": cls.CD, "DEMOCRATIC REPUBLIC OF THE CONGO": cls.CD,
-            "SOUTH SUDAN": cls.SS, "SOUTH SUDAN": cls.SS,
+            "SOUTH SUDAN": cls.SS,
         }
         if v in _extra:
             return _extra[v]

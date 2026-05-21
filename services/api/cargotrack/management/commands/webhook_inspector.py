@@ -15,7 +15,6 @@ import hashlib
 import hmac
 import json
 import os
-import sys
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -70,7 +69,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
         if sig_valid is not None:
             status = "VALID" if sig_valid else "INVALID"
             print(f"  Signature: {status}")
-        print(f"  Headers:")
+        print("  Headers:")
         for k, v in self.headers.items():
             print(f"    {k}: {v}")
         print(f"  Body ({len(body)} bytes):")
@@ -123,7 +122,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Webhook Inspector — POST to /webhook\n")
+        self.wfile.write(b"Webhook Inspector -- POST to /webhook\n")
 
 
 class Command(BaseCommand):
@@ -145,8 +144,8 @@ class Command(BaseCommand):
         self.stdout.write(f"  POST webhooks to: http://localhost:{port}/webhook")
         self.stdout.write(f"  Health check:     http://localhost:{port}/health")
         self.stdout.write(f"  Stats:            http://localhost:{port}/stats")
-        self.stdout.write(f"  Log file:         webhook_inspector.log")
-        self.stdout.write(f"\n  Press Ctrl+C to stop.\n")
+        self.stdout.write("  Log file:         webhook_inspector.log")
+        self.stdout.write("\n  Press Ctrl+C to stop.\n")
 
         try:
             server.serve_forever()

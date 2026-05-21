@@ -22,7 +22,7 @@ from rest_framework.views import APIView
 from cargotrack.authz import CanViewAnalytics
 from domains._authz import OrgScopedQueryset
 from .models import Alert
-from .serializers import AlertSerializer, AlertAcknowledgeSerializer
+from .serializers import AlertSerializer
 
 
 class AlertListAPIView(OrgScopedQueryset, generics.ListAPIView):

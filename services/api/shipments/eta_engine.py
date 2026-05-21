@@ -24,7 +24,6 @@ from datetime import datetime, timedelta
 from math import atan2, cos, radians, sin, sqrt
 from typing import Optional
 
-from django.core.cache import cache
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)

@@ -19,7 +19,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 
 MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "ml_models"
 MODEL_PATH = MODEL_DIR / "driver_scoring.json"

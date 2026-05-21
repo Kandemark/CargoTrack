@@ -1,5 +1,5 @@
 """Comprehensive tests for Cold Chain Monitoring module."""
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 
@@ -75,7 +75,7 @@ class ColdChainImportTests(SimpleTestCase):
     def test_serializer_fields(self):
         from coldchain.serializers import (
             ColdChainShipmentSerializer, TemperatureReadingSerializer,
-            TemperatureExcursionSerializer, ColdChainCertificateSerializer,
+            ColdChainCertificateSerializer,
         )
         cc_fields = ColdChainShipmentSerializer.Meta.fields
         self.assertIn('product_type', cc_fields)

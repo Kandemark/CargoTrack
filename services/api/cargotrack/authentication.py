@@ -5,7 +5,6 @@ Provides CookieJWTAuthentication that reads the access token from an httpOnly
 cookie instead of the Authorization header.  Falls back to Bearer header auth
 so mobile clients (which cannot use httpOnly cookies) continue to work.
 """
-from django.conf import settings
 from rest_framework.authentication import BaseAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken

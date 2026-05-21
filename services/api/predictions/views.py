@@ -12,14 +12,12 @@ All 7 models exposed as authenticated POST endpoints:
   /api/v1/predictions/container-match/ — LCL consolidation suggestions
   /api/v1/predictions/shipment/<id>/   — all predictions for one shipment
 """
-from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.utils import extend_schema
 
 from cargotrack.authz import CanViewPredictions
-from cargotrack.ml.delay_predictor import DelayPredictor
 from cargotrack.ml.demand_forecaster import DemandForecaster
 from cargotrack.ml.dynamic_pricing import DynamicPricingEngine
 from cargotrack.ml.theft_risk import TheftRiskModel

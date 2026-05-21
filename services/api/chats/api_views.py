@@ -17,6 +17,8 @@ from .serializers import (
     ConversationDetailSerializer,
     ConversationListSerializer,
     MessageSerializer,
+    SocialPostSerializer,
+    SocialCommentSerializer,
 )
 
 
@@ -394,7 +396,6 @@ class WebRTCConfigView(APIView):
 
     def get(self, request, **kwargs):
         turn_secret = config('TURN_SECRET', default='')
-        turn_realm = config('TURN_REALM', default='cargotrack.local')
         turn_host = config('TURN_HOST', default='localhost')
         turn_port = config('TURN_PORT', default='3478')
 

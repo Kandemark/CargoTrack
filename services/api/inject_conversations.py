@@ -76,7 +76,7 @@ if emma and diamond:
             )
         print(f"[CREATED] Permanent conversation: Emmaunuel ↔ Diamond ({perm_conv.messages.count()} messages)")
     else:
-        print(f"[EXISTS] Permanent conversation: Emmaunuel ↔ Diamond")
+        print("[EXISTS] Permanent conversation: Emmaunuel ↔ Diamond")
 else:
     print("Emmaunuel or Diamond not found! Run create_users.py first.")
 
@@ -98,11 +98,11 @@ if other_orgs.exists():
             Message.objects.create(
                 conversation=cross_conv,
                 sender=org_users[0],
-                content=f'Hello! Cross-company collaboration enabled on CargoTrack.',
+                content='Hello! Cross-company collaboration enabled on CargoTrack.',
                 is_system=True,
             )
             print(f"[CREATED] Cross-company conversation: {org.name} ↔ {other_org.name}")
         else:
-            print(f"[EXISTS] Cross-company conversation")
+            print("[EXISTS] Cross-company conversation")
 
 print("\nDone! Social center database injection complete.")

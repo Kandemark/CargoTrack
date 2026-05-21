@@ -5,7 +5,6 @@ Run every 5 minutes via cron or scheduled task:
   python manage.py resolve_excursions
 """
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from coldchain.models import TemperatureExcursion, TemperatureReading
 

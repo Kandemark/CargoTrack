@@ -1,6 +1,6 @@
 """Tests for POD module — verification, disputes, QR codes, signals."""
 from django.test import SimpleTestCase
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 
 
 class PODImportTests(SimpleTestCase):
@@ -63,7 +63,7 @@ class PODImportTests(SimpleTestCase):
 
     def test_serializer_fields(self):
         from pod.serializers import (
-            ProofOfDeliverySerializer, PODPhotoSerializer, PODDisputeSerializer,
+            ProofOfDeliverySerializer, PODDisputeSerializer,
         )
         pod_fields = ProofOfDeliverySerializer.Meta.fields
         self.assertIn('verification_code', pod_fields)

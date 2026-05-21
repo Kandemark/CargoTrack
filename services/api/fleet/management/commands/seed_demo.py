@@ -5,7 +5,7 @@ marketplace listings/bids, scale tickets, and chat conversations.
 Safe to run multiple times (clears all seed data first).
 """
 import random
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -267,7 +267,6 @@ class Command(BaseCommand):
             ALL_USERS[username] = u
         org_users = list(ALL_USERS.values())
         ops_user = ALL_USERS['jane.muthoni']
-        admin_user = ALL_USERS['admin']
         self.stdout.write(f"  Created/updated {len(ALL_USERS)} users (all 9 roles, password: {PASSWORD})")
 
         # ── carriers ──────────────────────────────────────────────────────────
@@ -546,7 +545,7 @@ class Command(BaseCommand):
             is_reefer = cargo_type == "PERISHABLE"
             status = random.choice(["OPEN", "OPEN", "OPEN", "AWARDED", "EXPIRED"])
             owner = random.choice(org_users)
-            l = FreightListing.objects.create(
+            listing = FreightListing.objects.create(
                 cargo_type=cargo_type,
                 weight_kg=Decimal(str(weight)),
                 volume_m3=rnd_f(1, 60),
@@ -562,7 +561,7 @@ class Command(BaseCommand):
                 status=status,
                 posted_by=owner,
             )
-            listings.append(l)
+            listings.append(listing)
         self.stdout.write(f"  Created {len(listings)} freight listings")
 
         # ── bids ──────────────────────────────────────────────────────────────

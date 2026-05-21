@@ -12,22 +12,21 @@ Endpoints:
   POST           /api/v1/fleet/offline-sync/              — batch offline sync
   POST           /api/v1/fleet/trucks/<id>/assign/        — assign driver to truck
 """
-import datetime
 
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from cargotrack.authz import (
     CanViewFleet, CanManageFleet, CanAssignFleet, CanManageFinance,
-    OrgScopedQueryset, DriverScopedQueryset,
+    OrgScopedQueryset,
 )
 
-from .models import Driver, DriverJobHistory, DriverExpense, Truck, TruckMaintenanceLog
+from .models import Driver, DriverExpense, Truck
 from .serializers import (
     DriverListSerializer,
     DriverSerializer,
@@ -237,7 +236,6 @@ class DriverAnalyticsView(APIView):
 
         drivers_result = []
         for d in drivers_qs:
-            job_count = d.job_history.count()
             drivers_result.append({
                 'driver_id': d.driver_id,
                 'name': d.full_name,
@@ -513,7 +511,7 @@ class OfflineSyncView(APIView):
         # 4. POD submissions
         pod_data = request.data.get('pod_submissions', [])
         if pod_data:
-            from pod.models import ProofOfDelivery, PODPhoto
+            from pod.models import ProofOfDelivery
             for pod in pod_data:
                 try:
                     shipment = Shipment.objects.get(pk=pod['shipment_id'])

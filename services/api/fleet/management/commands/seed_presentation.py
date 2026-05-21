@@ -12,13 +12,12 @@ tracking_number).  --force deletes seed-tagged data and regenerates.
 All data goes into the database so it's editable/deletable via the app.
 """
 import random
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.utils.text import slugify
 
 from accounts.models import Organization
 from carriers.models import Carrier
@@ -386,7 +385,6 @@ class Command(BaseCommand):
 
         for org_slug in org_driver_slugs:
             org = self.orgs[org_slug]
-            country = org.country
             # Number of drivers: more for carrier companies
             num_drivers = 7 if org.org_type == 'CARRIER_COMPANY' else 4
             for i in range(num_drivers):
@@ -599,8 +597,6 @@ class Command(BaseCommand):
             self.stdout.write(f'    Skipped social posts (already {total} posts exist)')
             return
 
-        all_users_list = list(self.all_users.values())
-
         posts_data = [
             # Kande Farms Ltd posts
             ("kande-farms-ltd", "diamond.akinyi", False,
@@ -701,8 +697,6 @@ class Command(BaseCommand):
             total = Conversation.objects.filter(subject__startswith='[Seed]').count()
             self.stdout.write(f'    Skipped conversations (already {total} communities exist)')
             return
-
-        all_users_list = list(self.all_users.values())
 
         # ── 3 community groups ───────────────────────────────────────────────
 

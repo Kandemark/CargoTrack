@@ -11,7 +11,7 @@ All value objects are frozen (hashable) dataclasses with ``__slots__``.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from math import atan2, cos, radians, sin, sqrt
 from typing import Optional

@@ -5,9 +5,7 @@ from django.urls import path
 from .api_views import (
     ShipmentListCreateAPIView, ShipmentDetailAPIView, PredictDelayAPIView,
     ShipmentDocumentListCreateAPIView, PublicTrackingAPIView,
-    ComplianceDocListCreateView, ComplianceDocDetailView,
-    DispatchShipmentView,
-    SLAListView, AnalyticsView, CarbonView,
+    ComplianceDocListCreateView, DispatchShipmentView,
 )
 from tracking.api_views import ShipmentTrackingEventsAPIView
 

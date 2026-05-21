@@ -18,6 +18,7 @@ RegisterSerializer
 from rest_framework import serializers
 from .models import APIKey, AuditEntry, CustomUser, Integration, Notification, Organization
 from .validators import validate_password_strength
+from carriers.models import Carrier
 
 
 class UserMeSerializer(serializers.ModelSerializer):
@@ -263,7 +264,6 @@ class RegisterSerializer(serializers.Serializer):
         join_code = validated_data.pop('join_code', '') or ''
         license_number = validated_data.pop('license_number', '') or ''
         license_class = validated_data.pop('license_class', '') or ''
-        years_experience = validated_data.pop('years_experience', 0) or 0
         certifications = validated_data.pop('certifications', []) or []
         validated_data.pop('cargo_prefs', None)
         validated_data.pop('tax_id', None)

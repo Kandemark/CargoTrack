@@ -32,7 +32,6 @@ from typing import Callable
 
 import redis
 from decouple import config
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +258,7 @@ def _on_payment_received(domain: str, event_type: str, payload: dict):
     invalidate_dashboard_caches()
 
     from accounts.models import Notification
-    from payments.models import Invoice, Payment
+    from payments.models import Payment
 
     try:
         payment = Payment.objects.select_related('invoice__shipment').get(

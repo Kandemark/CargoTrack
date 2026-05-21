@@ -1,5 +1,4 @@
 """chats/serializers.py — DRF serializers for conversations and messages."""
-from django.conf import settings
 from rest_framework import serializers
 from .models import Conversation, Message, VideoCall
 
@@ -159,7 +158,7 @@ class SocialPostSerializer(serializers.ModelSerializer):
 
 
 # Need to set model after SocialPost is imported
-from .models import SocialPost
+from .models import SocialPost  # noqa: E402
 SocialPostSerializer.Meta.model = SocialPost
 
 
@@ -172,5 +171,5 @@ class SocialCommentSerializer(serializers.ModelSerializer):
         fields = ['id', 'post', 'author', 'author_name', 'author_role', 'content', 'created_at']
         read_only_fields = ['id', 'author', 'created_at']
 
-from .models import SocialComment
+from .models import SocialComment  # noqa: E402
 SocialCommentSerializer.Meta.model = SocialComment

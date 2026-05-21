@@ -92,7 +92,7 @@ class ColdChainMonitorConsumer(AsyncWebsocketConsumer):
 
     @sync_to_async
     def _get_shipment_snapshot(self, shipment_id):
-        from coldchain.models import ColdChainShipment, TemperatureExcursion
+        from coldchain.models import ColdChainShipment
         try:
             cc = ColdChainShipment.objects.select_related('shipment').get(
                 shipment__tracking_number=shipment_id,

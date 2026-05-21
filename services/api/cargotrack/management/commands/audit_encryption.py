@@ -108,7 +108,7 @@ class Command(BaseCommand):
         print(f"\n  Apps with encrypted data: {', '.join(apps_touched)}")
 
         # ── 4. Risk assessment ───────────────────────────────────────────
-        print(f"\n  Risk flags:")
+        print("\n  Risk flags:")
         if not os.getenv("ENCRYPTION_KEY"):
             print(
                 "    WARNING  — ENCRYPTION_KEY is not set. "

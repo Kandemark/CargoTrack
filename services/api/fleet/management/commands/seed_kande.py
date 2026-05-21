@@ -6,13 +6,12 @@ shipments, tracking events, invoices, payments, alerts, and documents.
 Safe to run multiple times (clears Kande seed data first).
 """
 import random
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.utils.text import slugify
 
 from accounts.models import Organization
 from alerts.models import Alert
@@ -206,7 +205,6 @@ def gen_tracking_events(shipment, route, status):
     })
 
     if status in ("IN_TRANSIT", "AT_CUSTOMS", "DELAYED", "DELIVERED"):
-        midpoint = route.destination
         events.append({
             "event_type": "CHECKPOINT",
             "location": "Nakuru Weighbridge" if "Nakuru" in f"{route.origin}{route.destination}" else "Athi River Checkpoint",

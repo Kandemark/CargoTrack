@@ -14,8 +14,7 @@ import random
 import string
 
 from django.db import models, DatabaseError
-from django.db.models import Avg, Count, Sum, Q, F, Value
-from django.db.models.fields import FloatField
+from django.db.models import Avg, Count, Sum, Q, F
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -312,7 +311,6 @@ class SLAListView(APIView):
 
     def get(self, request, **kwargs):
         from django.utils import timezone
-        import datetime
 
         shipments = _scope_shipments(request).filter(
             status__in=['IN_TRANSIT', 'DELIVERED', 'DELAYED', 'CUSTOMS'],
@@ -444,7 +442,6 @@ class AnalyticsView(AsyncCacheMixin, APIView):
             c['on_time_rate'] = round(c['delivered'] / c['total'] * 100, 1) if c['total'] else 100
 
         # Monthly revenue
-        from payments.models import Invoice
         from django.db.models.functions import TruncMonth
 
         invoices = _scope_invoices(request)
@@ -509,7 +506,6 @@ class CarbonView(AsyncCacheMixin, APIView):
     cache_ttl = 300  # 5-min cache
 
     def get(self, request, **kwargs):
-        from django.db.models import Sum, Avg, Count
         from django.utils import timezone
         import datetime
 
@@ -623,11 +619,7 @@ class ProfitAnalyticsView(AsyncCacheMixin, APIView, DateRangeFilterMixin):
     cache_ttl = 180  # 3-min cache
 
     def get(self, request, **kwargs):
-        from django.utils import timezone
-        from payments.models import Invoice
         from carriers.models import RateCard
-
-        now = timezone.now()
 
         # Base queryset: only shipments with paid invoices, org-scoped
         paid_invoices = _scope_invoices(request).filter(
@@ -680,8 +672,6 @@ class ProfitAnalyticsView(AsyncCacheMixin, APIView, DateRangeFilterMixin):
                 cost = revenue * 0.62
 
             profit = revenue - cost
-            margin_pct = round((profit / revenue) * 100, 1) if revenue else 0
-
             # Accumulate
             carrier = s.carrier_name
             if carrier not in carrier_data:
@@ -785,7 +775,6 @@ class RouteAnalyticsView(APIView, DateRangeFilterMixin):
             d['total_distance'] += s.route.distance_km
 
         # Single query for all route invoice totals
-        from payments.models import Invoice
         route_invoice_totals = {
             (origin, dest): total
             for origin, dest, total in (
@@ -842,7 +831,6 @@ class CarrierBenchmarkView(APIView, DateRangeFilterMixin):
 
         # Single query for all carrier invoice totals
         from payments.models import Invoice
-        from django.db.models.functions import Coalesce
         carrier_invoice_totals = dict(
             Invoice.objects.filter(status='PAID')
             .values('shipment__carrier_name')
@@ -856,7 +844,6 @@ class CarrierBenchmarkView(APIView, DateRangeFilterMixin):
             d['margin_pct'] = round((d['total_revenue'] / d['shipment_count']) * 0.22, 1) if d['shipment_count'] else 0
 
         carriers = sorted(carrier_data.values(), key=lambda x: x['shipment_count'], reverse=True)
-        n = len(carriers)
 
         # Compute percentiles
         ot_rates = sorted([c['on_time_rate'] for c in carriers])
@@ -922,7 +909,6 @@ class CorridorAnalyticsView(APIView, DateRangeFilterMixin):
                     return c_name
             return None
 
-        from payments.models import Invoice
         for s in shipments:
             corr = classify(s.route.origin, s.route.destination)
             if not corr:
@@ -970,7 +956,6 @@ class CustomerAnalyticsView(APIView, DateRangeFilterMixin):
         shipments = _scope_shipments(request).filter(route__isnull=False).select_related('route', 'client').all()
         shipments = self.filter_date_range(shipments, 'created_at')
 
-        from payments.models import Invoice
 
         customer_data: dict[int, dict] = {}
         for s in shipments:
@@ -998,7 +983,6 @@ class CustomerAnalyticsView(APIView, DateRangeFilterMixin):
                 d['last_shipment_date'] = s.created_at
 
         # Single query for all customer invoice totals
-        from django.db.models.functions import Coalesce
         invoice_totals = dict(
             _scope_invoices(request).filter(
                 shipment__client__in=customer_data.keys(), status='PAID',
@@ -1094,7 +1078,6 @@ class AnalyticsExportView(APIView, DateRangeFilterMixin):
     permission_classes = [permissions.IsAuthenticated, CanExportAnalytics]
 
     def get(self, request, **kwargs):
-        fmt = request.query_params.get('format', 'csv')
         dataset = request.query_params.get('dataset', 'shipments')
 
         if dataset == 'shipments':
@@ -1225,7 +1208,7 @@ class PerformanceAnalyticsView(APIView):
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
-        from django.db.models import Avg, Count, Q, Sum, F
+        from django.db.models import Avg, Count
         from datetime import timedelta
         from django.utils import timezone
 
@@ -1286,7 +1269,7 @@ class DriverLeaderboardView(APIView):
 
     def get(self, request, **kwargs):
         from fleet.models import Driver, Truck
-        from django.db.models import Count, Q, Avg, Sum
+        from django.db.models import Count, Q, Avg
 
         drivers_qs = Driver.objects.all()
         trucks_qs = Truck.objects.all()
@@ -1485,6 +1468,7 @@ class DocumentExtractionDetailView(APIView):
         })
 
     def delete(self, request, pk, **kwargs):
+        from .models import DocumentExtraction
         extraction = get_object_or_404(DocumentExtraction, document_id=pk)
         extraction.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1495,7 +1479,7 @@ class BidAnalyticsView(APIView):
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
-        from marketplace.models import Bid, FreightListing
+        from marketplace.models import Bid
         from django.db.models import Count, Q, Avg
         from datetime import timedelta
         from django.utils import timezone
@@ -1559,9 +1543,7 @@ class CustomsDeclarationView(APIView):
 
     def post(self, request, **kwargs):
         from .customs import (
-            CustomsDeclaration, CustomsService, CustomsSystem,
-            DeclarationType, DeclarationLineItem, DeclarationStatus,
-            AssessmentChannel, customs_service, resolve_customs_system,
+            CustomsDeclaration, DeclarationType, DeclarationLineItem, customs_service, resolve_customs_system,
         )
         from decimal import Decimal
 
@@ -1995,7 +1977,7 @@ class ProbabilityAnalyticsView(APIView):
         if not shipments.exists():
             return Response([])
 
-        from django.db.models import Count, Q, F
+        from django.db.models import Count, Q
         from django.db.models.functions import TruncDate
         from datetime import date, timedelta
 
@@ -2077,7 +2059,7 @@ class HeatmapAnalyticsView(APIView):
     }
 
     def get(self, request, **kwargs):
-        from django.db.models import Count, Sum, Q
+        from django.db.models import Count, Sum
         from collections import defaultdict
 
         shipments = _scope_shipments(request)
@@ -2119,8 +2101,6 @@ class HeatmapAnalyticsView(APIView):
                     cs['total_weight_kg'] += (row['total_kg'] or 0)
 
         # If no real data, produce empty features so frontend still renders the map
-        max_volume = max((cs['total_weight_kg'] for cs in country_stats.values()), default=1000)
-
         features = []
         for country, polygon in self.COUNTRY_POLYGONS.items():
             coords = [[[lon, lat] for lon, lat in polygon]]

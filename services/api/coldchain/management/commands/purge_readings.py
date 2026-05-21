@@ -13,7 +13,6 @@ Run daily:
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
-from django.db.models import Count, Min, Max
 from django.utils import timezone
 
 from coldchain.models import ColdChainShipment, TemperatureReading

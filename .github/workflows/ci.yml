@@ -87,7 +87,7 @@ jobs:
             if: ${{ needs.changes.outputs.gps-ingest == 'true' }}
     services:
       postgres:
-        image: timescale/timescaledb:2.16-pg16
+        image: timescale/timescaledb:latest-pg16
         env:
           POSTGRES_DB: cargotrack_test
           POSTGRES_USER: cargotrack

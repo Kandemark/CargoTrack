@@ -1,9 +1,8 @@
 """
 carriers/api_views.py — CRUD API views for Carrier and RateCard.
 """
-from rest_framework import generics, filters, status
+from rest_framework import generics, filters
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 
 from cargotrack.authz import (
     CanViewRates, CanManageRates,

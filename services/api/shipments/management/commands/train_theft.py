@@ -2,7 +2,7 @@
 from django.core.management.base import BaseCommand
 
 from cargotrack.ml.theft_risk import TheftRiskModel
-from shipments.models import Route, Shipment
+from shipments.models import Shipment
 
 
 class Command(BaseCommand):
@@ -13,7 +13,6 @@ class Command(BaseCommand):
 
     def handle(self, **options):
         shipments = Shipment.objects.select_related("route").all().order_by("pk")
-        routes = {r.pk: r for r in Route.objects.all()}
 
         # Build training set from shipments with known outcomes
         incidents = []

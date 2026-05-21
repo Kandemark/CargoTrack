@@ -4,7 +4,6 @@ Document classifier — determines the type of freight document from OCR text.
 Uses keyword scoring to identify: BOL, Customs Declaration, Commercial Invoice,
 CMR Consignment Note, Scale Ticket, Packing List, Insurance Certificate, Phytosanitary.
 """
-import re
 from dataclasses import dataclass
 from typing import ClassVar
 

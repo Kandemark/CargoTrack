@@ -91,9 +91,6 @@ class BorderDelayPredictor:
             for i in range(int(k)):
                 s += term / max(1, 1)
                 term *= a / (i + 1)
-            ek = (a ** k) / np.math.factorial(int(k) - 1) if int(k) > 0 else 0
-            ek = (a ** k) / np.math.factorial(int(k)) * (1 / (1 - rho)) if int(k) > 0 else 0
-
             # WARNING: this is a simplified Erlang-C. Full formula uses:
             # P_w = ( (a^k / k!) * (k / (k - a)) ) / ( sum_{i=0}^{k-1} a^i / i! + (a^k / k!) * (k / (k - a)) )
             a_k = a ** k / np.math.factorial(int(k)) if int(k) > 0 else 1.0

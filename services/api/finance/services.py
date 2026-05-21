@@ -11,11 +11,9 @@ Handles:
 from __future__ import annotations
 
 import logging
-from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
-from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 

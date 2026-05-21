@@ -1,7 +1,4 @@
 """Verify encryption audit command and key health — no database needed."""
-import os
-import sys
-from io import StringIO
 
 from django.test import SimpleTestCase
 

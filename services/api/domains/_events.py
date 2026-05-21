@@ -20,7 +20,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Protocol
+from typing import Protocol
 
 logger = logging.getLogger(__name__)
 

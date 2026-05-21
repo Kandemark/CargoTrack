@@ -183,7 +183,7 @@ class SecureTokenObtainPairView(TokenObtainPairView):
 
         try:
             response = super().post(request, *args, **kwargs)
-        except Exception as exc:
+        except Exception:
             if user:
                 user.record_failed_login()
             AuditEntry.objects.create(
@@ -820,10 +820,10 @@ class DataExportView(APIView):
 
     def get(self, request, **kwargs):
         user = request.user
-        from shipments.models import Document, Shipment
+        from shipments.models import Document
         from tracking.models import TrackingEvent
         from payments.models import Invoice, Payment
-        from chats.models import Conversation, Message
+        from chats.models import Message
 
         export = {
             'exported_at': timezone.now().isoformat(),

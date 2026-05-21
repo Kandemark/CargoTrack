@@ -2,10 +2,10 @@
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .models import ProofOfDelivery, PODPhoto, PODDispute
+from .models import ProofOfDelivery, PODDispute
 from .serializers import (
     ProofOfDeliverySerializer,
     PODPhotoSerializer,

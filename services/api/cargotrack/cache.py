@@ -30,8 +30,8 @@ def invalidate_cache_for_path(path_prefix: str) -> None:
 
 def invalidate_cache_for_shipment(shipment_id: int) -> None:
     """Bust caches related to a specific shipment."""
-    cache.delete_pattern(f'ct:async_view:*shipments*')
-    cache.delete_pattern(f'ct:async_view:*dashboard*')
+    cache.delete_pattern('ct:async_view:*shipments*')
+    cache.delete_pattern('ct:async_view:*dashboard*')
     cache.delete(f'ct:shipment_detail:{shipment_id}')
 
 

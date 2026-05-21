@@ -16,10 +16,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +259,7 @@ def get_temperature_summary(coldchain_shipment) -> dict:
     if total == 0:
         return {"error": "No readings available"}
     
-    from django.db.models import Avg, Min, Max, Count
+    from django.db.models import Avg, Min, Max
     stats = readings.aggregate(
         avg_temp=Avg('temperature_c'),
         min_temp=Min('temperature_c'),

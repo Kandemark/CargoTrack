@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
@@ -26,7 +25,6 @@ from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.core.cache import cache
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 

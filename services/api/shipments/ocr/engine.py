@@ -12,16 +12,13 @@ Supports: PNG, JPG, TIFF, PDF (first page).
 """
 import io
 import logging
-import os
-import re
 from dataclasses import dataclass, field
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 try:
     import pytesseract
-    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+    from PIL import Image, ImageFilter
     HAS_TESSERACT = True
 except ImportError:
     HAS_TESSERACT = False
@@ -174,6 +171,7 @@ class OCREngine:
     def _deskew(image: "Image.Image") -> "Image.Image":
         """Basic deskew — corrects slight rotation from phone photos."""
         try:
+            import cv2
             import numpy as np
             gray = image if image.mode == "L" else image.convert("L")
             # Find the angle using min-area bounding rectangle

@@ -37,7 +37,6 @@ Depends on
 """
 from __future__ import annotations
 
-from decimal import Decimal
 
 from domains._events import ContractUtilizationUpdated, event_bus
 from domains._value_objects import Corridor, Money, Weight

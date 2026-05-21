@@ -18,8 +18,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from .engine import get_ocr_engine, OCRResult
-from .classifier import DocumentClassifier, ClassificationResult
+from .engine import get_ocr_engine, OCRResult as OCRResult  # noqa: F401
+from .classifier import DocumentClassifier, ClassificationResult as ClassificationResult  # noqa: F401
 from .extractors import extract_fields
 
 logger = logging.getLogger(__name__)
