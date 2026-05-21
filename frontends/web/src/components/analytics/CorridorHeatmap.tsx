@@ -28,6 +28,7 @@ function countryColor(value: number, maxVal: number, mode: 'volume' | 'risk'): s
   return `rgb(${r},${g},${b})`
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 function HeatmapLayer({ data, mode }: { data: FeatureCollection; mode: 'volume' | 'risk' }) {
   const map = useMap()
 
@@ -112,8 +113,8 @@ export default function CorridorHeatmap() {
   if (loading) return <div className="flex items-center justify-center h-96"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
   if (error) return <div className="flex items-center justify-center h-96 text-red-500 text-sm">{error}</div>
 
-  const totalShipments = data?.features?.reduce((s: number, f: any) => s + (f.properties?.shipment_count ?? 0), 0) ?? 0
-  const totalKg = data?.features?.reduce((s: number, f: any) => s + (f.properties?.total_weight_kg ?? 0), 0) ?? 0
+  const totalShipments = data?.features?.reduce((s: number, f) => s + ((f as { properties?: { shipment_count?: number } }).properties?.shipment_count ?? 0), 0) ?? 0
+  const totalKg = data?.features?.reduce((s: number, f) => s + ((f as { properties?: { total_weight_kg?: number } }).properties?.total_weight_kg ?? 0), 0) ?? 0
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">

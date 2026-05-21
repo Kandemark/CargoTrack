@@ -529,7 +529,7 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={(v) => fmtKES(v)} />
-              <Tooltip content={<ChartTooltip />} formatter={((v: number) => fmtKES(v)) as any} />
+              <Tooltip content={<ChartTooltip />} formatter={(v: number) => fmtKES(v)} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
               <Area type="monotone" dataKey="income" name="Income" stroke="#0f2d5e" fill="url(#gIncome)" strokeWidth={2.5} dot={false} />
               <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f5801e" fill="url(#gExpenses)" strokeWidth={2} dot={false} />
@@ -548,7 +548,7 @@ export default function Dashboard() {
                   <Pie data={statusBreakdown} cx="50%" cy="50%" innerRadius={52} outerRadius={78} paddingAngle={2} dataKey="value">
                     {statusBreakdown.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                   </Pie>
-                  <Tooltip formatter={((v: number, n: string) => [v, n]) as any} />
+                  <Tooltip formatter={(v: number, n: string) => [v, n]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="w-full space-y-1.5">
@@ -704,7 +704,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={80} />
-                <Tooltip content={<ChartTooltip />} formatter={((v: number) => `${v}%`) as any} />
+                <Tooltip content={<ChartTooltip />} formatter={(v: number) => `${v}%`} />
                 <Bar dataKey="onTime" name="On-Time %" fill="#0f2d5e" radius={[0, 3, 3, 0]}>
                   {carrierChartData.map((_, i) => <Cell key={i} fill={i % 2 === 0 ? '#0f2d5e' : '#1e3a5f'} />)}
                 </Bar>

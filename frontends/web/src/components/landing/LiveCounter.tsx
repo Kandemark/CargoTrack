@@ -22,6 +22,7 @@ export default function LiveCounter({ onStats }: LiveCounterProps) {
     fetch()
     const interval = setInterval(fetch, 30000)
     return () => { mounted = false; clearInterval(interval) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

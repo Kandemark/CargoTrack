@@ -53,13 +53,10 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@types/react": "18.3.18",
+    "@types/react": "^19.2.14",
     "babel-plugin-module-resolver": "^5.0.3",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },
-  "private": true,
-  "overrides": {
-    "@types/react": "18.3.18"
-  }
+  "private": true
 }

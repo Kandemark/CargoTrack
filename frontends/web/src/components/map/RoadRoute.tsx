@@ -38,6 +38,7 @@ export default function RoadRoute({ origin, destination, risk, progress, selecte
       if (!cancelled) { setGeometry(geo); setLoaded(true) }
     })
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin, destination])
 
   if (!originPos || !destPos) return null

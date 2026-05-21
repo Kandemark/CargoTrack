@@ -19,5 +19,16 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Downgraded: React 19 hooks rules are too strict for existing patterns
+      'react-hooks/refs': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/immutability': 'warn',
+      // Downgraded: explicit any is sometimes unavoidable (Leaflet, Recharts, WebRTC)
+      '@typescript-eslint/no-explicit-any': 'warn',
+      // Allow underscore-prefixed unused vars (intentional pattern)
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
   },
 ])

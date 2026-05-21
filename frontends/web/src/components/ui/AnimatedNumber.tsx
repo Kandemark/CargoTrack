@@ -11,6 +11,7 @@ interface AnimatedNumberProps {
   className?: string
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCountUp(target: number, active: boolean, duration = 1100): number {
   const [val, setVal] = useState(0)
   const ref = useRef<ReturnType<typeof setInterval> | null>(null)

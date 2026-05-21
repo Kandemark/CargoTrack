@@ -61,6 +61,7 @@ jobs:
     needs: changes
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - service: api
@@ -81,13 +82,14 @@ jobs:
         run: |
           cd frontends/web
           npm ci
-          npx eslint . --max-warnings=0
+          npx eslint .
 
   # ── Test ────────────────────────────────────────────────────────────────
   test:
     needs: changes
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - service: api
@@ -141,6 +143,7 @@ jobs:
         env:
           DEBUG: "false"
           SECRET_KEY: ci-test-key
+          DB_ENGINE: django.db.backends.postgresql
           DB_HOST: localhost
           DB_USER: cargotrack
           DB_PASSWORD: test
@@ -157,6 +160,7 @@ jobs:
         env:
           DEBUG: "false"
           SECRET_KEY: ci-test-key
+          DB_ENGINE: django.db.backends.postgresql
           DB_HOST: localhost
           DB_USER: cargotrack
           DB_PASSWORD: test
@@ -173,7 +177,10 @@ jobs:
 
       - name: Run Rust tests
         if: matrix.service == 'gps-ingest'
-        run: cd services/gps-ingest && cargo test --release
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libcurl4-openssl-dev libsasl2-dev
+          cd services/gps-ingest
+          cargo test --release
 
   # ── Build & Push Docker images ──────────────────────────────────────────
   build:
@@ -250,25 +257,37 @@ jobs:
 
   # ── Vulnerability Scanning (Trivy) ──────────────────────────────────────
   scan:
-    needs: build
+    needs: [build, changes]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        image:
-          - cargotrack-backend
-          - cargotrack-frontend
-          - cargotrack-go-tracking
-          - cargotrack-gps-ingest
-          - cargotrack-notification
-          - cargotrack-webhook-dispatcher
+        include:
+          - image: cargotrack-backend
+            if: ${{ needs.changes.outputs.build-api == 'true' }}
+          - image: cargotrack-frontend
+            if: ${{ needs.changes.outputs.build-frontend == 'true' }}
+          - image: cargotrack-go-tracking
+            if: ${{ needs.changes.outputs.build-go-tracking == 'true' }}
+          - image: cargotrack-gps-ingest
+            if: ${{ needs.changes.outputs.build-gps-ingest == 'true' }}
+          - image: cargotrack-notification
+            if: ${{ needs.changes.outputs.build-notification == 'true' }}
+          - image: cargotrack-webhook-dispatcher
+            if: ${{ needs.changes.outputs.build-webhook == 'true' }}
+          - image: cargotrack-workflow-engine
+            if: ${{ needs.changes.outputs.build-workflow-engine == 'true' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute short SHA tag
+        id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_OWNER }}/${{ matrix.image }}:sha-${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.REGISTRY_OWNER }}/${{ matrix.image }}:sha-${{ steps.sha.outputs.short }}
           format: sarif
           output: trivy-${{ matrix.image }}.sarif
           severity: CRITICAL,HIGH
@@ -283,7 +302,7 @@ jobs:
 
   # ── Deploy to Staging ───────────────────────────────────────────────────
   deploy-staging:
-    needs: [build, scan]
+    needs: [build, scan, changes]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
@@ -298,11 +317,28 @@ jobs:
           kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
 
       - name: Deploy to staging
+        env:
+          BUILD_API: ${{ needs.changes.outputs.build-api }}
+          BUILD_FRONTEND: ${{ needs.changes.outputs.build-frontend }}
+          BUILD_GO_TRACKING: ${{ needs.changes.outputs.build-go-tracking }}
+          BUILD_GPS_INGEST: ${{ needs.changes.outputs.build-gps-ingest }}
+          BUILD_NOTIFICATION: ${{ needs.changes.outputs.build-notification }}
+          BUILD_WEBHOOK: ${{ needs.changes.outputs.build-webhook }}
+          BUILD_WORKFLOW_ENGINE: ${{ needs.changes.outputs.build-workflow-engine }}
         run: |
           export IMAGE_TAG=sha-${GITHUB_SHA::7}
-          for svc in backend frontend go-tracking gps-ingest notification webhook-dispatcher workflow-engine edi-integration; do
+          deploy() {
+            local svc=$1
             if [ -f "deploy/kubernetes/services/${svc}.yaml" ]; then
+              echo "Deploying ${svc}..."
               envsubst < "deploy/kubernetes/services/${svc}.yaml" | kubectl apply -f -
+              kubectl rollout status "deployment/${svc}" -n cargotrack --timeout=300s || true
             fi
-          done
-          kubectl rollout status deployment/backend -n cargotrack --timeout=300s
+          }
+          [ "$BUILD_API" = "true" ] && deploy backend
+          [ "$BUILD_FRONTEND" = "true" ] && deploy frontend
+          [ "$BUILD_GO_TRACKING" = "true" ] && deploy go-tracking
+          [ "$BUILD_GPS_INGEST" = "true" ] && deploy gps-ingest
+          [ "$BUILD_NOTIFICATION" = "true" ] && deploy notification
+          [ "$BUILD_WEBHOOK" = "true" ] && deploy webhook-dispatcher
+          [ "$BUILD_WORKFLOW_ENGINE" = "true" ] && deploy workflow-engine

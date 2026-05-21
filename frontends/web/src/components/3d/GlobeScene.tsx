@@ -41,8 +41,9 @@ function PulseRing({ position }: { position: THREE.Vector3 }) {
     if (!meshRef.current) return
     const t = (clock.getElapsedTime() % 2) / 2
     meshRef.current.scale.setScalar(1 + t * 2.5)
-    meshRef.current.material instanceof THREE.MeshBasicMaterial &&
-      (meshRef.current.material.opacity = 0.6 * (1 - t))
+    if (meshRef.current.material instanceof THREE.MeshBasicMaterial) {
+      meshRef.current.material.opacity = 0.6 * (1 - t)
+    }
   })
   return (
     <mesh ref={meshRef} position={position}>

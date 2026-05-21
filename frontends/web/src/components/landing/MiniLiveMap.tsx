@@ -233,7 +233,8 @@ interface Props {
   stats: PublicLandingStats | null
 }
 
-export default function Hero3DScene({ stats: _stats }: Props) {
+export default function Hero3DScene({ stats }: Props) {
+  void stats
   return (
     <div className="absolute inset-0 bg-[#0a1628]">
       <Suspense fallback={<Fallback />}>

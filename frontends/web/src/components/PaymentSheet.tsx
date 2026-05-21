@@ -35,18 +35,22 @@ interface Props {
   onPaid: () => void
 }
 
+const particles = Array.from({ length: 30 }).map((_, i) => ({
+  x: (Math.random() - 0.5) * 400,
+  y: (Math.random() - 1) * 400,
+  color: ['#f5801e', '#22c55e', '#3b82f6', '#f59e0b', '#ec4899'][i % 5],
+  rotate: Math.random() * 360,
+}))
+
 function ConfettiPop() {
   return (
     <div className="fixed inset-0 pointer-events-none z-[9999] flex items-center justify-center">
-      {Array.from({ length: 30 }).map((_, i) => {
-        const x = (Math.random() - 0.5) * 400
-        const y = (Math.random() - 1) * 400
-        const color = ['#f5801e', '#22c55e', '#3b82f6', '#f59e0b', '#ec4899'][i % 5]
+      {particles.map((p, i) => {
         return (
           <motion.div key={i}
             className="absolute w-2 h-2 rounded-sm"
-            style={{ background: color, top: '50%', left: '50%' }}
-            animate={{ x, y, opacity: [1, 1, 0], rotate: Math.random() * 360 }}
+            style={{ background: p.color, top: '50%', left: '50%' }}
+            animate={{ x: p.x, y: p.y, opacity: [1, 1, 0], rotate: p.rotate }}
             transition={{ duration: 1.2, ease: 'easeOut', delay: i * 0.02 }}
           />
         )

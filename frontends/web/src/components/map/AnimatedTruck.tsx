@@ -55,6 +55,7 @@ export default function AnimatedTruck({
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position[0], position[1]])
 
   // Snap the truck to the road route at the correct progress point

@@ -59,8 +59,8 @@ export default function ClusterMarker({ shipments, zoom, clusterThreshold = 8 }:
     }
 
     return Object.entries(grid)
-      .filter(([_, group]) => group.length >= 2)
-      .map(([_, group]) => {
+      .filter(([, group]) => group.length >= 2)
+      .map(([, group]) => {
         const avgLat = group.reduce((s, x) => s + x.pos[0], 0) / group.length
         const avgLng = group.reduce((s, x) => s + x.pos[1], 0) / group.length
         return { pos: [avgLat, avgLng] as [number, number], shipments: group }

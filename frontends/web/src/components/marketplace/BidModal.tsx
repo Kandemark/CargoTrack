@@ -6,7 +6,7 @@ interface Props {
   listingTitle: string
   budgetMin?: string | null
   budgetMax?: string | null
-  onBid: (data: { amount: string; truck?: number; driver?: number; notes?: string; estimated_days?: number }) => Promise<any>
+  onBid: (data: { amount: string; truck?: number; driver?: number; notes?: string; estimated_days?: number }) => Promise<void>
   onClose: () => void
 }
 
@@ -35,8 +35,9 @@ export default function BidModal({ listingTitle, budgetMin, budgetMax, onBid, on
         estimated_days: estimatedDays ? parseInt(estimatedDays) : undefined,
       })
       onClose()
-    } catch (e: any) {
-      setError(e?.response?.data?.detail ?? 'Failed to place bid.')
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setError(err.response?.data?.detail ?? 'Failed to place bid.')
     } finally {
       setSubmitting(false)
     }

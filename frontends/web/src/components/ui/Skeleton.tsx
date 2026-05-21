@@ -71,7 +71,7 @@ export default function Skeleton({
         <div className="flex items-end gap-2 pt-2 h-32">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="flex-1 rounded-t bg-gray-100 dark:bg-white/8 animate-shimmer"
-              style={{ height: `${20 + Math.sin(i * 0.8) * 30 + Math.random() * 50}%` }} />
+              style={{ height: `${20 + Math.sin(i * 0.8) * 30 + ((i * 17 + 13) % 50)}%` }} />
           ))}
         </div>
       </div>

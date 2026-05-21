@@ -89,9 +89,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   // Focus input when opened
   useEffect(() => {
     if (open) {
-      setQuery('')
-      setActive(0)
-      setTimeout(() => inputRef.current?.focus(), 50)
+      setTimeout(() => {
+        setQuery('')
+        setActive(0)
+        inputRef.current?.focus()
+      }, 0)
     }
   }, [open])
 

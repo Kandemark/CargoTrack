@@ -30,7 +30,7 @@ export default function ColdChain() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [report, setReport] = useState<ComplianceReport | null>(null)
-  const [_loadingReport, setLoadingReport] = useState(false)
+  const [, setLoadingReport] = useState(false)
 
   async function load() {
     setLoading(true); setError(null)

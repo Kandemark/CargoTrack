@@ -99,7 +99,7 @@ export default function ProbabilityChart() {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
             <YAxis domain={[0, 1]} tick={{ fontSize: 11 }} tickFormatter={v => `${(v * 100).toFixed(0)}%`} stroke="#9ca3af" />
-            <Tooltip formatter={(v: any) => `${(Number(v ?? 0) * 100).toFixed(1)}%`} />
+            <Tooltip formatter={(v: unknown) => `${(Number(v ?? 0) * 100).toFixed(1)}%`} />
             <ReferenceLine y={0.5} stroke="#6b7280" strokeDasharray="5 5" label={{ value: '50%', position: 'right', fontSize: 10, fill: '#9ca3af' }} />
             <Area type="monotone" dataKey="delivery_probability" stroke="#22c55e" fill="url(#probGreen)" strokeWidth={2} name="On-Time Probability" />
           </AreaChart>
@@ -120,7 +120,7 @@ export default function ProbabilityChart() {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
             <YAxis domain={[0, 1]} tick={{ fontSize: 11 }} tickFormatter={v => `${(v * 100).toFixed(0)}%`} stroke="#9ca3af" />
-            <Tooltip formatter={(v: any) => `${(Number(v ?? 0) * 100).toFixed(1)}%`} />
+            <Tooltip formatter={(v: unknown) => `${(Number(v ?? 0) * 100).toFixed(1)}%`} />
             <ReferenceLine y={0.5} stroke="#6b7280" strokeDasharray="5 5" />
             <Area type="monotone" dataKey="customs_probability" stroke="#3b82f6" fill="url(#custBlue)" strokeWidth={2} name="Clearance Probability" />
           </AreaChart>

@@ -203,7 +203,7 @@ export default function Landing() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  useEffect(() => { mobileMenu ? document.body.classList.add('overflow-hidden') : document.body.classList.remove('overflow-hidden') }, [mobileMenu])
+  useEffect(() => { if (mobileMenu) { document.body.classList.add('overflow-hidden') } else { document.body.classList.remove('overflow-hidden') } }, [mobileMenu])
 
   function scrollTo(id: string) {
     setMobileMenu(false)

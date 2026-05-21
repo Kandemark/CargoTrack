@@ -17,7 +17,7 @@ const CARGO_TYPES = [
 ]
 
 interface Props {
-  onSubmit: (data: FreightListingCreatePayload) => Promise<any>
+  onSubmit: (data: FreightListingCreatePayload) => Promise<void>
   onClose: () => void
 }
 
@@ -32,7 +32,7 @@ export default function FreightListingForm({ onSubmit, onClose }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const update = (field: string, value: any) => setForm((f) => ({ ...f, [field]: value }))
+  const update = (field: string, value: string | boolean) => setForm((f) => ({ ...f, [field]: value }))
 
   const handleSubmit = async () => {
     if (!form.origin || !form.destination || !form.weight_kg || !form.pickup_date || !form.delivery_date) {
@@ -61,8 +61,9 @@ export default function FreightListingForm({ onSubmit, onClose }: Props) {
         requires_reefer: form.requires_reefer,
       })
       onClose()
-    } catch (e: any) {
-      setError(e?.response?.data?.detail ?? 'Failed to create listing.')
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } }
+      setError(err.response?.data?.detail ?? 'Failed to create listing.')
     } finally {
       setSubmitting(false)
     }

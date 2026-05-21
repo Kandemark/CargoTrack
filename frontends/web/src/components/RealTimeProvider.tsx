@@ -36,5 +36,5 @@ export default function RealTimeProvider({ children }: { children: ReactNode }) 
   return <>{children}</>
 }
 
-// Re-export ready state constants for use in other components
+// eslint-disable-next-line react-refresh/only-export-components
 export { useWebSocket }

@@ -187,7 +187,7 @@ node_modules/
 .yarnrc
 .yarnrc.yml
 .yarn-integrity
-package-lock.json
+# package-lock.json intentionally committed — required for CI npm ci
 
 # Frontend env files
 frontends/*/.env

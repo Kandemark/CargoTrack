@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore'
 interface SignalingCallbacks {
   onIncomingCall?: (payload: { call_id: number; caller_id: number; caller_name: string; conversation_id: number }) => void
   onCallAccepted?: (payload: { call_id: number; conversation_id: number; accepted_by: number }) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSignal?: (payload: { from_id: number; from_name: string; sdp?: any; candidate?: any }) => void
   onCallEnded?: (payload: { call_id: number; by_id?: number; conversation_id: number }) => void
   onCallMissed?: (payload: { call_id: number; conversation_id: number }) => void

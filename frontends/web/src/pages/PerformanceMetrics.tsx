@@ -116,7 +116,7 @@ export default function PerformanceMetrics() {
               return (
                 <div key={i} className="flex-1 flex flex-col items-center" title={`${point.date}: ${point.rate}%`}>
                   <span className="text-[9px] text-gray-400 mb-0.5">{point.rate > 0 ? `${point.rate}%` : ''}</span>
-                  <div className="w-full rounded-t transition-all duration-300" style={{ height: `${h}%` || 0, background: color, minHeight: 0 }} />
+                  <div className="w-full rounded-t transition-all duration-300" style={{ height: `${h || 0}%`, background: color, minHeight: 0 }} />
                   {i % 5 === 0 && <span className="text-[8px] text-gray-400 mt-1 -rotate-45 origin-top-left">{point.date.slice(5)}</span>}
                 </div>
               )
