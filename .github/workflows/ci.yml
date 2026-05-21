@@ -261,7 +261,11 @@ jobs:
     needs: [build, changes]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     strategy:
+      fail-fast: false
       matrix:
         include:
           - image: cargotrack-backend
