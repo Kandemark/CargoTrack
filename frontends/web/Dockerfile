@@ -2,16 +2,20 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Install dependencies first for better layer caching
+# Copy workspace metadata first for layer caching — npm needs all workspace
+# package.json files present to resolve the monorepo dependency tree.
 COPY package.json package-lock.json ./
+COPY frontends/web/package.json frontends/web/
+COPY frontends/mobile/package.json frontends/mobile/
+COPY libs/shared-types/package.json libs/shared-types/
+COPY libs/api-client/package.json libs/api-client/
+COPY libs/design-tokens/package.json libs/design-tokens/
+
 RUN npm install
 
-# Copy frontend source — overridden at runtime by the docker-compose volume mount
+# Copy all source (overridden by docker-compose volume mounts in dev).
 COPY . .
-
-# Copy shared types from additional context so tsc can resolve @shared/*.
-COPY --from=shared-types . /app/shared/
 
 EXPOSE 5173
 
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["npm", "run", "dev", "-w", "frontends/web", "--", "--host", "0.0.0.0"]

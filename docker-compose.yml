@@ -478,18 +478,17 @@ services:
   # ── React / Vite web app ──────────────────────────────────────────────────────
   web:
     build:
-      context: ./frontends/web
-      dockerfile: Dockerfile
-      additional_contexts:
-        shared-types: ./libs/shared-types
+      context: .
+      dockerfile: frontends/web/Dockerfile
     depends_on:
       - backend
     environment:
       API_PROXY_TARGET: http://backend:8000
     volumes:
-      - ./frontends/web:/app
+      - ./frontends/web:/app/frontends/web
+      - ./libs/shared-types:/app/libs/shared-types
       - /app/node_modules
-      - ./libs/shared-types:/app/shared
+      - /app/frontends/web/node_modules
     ports:
       - "5173:5173"
 

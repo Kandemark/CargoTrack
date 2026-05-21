@@ -6,8 +6,8 @@ __pycache__/
 .git/
 .env
 db.sqlite3
-frontend/dist/
-mobile/
+**/dist/
+**/node_modules/
 staticfiles/
 media/
 *.log
