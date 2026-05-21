@@ -1,5 +1,5 @@
-﻿/**
- * AdminDashboard.tsx — System administrator dashboard with analytics & user management.
+/**
+ * AdminDashboard.tsx � System administrator dashboard with analytics & user management.
  *
  * @route /admin/dashboard
  * @auth ADMIN only
@@ -9,7 +9,7 @@ import { motion } from 'framer-motion'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Users, Package, AlertTriangle, RefreshCw, ShieldCheck, UserCog, Building2,
-  Activity, TrendingUp, Search, Filter, ChevronRight, UserPlus, UserX,
+  Activity, TrendingUp, Search, ChevronRight, UserPlus, UserX,
   Clock, Globe2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -17,7 +17,7 @@ import { dashboardApi } from '@/api/dashboard'
 import { adminApi, type AdminUser } from '@/api/admin'
 import type { DashboardSummary } from '@/types'
 
-// ── Color constants ────────────────────────────────────────────────────────────
+// -- Color constants ------------------------------------------------------------
 
 const ROLE_COLORS: Record<string, string> = {
   ADMIN: '#0f2d5e',
@@ -43,7 +43,7 @@ const ROLE_LABELS: Record<string, string> = {
   FINANCE_OFFICER: 'Finance',
 }
 
-// ─── Tooltip ───────────────────────────────────────────────────────────────────
+// --- Tooltip -------------------------------------------------------------------
 
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number; payload: { fullName?: string } }[] }) {
   if (!active || !payload?.length) return null
@@ -59,11 +59,11 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { name:
   )
 }
 
-// ─── KPI Card ──────────────────────────────────────────────────────────────────
+// --- KPI Card ------------------------------------------------------------------
 
 function KPICard({ label, value, sub, icon: Icon, color, delay }: {
   label: string; value: string | number; sub?: string
-  icon: React.ElementType; color: string; delay: number
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string; delay: number
 }) {
   return (
     <motion.div
@@ -86,7 +86,7 @@ function KPICard({ label, value, sub, icon: Icon, color, delay }: {
   )
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+// --- Main Component ------------------------------------------------------------
 
 export default function AdminDashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
@@ -134,7 +134,17 @@ export default function AdminDashboard() {
     finally { setSavingId(null) }
   }
 
-  // ── Computed data ──────────────────────────────────────────────────────────
+  async function handleDeleteUser(user: AdminUser) {
+    if (!window.confirm(`Permanently delete ${user.first_name} ${user.last_name} (${user.email})? This action cannot be undone.`)) return
+    setSavingId(user.id)
+    try {
+      await adminApi.deleteUser(user.id)
+      setUsers((prev) => prev.filter((u) => u.id !== user.id))
+    } catch { /* ignore */ }
+    finally { setSavingId(null) }
+  }
+
+  // -- Computed data ----------------------------------------------------------
   const filteredUsers = useMemo(() => {
     let list = users
     if (search) {
@@ -202,7 +212,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-5 pb-4">
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* -- Header -------------------------------------------------------- */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
         className="flex items-start justify-between gap-4">
         <div>
@@ -220,7 +230,7 @@ export default function AdminDashboard() {
         </button>
       </motion.div>
 
-      {/* ── KPI Row ─────────────────────────────────────────────────────── */}
+      {/* -- KPI Row ------------------------------------------------------- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => (
@@ -230,21 +240,21 @@ export default function AdminDashboard() {
           <>
             <KPICard label="Total Users" value={users.length} sub={`${activeUsers} active`} icon={Users} color="#3b82f6" delay={0} />
             <KPICard label="Active Today" value={last24h} sub="last 24 hours" icon={Activity} color="#22c55e" delay={0.03} />
-            <KPICard label="Total Shipments" value={summary?.total_shipments ?? '—'} sub="all time" icon={Package} color="#f5801e" delay={0.06} />
-            <KPICard label="In Transit" value={summary?.active_shipments ?? '—'} sub="currently active" icon={Globe2} color="#8b5cf6" delay={0.09} />
-            <KPICard label="Open Alerts" value={summary?.open_alerts ?? '—'} sub="needs attention" icon={AlertTriangle} color="#ef4444" delay={0.12} />
-            <KPICard label="On-Time Rate" value={summary ? `${summary.on_time_rate.toFixed(1)}%` : '—'} sub="last 30 days" icon={TrendingUp} color="#14b8a6" delay={0.15} />
+            <KPICard label="Total Shipments" value={summary?.total_shipments ?? '�'} sub="all time" icon={Package} color="#f5801e" delay={0.06} />
+            <KPICard label="In Transit" value={summary?.active_shipments ?? '�'} sub="currently active" icon={Globe2} color="#8b5cf6" delay={0.09} />
+            <KPICard label="Open Alerts" value={summary?.open_alerts ?? '�'} sub="needs attention" icon={AlertTriangle} color="#ef4444" delay={0.12} />
+            <KPICard label="On-Time Rate" value={summary ? `${summary.on_time_rate.toFixed(1)}%` : '�'} sub="last 30 days" icon={TrendingUp} color="#14b8a6" delay={0.15} />
           </>
         )}
       </div>
 
-      {/* ── Charts row ──────────────────────────────────────────────────── */}
+      {/* -- Charts row ---------------------------------------------------- */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* User registrations trend */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="xl:col-span-8 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-white/8 p-5">
           <h2 className="text-sm font-bold text-gray-800 dark:text-white font-heading mb-1">User Registrations</h2>
-          <p className="text-xs text-gray-400 dark:text-white/30 mb-4">New accounts — rolling 6 months</p>
+          <p className="text-xs text-gray-400 dark:text-white/30 mb-4">New accounts � rolling 6 months</p>
           {loading ? (
             <div className="h-48 rounded-xl bg-gray-50 dark:bg-white/5 animate-pulse" />
           ) : (
@@ -290,7 +300,7 @@ export default function AdminDashboard() {
         </motion.div>
       </div>
 
-      {/* ── System health ───────────────────────────────────────────────── */}
+      {/* -- System health ------------------------------------------------- */}
       {!loading && summary && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
           className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -311,7 +321,7 @@ export default function AdminDashboard() {
         </motion.div>
       )}
 
-      {/* ── User management table ────────────────────────────────────────── */}
+      {/* -- User management table ------------------------------------------ */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
         className="bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-white/8 overflow-hidden">
         {/* Table header */}
@@ -323,7 +333,7 @@ export default function AdminDashboard() {
                 User Management
               </h2>
               <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">
-                {users.length} registered · {activeUsers} active · {users.length - activeUsers} inactive
+                {users.length} registered � {activeUsers} active � {users.length - activeUsers} inactive
               </p>
             </div>
 
@@ -381,6 +391,7 @@ export default function AdminDashboard() {
                   <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Status</th>
                   <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Joined</th>
                   <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Last Login</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-white/5">
@@ -409,7 +420,7 @@ export default function AdminDashboard() {
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-white/60">
                         <Building2 className="w-3 h-3 text-gray-300 dark:text-white/15 shrink-0" />
-                        <span className="truncate max-w-[120px]">{u.company || '—'}</span>
+                        <span className="truncate max-w-[120px]">{u.company || '�'}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3">
@@ -452,11 +463,24 @@ export default function AdminDashboard() {
                         ? new Date(u.last_login).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                         : <span className="text-gray-300 dark:text-white/15">Never</span>}
                     </td>
+                    <td className="px-5 py-3">
+                      <button
+                        onClick={() => handleDeleteUser(u)}
+                        disabled={savingId === u.id}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium
+                          text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20
+                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Delete user"
+                      >
+                        <UserX className="w-3.5 h-3.5" />
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {filteredUsers.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center">
+                    <td colSpan={7} className="px-5 py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         {search || roleFilter ? (
                           <>
@@ -487,7 +511,7 @@ export default function AdminDashboard() {
           <span>{filteredUsers.length} of {users.length} users shown</span>
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-3 h-3" />
-            Admin view — all roles visible
+            Admin view � all roles visible
           </span>
         </div>
       </motion.div>

@@ -108,11 +108,30 @@ services:
       retries: 10
 
   # ── Django backend ─────────────────────────────────────────────────────────────
+  # Database migrations run as a one-shot service before the backend starts.
+  # In production (Kubernetes), use an init container or Job instead of running
+  # migrate in every replica.
+  migrate:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: services/api/.env
+    environment:
+      DB_HOST: db
+    volumes:
+      - ./services/api:/app
+    command: python manage.py migrate
+
   backend:
     build:
       context: ./services/api
       dockerfile: Dockerfile
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
@@ -129,9 +148,7 @@ services:
       - ./services/api:/app
     ports:
       - "8000:8000"
-    command: >
-      sh -c "python manage.py migrate &&
-             daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application"
+    command: daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application
 
   # ── Elixir/Phoenix WebSocket service ──────────────────────────────────────────
   elixir-ws:
@@ -298,7 +315,7 @@ services:
       - "8080:8080"
     volumes:
       - ./deploy/keycloak/cargotrack-realm.json:/opt/keycloak/data/import/cargotrack-realm.json:ro
-    command: start-dev --import-realm --features=preview
+    command: start-dev --import-realm
     healthcheck:
       test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080' || exit 1"]
       interval: 15s
@@ -353,6 +370,17 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
       - "--web.enable-lifecycle"
+
+  # ── Alertmanager (alert routing to Slack / PagerDuty / email) ──────────────
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./deploy/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
 
   # ── Grafana (dashboards) ───────────────────────────────────────────────────
   grafana:
@@ -450,7 +478,7 @@ services:
   # ── React / Vite web app ──────────────────────────────────────────────────────
   web:
     build:
-      context: ./apps/web
+      context: ./frontends/web
       dockerfile: Dockerfile
       additional_contexts:
         shared-types: ./libs/shared-types
@@ -459,7 +487,7 @@ services:
     environment:
       API_PROXY_TARGET: http://backend:8000
     volumes:
-      - ./apps/web:/app
+      - ./frontends/web:/app
       - /app/node_modules
       - ./libs/shared-types:/app/shared
     ports:

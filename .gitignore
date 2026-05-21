@@ -1,4 +1,135 @@
-# ── Python ──────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# CargoTrack .gitignore — Comprehensive ignore rules for security & hygiene.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Secrets, credentials & tokens ─────────────────────────────────────────────
+# Never commit any file that might contain secrets — even stubs.
+.env
+.env.*
+!.env.example
+.envrc
+.env.production
+.env.staging
+*.token
+*.secret
+*_secret*
+secrets/
+secrets.*/
+credentials.json
+credentials.*.json
+*_credentials.*
+service-account.json
+service-account.*.json
+*.service-account.json
+sa-key.json
+sa-key.*.json
+gcp-*.json
+aws-*.json
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+*.p12
+*.pfx
+*.pkcs12
+*.pkcs8
+*.ppk
+*.mobileprovision
+*.p8
+*.jks
+*.keystore
+*.keytab
+*.keychain
+*.ovpn
+*.opvn
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+id_*.pub  # public keys are fine, but pair patterns catch private keys
+ssh_host_*_key
+ssh_host_*_key.pub
+*.kdbx
+*.kdb
+*.vault
+*.vault.yml
+ansible-vault-password*
+.vault-token
+.vault_pass*
+sealed-secrets.yaml
+sealed-secrets-*.yaml
+secrets.auto.tfvars
+*.auto.tfvars.json
+terraform.tfvars
+*.tfvars
+override.tf.json
+
+# Cloud provider credential files
+.aws/
+.gcp/
+.azure/
+.config/gcloud/
+
+# Kubernetes — kubeconfig contains cluster credentials
+kubeconfig*
+*.kubeconfig
+.kube/
+
+# API key files that slip through
+api_key*
+apikey*
+*_apikey*
+*_api_key*
+appsettings.*.json  # often contains connection strings
+
+# OAuth / OIDC client secrets
+client_secret*.json
+oauth*.secret
+oidc*.secret
+
+# ── Certificates & private keys (additional patterns) ─────────────────────────
+*.p7b
+*.p7c
+*.spc
+*.csr
+certs/
+certificates/
+tls/
+ssl/
+*.chain.pem
+*.fullchain.pem
+*.privkey.pem
+
+# ── Database dumps, backups & data files ─────────────────────────────────────
+*.dump
+*.pgdump
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+*.sql.zst
+dump.*
+dump_*
+*.backup.sql
+*.backup
+*.bck
+*.bak
+*.bkp
+backup/
+backups/
+db_backup/
+db_backups/
+data/backups/
+
+# ── Environment & runtime ────────────────────────────────────────────────────
+/.env.local
+/.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.local.env
+
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -10,68 +141,221 @@ eggs/
 .eggs/
 *.manifest
 *.spec
+*.whl
+pip-wheel-metadata/
+.python-version
+*.egg
 
-# ── Virtual environments ────────────────────────────────────────────────────────
+# Virtual environments
 .venv/
 venv/
 env/
 .env/
 .venv-*/
+virtualenv/
+.pip-*/
 
-# ── Django ───────────────────────────────────────────────────────────────────────
+# ── Django ────────────────────────────────────────────────────────────────────
 *.log
 local_settings.py
+local_settings_*.py
+settings_local.py
+settings_local_*.py
 db.sqlite3
 db.sqlite3-journal
+*.sqlite3
 media/
 staticfiles/
 collected-static/
-
-# Generated OpenAPI schema (rebuilt via `python manage.py spectacular --file schema.openapi.yml`)
 schema.openapi.yml
 
-# Django migrations — regenerated per-environment via `makemigrations`
+# Migrations — regenerated per-environment
 **/migrations/0*.py
 
-# ── Environment & secrets ───────────────────────────────────────────────────────
-.env
-.env.*
-!.env.example
-.env.production
-.env.staging
-.envrc
-*.token
-secrets/
-*.secret
+# ── Node / JavaScript / TypeScript ────────────────────────────────────────────
+node_modules/
+*.tsbuildinfo
+*.tsbuildinfo.*
+.npm/
+.npmrc
+!frontends/*/.npmrc
+.yarn/
+.yarnrc
+.yarnrc.yml
+.yarn-integrity
+package-lock.json
 
-# ── Certificates & private keys ─────────────────────────────────────────────────
-*.pem
-*.key
-*.crt
-*.cer
-*.der
-*.p12
-*.pfx
-*.pkcs12
-*.pkcs8
-*.mobileprovision
-*.p8
-*.ppk
-id_rsa
-id_ed25519
-id_ecdsa
-id_dsa
+# Frontend env files
+frontends/*/.env
+frontends/*/.env.local
+frontends/*/.env.*.local
+frontends/*/.env.development
+frontends/*/.env.test
+frontends/*/.env.production
 
-# ── Database dumps & backups ────────────────────────────────────────────────────
-*.dump
-*.pgdump
-*.sql.gz
-*.sql.bz2
-dump.*
-*.backup.sql
-backup/
+# Vite
+frontends/web/dist/
+frontends/web/.vite/
 
-# ── IDE & editor ─────────────────────────────────────────────────────────────────
+# Next.js (if adopted later)
+.next/
+out/
+
+# Expo
+.expo/
+*.jks
+*.keystore
+
+# NPM debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ── Go ────────────────────────────────────────────────────────────────────────
+# Compiled binaries
+services/tracking-ingest/tracking-server.exe
+services/tracking-ingest/tracking-server
+services/notification/notification.exe
+services/notification/notification
+services/webhook-dispatcher/webhook-dispatcher.exe
+services/webhook-dispatcher/webhook-dispatcher
+*.exe
+*.test
+*.out
+vendor/
+
+# ── Rust ──────────────────────────────────────────────────────────────────────
+**/target/
+services/gps-ingest/gps-ingest.exe
+services/gps-ingest/gps-ingest
+services/route-optimizer/route-optimizer.exe
+services/route-optimizer/route-optimizer
+services/fuel-optimizer/fuel_optimizer_rs.dll
+services/fuel-optimizer/fuel_optimizer_rs.so
+services/fuel-optimizer/fuel_optimizer_rs.dylib
+services/container-matcher/container_matcher_rs.dll
+services/container-matcher/container_matcher_rs.so
+services/container-matcher/container_matcher_rs.dylib
+*.rs.bk
+
+# PyO3 extension modules (built artifacts)
+services/api/cargotrack/ml/*.pyd
+services/api/cargotrack/ml/*.so
+services/api/cargotrack/ml/*.dylib
+
+# ── Elixir / Phoenix ─────────────────────────────────────────────────────────
+services/ws/_build/
+services/ws/deps/
+erl_crash.dump
+*.ez
+mix.lock
+
+# ── Java / Maven / Gradle ────────────────────────────────────────────────────
+*.class
+*.jar
+*.war
+*.ear
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/MavenWrapperDownloader.java
+target/
+.gradle/
+build/
+
+# ── Kotlin ────────────────────────────────────────────────────────────────────
+.kotlin/
+
+# ── Mobile / Expo ─────────────────────────────────────────────────────────────
+frontends/mobile/.env
+frontends/mobile/.env*.local
+frontends/mobile/dist-test/
+frontends/mobile/dist-test-verify/
+frontends/mobile/dist/
+frontends/mobile/android/
+frontends/mobile/ios/
+frontends/mobile/.expo/
+frontends/mobile/web-build/
+frontends/mobile/.kotlin/
+frontends/mobile/*.jks
+frontends/mobile/*.keystore
+frontends/mobile/*.p8
+frontends/mobile/*.p12
+frontends/mobile/*.key
+frontends/mobile/*.mobileprovision
+frontends/mobile/credentials.json
+frontends/mobile/google-services.json
+frontends/mobile/GoogleService-Info.plist
+frontends/mobile/.metro-health-check*
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+docker-compose.override.yml
+docker-compose.override.*.yml
+docker/secrets/
+*.docker-secret
+.docker/
+.dockerignore_local
+
+# ── Kubernetes ────────────────────────────────────────────────────────────────
+*.kubeconfig
+*kubeconfig*
+.kube/
+helm/*/charts/
+helm/*/Chart.lock
+helm-vault/
+helm-secrets/
+
+# ── Terraform / OpenTofu ──────────────────────────────────────────────────────
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform.lock.hcl
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+.terraformrc
+terraform.rc
+
+# ── Ansible ───────────────────────────────────────────────────────────────────
+*.retry
+ansible/vault.yml
+ansible/roles/*/files/secrets/
+ansible/secrets/
+
+# ── Security scanning output ──────────────────────────────────────────────────
+*.sarif
+trivy-*.sarif
+grype-*.json
+*.grype.json
+dependency-check-report.*
+.snyk/
+snyk.sarif
+
+# ── ML models & datasets ──────────────────────────────────────────────────────
+*.joblib
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pb
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.weights
+*.bin  # ML model weights (be careful — exclude only model binaries)
+*.safetensors
+*.gguf
+ml_datasets/
+ml_datasets_*/
+ml_models/
+ml_models_*/
+checkpoints/
+runs/
+
+# ── IDE & editor ──────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
@@ -82,39 +366,85 @@ backup/
 *.ntvs*
 *.njsproj
 *.sln
+*.sln.docstates
+*.user
+*.userosscache
+*.userprefs
+.vs/
+*.sublime-workspace
+*.sublime-project
+.project
+.classpath
+.settings/
+*.iml
+.idea_modules/
+*.iws
+.vscode-test/
+.history/
+.ionide/
 
-# ── OS files ─────────────────────────────────────────────────────────────────────
+# ── OS files ──────────────────────────────────────────────────────────────────
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
-ehthumbs.db
+.AppleDouble
+.LSOverride
+Icon?
+.fseventsd
+.TemporaryItems
+.documentRevisions-V100
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
 Desktop.ini
 desktop.ini
 $RECYCLE.BIN/
+*.stackdump
+[Dd]esktop.ini
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.scr
 
-# ── Backup & temp files ─────────────────────────────────────────────────────────
-*.bak
-*.tmp
-*.temp
-*.orig
-*.old
-*.backup
-*.orig.*
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+.core
 
-# ── Node / Frontend ─────────────────────────────────────────────────────────────
-node_modules/
-*.tsbuildinfo
+# ── Core dumps ────────────────────────────────────────────────────────────────
+core
+core.*
+*.core
+*.core.*
 
-# Frontend env files
-frontend/.env
-frontend/.env.local
-frontend/.env.*.local
+# ── Logs & diagnostics ────────────────────────────────────────────────────────
+*.log
+*.log.*
+logs/
+log/
+*.pid
+*.seed
+*.pid.lock
+console.log
+chromium-debug.log
+trace.*
+*.trace
+*.etl
 
-# ── Testing & coverage ──────────────────────────────────────────────────────────
+# ── Testing & coverage ────────────────────────────────────────────────────────
 .coverage
+.coverage.*
 coverage/
 htmlcov/
 .pytest_cache/
@@ -128,111 +458,170 @@ dmypy.json
 .pyre/
 .pytype/
 coverage.xml
+coverage-*.xml
 junit.xml
+junit-*.xml
 test-results/
 .pytest_cache/
+*.lcov
+.nyc_output/
+.grunt/
+.jest/
+.jest-cache/
+coverage-*.json
 
-# ── ML models & datasets ────────────────────────────────────────────────────────
-*.joblib
-*.pkl
-*.pickle
-*.h5
-*.hdf5
-*.pb
-*.onnx
-*.pt
-*.pth
-ml_datasets/
+# Playwright / Cypress artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
 
-# ── Docker ───────────────────────────────────────────────────────────────────────
-docker-compose.override.yml
-docker/secrets/
-*.docker-secret
-data/
+# ── Archives & compressed files (not source) ──────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+*.tgz
+*.7z
+*.rar
+*.gz
+*.bz2
+*.xz
+*.zst
+*.lzma
+*.lz4
+*.zpaq
+*.arj
+*.cab
+*.chm
+*.deb
+*.dmg
+*.iso
+*.lzh
+*.msi
+*.rpm
+*.udeb
+*.wim
+*.xar
+*.z
+*.zipx
 
-# ── Mobile / Expo ───────────────────────────────────────────────────────────────
-mobile/.env
-mobile/.env*.local
-mobile/dist-test/
-mobile/dist-test-verify/
-mobile/dist/
-mobile/android/
-mobile/ios/
-mobile/.expo/
-mobile/web-build/
-mobile/.kotlin/
-mobile/*.jks
-mobile/*.keystore
-mobile/*.p8
-mobile/*.p12
-mobile/*.key
-mobile/*.mobileprovision
-mobile/credentials.json
-mobile/google-services.json
-mobile/GoogleService-Info.plist
-mobile/.metro-health-check*
+# ── Large media files ─────────────────────────────────────────────────────────
+# Video — almost never belongs in a source repo
+*.mp4
+*.m4v
+*.mkv
+*.webm
+*.avi
+*.mov
+*.wmv
+*.flv
+*.f4v
+*.3gp
+*.3g2
+*.ogv
+*.mts
+*.m2ts
+*.ts
+*.vob
 
-# ── Claude / internal tooling ───────────────────────────────────────────────────
+# Audio
+*.mp3
+*.wav
+*.ogg
+*.flac
+*.aac
+*.wma
+*.m4a
+*.opus
+
+# Large images (source assets are fine, but not exports/renderings)
+*.psd
+*.sketch
+*.xd
+*.fig
+*.ai
+*.eps
+
+# Office documents (often contain screenshots / non-source content)
+# Only ignore in root; config templates as .docx are sometimes legitimate
+/*.docx
+/*.xlsx
+/*.pptx
+/*.pdf
+
+# ── Cache directories ─────────────────────────────────────────────────────────
+.cache/
+__cache__/
+*.cache
+*.cached
+.sass-cache/
+.eslintcache
+.parcel-cache/
+.turbo/
+.cache-loader/
+*.tsbuildinfo
+
+# ── Backup & temp files ───────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.temp
+*.orig
+*.old
+*.backup
+*.orig.*
+*.swp
+*.swo
+*_bak
+*_backup
+*~$
+
+# ── Miscellaneous tool files ──────────────────────────────────────────────────
+# Direnv
+.envrc
+.direnv/
+
+# asdf
+.tool-versions
+
+# Protobuf generated files
+**/generated/
+
+# OpenAPI / Swagger generated SDKs
+generated-sdks/
+openapi-generated/
+swagger-generated/
+
+# ── Claude / internal tooling ─────────────────────────────────────────────────
 weekly_reports/
 .claude/
 .claudeignore
 
-# ── Monorepo root stubs (Metro bundler workarounds) ───────────────────────────
-/index.js
-/babel.config.js
-/app.json
-/package.json
-/package-lock.json
-
-# ── Test / debug scratch ────────────────────────────────────────────────────────
+# ── Test / debug scratch ──────────────────────────────────────────────────────
 test_users.md
 scratch/
 debug/
 tmp/
 temp/
+tmp.*/
+temp.*/
 smoke_test.py
 smoke_test_*.py
+scratchpad.*
+playground.*
+*_scratch.*
+*_playground.*
 
-# ── Elixir / Phoenix ───────────────────────────────────────────────────────────
-elixir-ws/_build/
-elixir-ws/deps/
-erl_crash.dump
-*.ez
+# ── Project-specific data directories ─────────────────────────────────────────
+data/
+uploads/
+!frontends/web/public/
+!frontends/mobile/assets/
 
-# ── Go ──────────────────────────────────────────────────────────────────────────
-services/tracking-ingest/tracking-server.exe
-services/tracking-ingest/tracking-server
-services/notification/notification.exe
-services/notification/notification
-services/webhook-dispatcher/webhook-dispatcher.exe
-services/webhook-dispatcher/webhook-dispatcher
-
-# ── Java / Maven ───────────────────────────────────────────────────────────────
-*.class
-*.jar
-*.war
-*.ear
-!.mvn/wrapper/maven-wrapper.jar
-# Maven wrapper downloads
-.mvn/wrapper/MavenWrapperDownloader.java
-
-# ── Rust ────────────────────────────────────────────────────────────────────────
-# Build output (all service crates)
-**/target/
-# Compiled binaries
-services/gps-ingest/gps-ingest.exe
-services/gps-ingest/gps-ingest
-services/route-optimizer/route-optimizer.exe
-services/route-optimizer/route-optimizer
-services/fuel-optimizer/fuel_optimizer_rs.dll
-services/fuel-optimizer/fuel_optimizer_rs.so
-services/fuel-optimizer/fuel_optimizer_rs.dylib
-services/container-matcher/container_matcher_rs.dll
-services/container-matcher/container_matcher_rs.so
-services/container-matcher/container_matcher_rs.dylib
-# Rust-generated files
-*.rs.bk
-# PyO3 extension modules copied into Django (built artifacts, not source)
-services/api/cargotrack/ml/*.pyd
-services/api/cargotrack/ml/*.so
-services/api/cargotrack/ml/*.dylib
+# ── Telemetry & analytics (local) ─────────────────────────────────────────────
+.local/
+.telemetry/

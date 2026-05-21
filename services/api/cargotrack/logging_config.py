@@ -57,6 +57,22 @@ class PIIRedactionFilter(logging.Filter):
         return True
 
 
+class SuppressDaphneDebug(logging.Filter):
+    """Drop DEBUG and INFO messages from Daphne protocol loggers.
+
+    Daphne's http_protocol module emits one DEBUG log per HTTP event
+    (request received, response started, close, complete).  With DEBUG
+    enabled that produces 4 lines per request — pure noise even in dev.
+    Daphne access logs (Apache combined format) go through a separate
+    stream, so nothing useful is lost.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name.startswith('daphne.') and record.levelno < logging.WARNING:
+            return False
+        return True
+
+
 class JsonFormatter(logging.Formatter):
     """Emit log records as single-line JSON with standard fields."""
 
@@ -91,10 +107,13 @@ def get_logging_config(debug: bool = False) -> dict:
     """
     return {
         'version': 1,
-        'disable_existing_loggers': False,
+        'disable_existing_loggers': True,
         'filters': {
             'pii_redact': {
                 '()': 'cargotrack.logging_config.PIIRedactionFilter',
+            },
+            'suppress_daphne_debug': {
+                '()': 'cargotrack.logging_config.SuppressDaphneDebug',
             },
         },
         'formatters': {
@@ -110,7 +129,7 @@ def get_logging_config(debug: bool = False) -> dict:
             'console': {
                 'class': 'logging.StreamHandler',
                 'stream': sys.stdout,
-                'filters': ['pii_redact'],
+                'filters': ['suppress_daphne_debug', 'pii_redact'],
                 'formatter': 'simple' if debug else 'json',
             },
         },
@@ -132,6 +151,32 @@ def get_logging_config(debug: bool = False) -> dict:
             'django.security': {
                 'handlers': ['console'],
                 'level': 'INFO',
+                'propagate': False,
+            },
+            # Daphne ASGI server — suppress DEBUG noise even in dev
+            'daphne': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': False,
+            },
+            'daphne.access': {
+                'handlers': ['console'],
+                'level': 'INFO',
+                'propagate': False,
+            },
+            'daphne.http_protocol': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': False,
+            },
+            'daphne.server': {
+                'handlers': ['console'],
+                'level': 'WARNING',
+                'propagate': False,
+            },
+            'daphne.websocket_protocol': {
+                'handlers': ['console'],
+                'level': 'WARNING',
                 'propagate': False,
             },
             # Application loggers — inherit root handler

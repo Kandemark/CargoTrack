@@ -58,10 +58,12 @@ export type {
 // Defined locally to keep this as a pure type-only re-export file and avoid
 // forcing tsc to resolve @shared as a JS module (verbatimModuleSyntax constraint).
 export const UserRole = {
+  PLATFORM_OWNER: 'PLATFORM_OWNER',
   ADMIN:          'ADMIN',
   LOGISTICS_MGR:  'LOGISTICS_MGR',
   CLIENT:         'CLIENT',
   CARRIER:        'CARRIER',
+  DRIVER:         'DRIVER',
   DISPATCHER:     'DISPATCHER',
   CUSTOMS_BROKER: 'CUSTOMS_BROKER',
   WAREHOUSE_MGR:  'WAREHOUSE_MGR',

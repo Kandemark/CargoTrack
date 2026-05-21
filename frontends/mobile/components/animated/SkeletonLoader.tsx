@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { View, type ViewStyle } from 'react-native'
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated'
+import { useAppTheme } from '@/lib/useAppTheme'
 
 interface SkeletonLoaderProps {
   width?: number | string
@@ -11,6 +12,7 @@ interface SkeletonLoaderProps {
 
 export default function SkeletonLoader({ width = '100%', height = 16, borderRadius = 8, style }: SkeletonLoaderProps) {
   const shimmerX = useSharedValue(-200)
+  const { isDark } = useAppTheme()
 
   useEffect(() => {
     shimmerX.value = withRepeat(withTiming(200, { duration: 1200 }), -1, false)
@@ -20,36 +22,30 @@ export default function SkeletonLoader({ width = '100%', height = 16, borderRadi
     transform: [{ translateX: shimmerX.value }],
   }))
 
+  const bg = isDark ? '#1e3a5f' : '#E5E7EB'
+  const shimmerColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.3)'
+
   return (
     <View
       style={[
-        {
-          width: width as any,
-          height,
-          borderRadius,
-          backgroundColor: '#E5E7EB',
-          overflow: 'hidden',
-        },
+        { width: width as any, height, borderRadius, backgroundColor: bg, overflow: 'hidden' },
         style,
       ]}
     >
       <Animated.View
         style={[
           shimmerStyle,
-          {
-            width: '40%',
-            height: '100%',
-            backgroundColor: 'rgba(255,255,255,0.3)',
-          },
+          { width: '40%', height: '100%', backgroundColor: shimmerColor },
         ]}
       />
     </View>
   )
 }
 
-// Pre-composed skeleton patterns for common use cases
-
 export function SkeletonKpiGrid({ count = 6 }: { count?: number }) {
+  const { isDark } = useAppTheme()
+  const borderColor = isDark ? '#1e3a5f' : '#E5E7EB'
+
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
       {Array.from({ length: count }).map((_, i) => (
@@ -59,7 +55,7 @@ export function SkeletonKpiGrid({ count = 6 }: { count?: number }) {
             width: '31%',
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: '#E5E7EB',
+            borderColor,
             padding: 12,
             alignItems: 'center',
             gap: 6,
@@ -75,18 +71,15 @@ export function SkeletonKpiGrid({ count = 6 }: { count?: number }) {
 }
 
 export function SkeletonCardList({ count = 4 }: { count?: number }) {
+  const { isDark } = useAppTheme()
+  const borderColor = isDark ? '#1e3a5f' : '#E5E7EB'
+
   return (
     <View style={{ gap: 8 }}>
       {Array.from({ length: count }).map((_, i) => (
         <View
           key={i}
-          style={{
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: '#E5E7EB',
-            padding: 14,
-            gap: 8,
-          }}
+          style={{ borderRadius: 12, borderWidth: 1, borderColor, padding: 14, gap: 8 }}
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <SkeletonLoader width="45%" height={14} />

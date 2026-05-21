@@ -46,7 +46,7 @@ entryPoints:
         options: default
       middlewares:
         - security-headers@file
-        - ratelimit-global@file
+        - rate-limit-global@file
 
   grpc:
     address: ":50051"

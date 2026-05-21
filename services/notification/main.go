@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/cargotrack/notification/consumer"
 	"github.com/cargotrack/notification/dispatcher"
@@ -15,42 +16,45 @@ import (
 func main() {
 	cfg := LoadConfig()
 
-	if cfg.LogJSON {
-		log.SetFlags(0) // JSON logger handles its own formatting
+	var handler slog.Handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	if !cfg.LogJSON {
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
-	log.SetOutput(os.Stdout)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 
-	log.Printf("[INFO] CargoTrack Notification Dispatch Service starting")
-	log.Printf("[INFO] Kafka brokers: %s", cfg.KafkaBrokers)
-	log.Printf("[INFO] Kafka topics: %v", cfg.KafkaTopics)
+	logger.Info("CargoTrack Notification Dispatch Service starting",
+		"kafka_brokers", cfg.KafkaBrokers,
+		"kafka_topics", cfg.KafkaTopics,
+	)
 
 	// Initialize providers — each is optional and configured via env vars.
 	provs := make(map[string]providers.Provider)
 
 	if cfg.FCMCredentialsPath != "" {
 		provs["push"] = providers.NewFCMProvider(cfg.FCMCredentialsPath)
-		log.Println("[INFO] FCM (push) provider configured")
+		logger.Info("FCM (push) provider configured")
 	}
 	if cfg.SMTPHost != "" {
 		provs["email"] = providers.NewEmailProvider(
 			cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPFrom,
 		)
-		log.Println("[INFO] Email (SMTP) provider configured")
+		logger.Info("Email (SMTP) provider configured")
 	}
 	if cfg.ATAPIKey != "" || cfg.TwilioAccountSID != "" {
 		provs["sms"] = providers.NewSMSProvider(
 			cfg.ATUsername, cfg.ATAPIKey,
 			cfg.TwilioAccountSID, cfg.TwilioAuthToken, cfg.TwilioFromNumber,
 		)
-		log.Println("[INFO] SMS provider configured")
+		logger.Info("SMS provider configured")
 	}
 	if cfg.WhatsAppToken != "" {
 		provs["whatsapp"] = providers.NewWhatsAppProvider(cfg.WhatsAppToken, cfg.WhatsAppPhoneID)
-		log.Println("[INFO] WhatsApp provider configured")
+		logger.Info("WhatsApp provider configured")
 	}
 
 	if len(provs) == 0 {
-		log.Println("[WARN] No notification providers configured — service will be a no-op")
+		logger.Warn("no notification providers configured — service will be a no-op")
 	}
 
 	// ── Africa's Talking enhanced client (SMS bulk, USSD, Voice, Airtime) ──
@@ -59,16 +63,16 @@ func main() {
 		atClient = providers.NewAfricaSTalkingClient(
 			cfg.ATUsername, cfg.ATAPIKey, cfg.ATShortCode, cfg.ATSenderID,
 		)
-		log.Printf("[INFO] Africa's Talking client created (shortcode: %s)", cfg.ATShortCode)
+		logger.Info("Africa's Talking client created", "shortcode", cfg.ATShortCode)
 	}
 
 	// ── USSD server (driver self-service via *384# and similar shortcodes) ──
 	if atClient != nil && cfg.USSDAddr != "" {
 		ussdSrv := ussd.NewServer(atClient, cfg.USSDAddr)
 		go func() {
-			log.Printf("[INFO] USSD gateway starting on %s", cfg.USSDAddr)
+			logger.Info("USSD gateway starting", "addr", cfg.USSDAddr)
 			if err := ussdSrv.Start(); err != nil {
-				log.Printf("[ERROR] USSD server: %v", err)
+				logger.Error("USSD server error", "error", err)
 			}
 		}()
 	}
@@ -95,40 +99,17 @@ func main() {
 	defer cancel()
 
 	if err := kafkaConsumer.Run(ctx); err != nil {
-		log.Fatalf("[FATAL] %v", err)
+		logger.Error("kafka consumer fatal error", "error", err)
+		os.Exit(1)
 	}
 }
 
 func splitBrokers(s string) []string {
 	var result []string
-	for _, b := range split(s, ',') {
-		if t := trim(b); t != "" {
+	for _, b := range strings.Split(s, ",") {
+		if t := strings.TrimSpace(b); t != "" {
 			result = append(result, t)
 		}
 	}
 	return result
-}
-
-func split(s string, sep byte) []string {
-	var parts []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == sep {
-			parts = append(parts, s[start:i])
-			start = i + 1
-		}
-	}
-	parts = append(parts, s[start:])
-	return parts
-}
-
-func trim(s string) string {
-	start, end := 0, len(s)
-	for start < end && (s[start] == ' ' || s[start] == '\t') {
-		start++
-	}
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
-		end--
-	}
-	return s[start:end]
 }

@@ -9,14 +9,14 @@ import {
   Menu, X, Activity, Users,
 } from 'lucide-react'
 import _CountUp from 'react-countup'
-const CountUp = (_CountUp as Record<string, unknown>).default as React.ComponentType<{
+const CountUp = (_CountUp as any).default as React.ComponentType<{
   end: number; duration?: number; separator?: string; suffix?: string
   prefix?: string; formattingFn?: (v: number) => string
   enableScrollSpy?: boolean; scrollSpyOnce?: boolean
 }>
 import LiveCounter from '@/components/landing/LiveCounter'
 import MiniLiveMap from '@/components/landing/MiniLiveMap'
-import { formatLocalCurrency, getLocalCurrency, convertFromUSD } from '@/lib/currency'
+import { formatLocalCurrency, getLocalCurrency } from '@/lib/currency'
 import type { PublicLandingStats } from '@/types'
 
 const ALL_FEATURES = [
@@ -134,7 +134,6 @@ function PricingCard({ tier, idx }: { tier: typeof PRICING[0]; idx: number }) {
   const currency = getLocalCurrency()
   const isCustom = tier.price === 'Custom'
   const usdAmount = isCustom ? 0 : parseInt(tier.price.replace(/[^0-9]/g, ''), 10)
-  const localPrice = isCustom ? 'Custom' : formatLocalCurrency(usdAmount)
   const localCompact = isCustom ? '' : formatLocalCurrency(usdAmount, true)
 
   return (

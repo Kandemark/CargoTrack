@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DateRangePickerProps {

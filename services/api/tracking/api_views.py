@@ -29,12 +29,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from cargotrack.authz import CanTrackShipments
 from cargotrack.cache import invalidate_dashboard_caches
+from domains._authz import OrgScopedQueryset
 from shipments.models import Shipment
 from .models import TrackingEvent
 from .serializers import ShipmentEventCreateSerializer, TrackingEventSerializer
 
 
-class TrackingEventListCreateView(generics.ListCreateAPIView):
+class TrackingEventListCreateView(OrgScopedQueryset, generics.ListCreateAPIView):
     serializer_class = TrackingEventSerializer
     permission_classes = [permissions.IsAuthenticated, CanTrackShipments]
 
@@ -43,7 +44,7 @@ class TrackingEventListCreateView(generics.ListCreateAPIView):
         tracking_number = self.request.query_params.get("tracking_number")
         if tracking_number:
             qs = qs.filter(shipment__tracking_number=tracking_number.upper())
-        return qs
+        return self.scope_by_org(qs)
 
     def perform_create(self, serializer):
         instance = serializer.save(recorded_by=self.request.user)
@@ -58,23 +59,31 @@ class TrackingEventListCreateView(generics.ListCreateAPIView):
         })
 
 
-class TrackingEventDetailView(generics.RetrieveAPIView):
+class TrackingEventDetailView(OrgScopedQueryset, generics.RetrieveAPIView):
     queryset = TrackingEvent.objects.select_related("shipment", "recorded_by")
     serializer_class = TrackingEventSerializer
     permission_classes = [permissions.IsAuthenticated, CanTrackShipments]
 
+    def get_queryset(self):
+        return self.scope_by_org(super().get_queryset())
 
-class ShipmentEventsView(APIView):
+
+class ShipmentEventsView(OrgScopedQueryset, APIView):
     """Return all events for a shipment by tracking number (legacy endpoint)."""
     permission_classes = [permissions.IsAuthenticated, CanTrackShipments]
 
     def get(self, request, tracking_number):
         shipment = get_object_or_404(Shipment, tracking_number=tracking_number.upper())
+        # Verify the shipment belongs to the user's org
+        shipment = get_object_or_404(
+            self.scope_by_org(Shipment.objects.all()),
+            pk=shipment.pk,
+        )
         events = TrackingEvent.objects.filter(shipment=shipment)
         return Response([e.to_dict() for e in events])
 
 
-class ShipmentTrackingEventsAPIView(generics.ListCreateAPIView):
+class ShipmentTrackingEventsAPIView(OrgScopedQueryset, generics.ListCreateAPIView):
     """
     GET  /api/v1/shipments/<pk>/tracking-events/
     POST /api/v1/shipments/<pk>/tracking-events/
@@ -99,7 +108,7 @@ class ShipmentTrackingEventsAPIView(generics.ListCreateAPIView):
         )
 
     def get_queryset(self):
-        return (
+        return self.scope_by_org(
             TrackingEvent.objects
             .filter(shipment_id=self.kwargs['pk'])
             .select_related('recorded_by')

@@ -10,9 +10,11 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const ROLE_LABELS: Record<string, string> = {
-  ADMIN:           'Administrator',
+  PLATFORM_OWNER:  'CargoTrack',
+  ADMIN:           'Company Admin',
   LOGISTICS_MGR:   'Logistics Manager',
-  CARRIER:         'Carrier / Driver',
+  CARRIER:         'Carrier / Fleet Owner',
+  DRIVER:          'Driver',
   CLIENT:          'Client',
   DISPATCHER:      'Dispatcher',
   CUSTOMS_BROKER:  'Customs Broker',
@@ -22,9 +24,11 @@ export const ROLE_LABELS: Record<string, string> = {
 }
 
 export const ROLE_COLOR: Record<string, string> = {
+  PLATFORM_OWNER:  '#b8860b',
   ADMIN:           '#dc2626',
   LOGISTICS_MGR:   '#0f2d5e',
   CARRIER:         '#2563eb',
+  DRIVER:          '#10b981',
   CLIENT:          '#7c3aed',
   DISPATCHER:      '#0891b2',
   CUSTOMS_BROKER:  '#b45309',
@@ -36,9 +40,11 @@ export const ROLE_COLOR: Record<string, string> = {
 /** Returns the role-specific dashboard URL. Falls back to /login for unknown roles. */
 export function getRoleDashboard(role: string | undefined | null): string {
   switch (role) {
+    case 'PLATFORM_OWNER':  return '/platform/dashboard'
     case 'ADMIN':           return '/admin/dashboard'
     case 'LOGISTICS_MGR':   return '/ops/dashboard'
     case 'CARRIER':         return '/driver/dashboard'
+    case 'DRIVER':          return '/driver/dashboard'
     case 'CLIENT':          return '/portal/dashboard'
     case 'DISPATCHER':      return '/dispatch/dashboard'
     case 'CUSTOMS_BROKER':  return '/customs/dashboard'
@@ -118,6 +124,25 @@ export type PermissionType = typeof Permission[keyof typeof Permission]
 const P = Permission
 
 const _rolePermissions: Record<string, ReadonlySet<string>> = {
+  PLATFORM_OWNER: new Set([
+    P.SHIPMENTS_VIEW, P.SHIPMENTS_CREATE, P.SHIPMENTS_UPDATE, P.SHIPMENTS_DELETE,
+    P.SHIPMENTS_DISPATCH, P.SHIPMENTS_TRACK,
+    P.ROUTES_VIEW, P.ROUTES_MANAGE,
+    P.RATES_VIEW, P.RATES_MANAGE,
+    P.CONTRACTS_VIEW, P.CONTRACTS_MANAGE,
+    P.FINANCE_VIEW, P.FINANCE_MANAGE, P.FINANCE_APPROVE,
+    P.CUSTOMS_VIEW, P.CUSTOMS_SUBMIT, P.CUSTOMS_CLEAR,
+    P.FLEET_VIEW, P.FLEET_MANAGE, P.FLEET_ASSIGN,
+    P.PORTS_VIEW, P.PORTS_MANAGE,
+    P.COLDCHAIN_VIEW, P.COLDCHAIN_MANAGE,
+    P.DOCUMENTS_VIEW, P.DOCUMENTS_UPLOAD, P.DOCUMENTS_VERIFY,
+    P.ANALYTICS_VIEW, P.ANALYTICS_EXPORT,
+    P.CHAT_SEND, P.CHAT_MANAGE,
+    P.MARKETPLACE_VIEW, P.MARKETPLACE_BID, P.MARKETPLACE_MANAGE,
+    P.PREDICTIONS_VIEW,
+    P.ADMIN_USERS, P.ADMIN_SYSTEM, P.ADMIN_AUDIT,
+  ]),
+
   ADMIN: new Set([
     P.SHIPMENTS_VIEW, P.SHIPMENTS_CREATE, P.SHIPMENTS_UPDATE, P.SHIPMENTS_DELETE,
     P.SHIPMENTS_DISPATCH, P.SHIPMENTS_TRACK,
@@ -299,19 +324,21 @@ export function hasAnyPermission(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const ROLES = {
-  ADMIN_ONLY:       ['ADMIN'],
-  OPS:              ['ADMIN', 'LOGISTICS_MGR'],
-  CARRIER_ONLY:     ['CARRIER'],
+  PLATFORM_ONLY:    ['PLATFORM_OWNER'],
+  ADMIN_ONLY:       ['ADMIN', 'PLATFORM_OWNER'],
+  OPS:              ['ADMIN', 'LOGISTICS_MGR', 'PLATFORM_OWNER'],
+  CARRIER_ONLY:     ['CARRIER', 'DRIVER'],
+  DRIVER_ONLY:      ['DRIVER'],
   CLIENT_ONLY:      ['CLIENT'],
   DISPATCHER_ONLY:  ['DISPATCHER'],
   CUSTOMS_ONLY:     ['CUSTOMS_BROKER'],
   WAREHOUSE_ONLY:   ['WAREHOUSE_MGR'],
   PORT_ONLY:        ['PORT_AGENT'],
   FINANCE_ONLY:     ['FINANCE_OFFICER'],
-  FLEET_ACCESS:     ['ADMIN', 'LOGISTICS_MGR', 'DISPATCHER'],
-  FINANCE_ACCESS:   ['ADMIN', 'LOGISTICS_MGR', 'FINANCE_OFFICER'],
+  FLEET_ACCESS:     ['ADMIN', 'LOGISTICS_MGR', 'DISPATCHER', 'PLATFORM_OWNER'],
+  FINANCE_ACCESS:   ['ADMIN', 'LOGISTICS_MGR', 'FINANCE_OFFICER', 'PLATFORM_OWNER'],
   ALL: [
-    'ADMIN', 'LOGISTICS_MGR', 'CARRIER', 'CLIENT',
+    'PLATFORM_OWNER', 'ADMIN', 'LOGISTICS_MGR', 'CARRIER', 'DRIVER', 'CLIENT',
     'DISPATCHER', 'CUSTOMS_BROKER', 'WAREHOUSE_MGR', 'PORT_AGENT', 'FINANCE_OFFICER',
   ],
 } as const

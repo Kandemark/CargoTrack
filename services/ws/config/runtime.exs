@@ -5,7 +5,10 @@ import Config
 # per-environment without rebuilding.
 
 port = String.to_integer(System.get_env("WS_PORT", "4000"))
-secret_key_base = System.get_env("SECRET_KEY_BASE", "ws-dev-secret-change-in-production")
+secret_key_base = System.get_env("SECRET_KEY_BASE")
+if is_nil(secret_key_base) or secret_key_base == "" do
+  raise "SECRET_KEY_BASE environment variable is required but not set"
+end
 redis_url = System.get_env("REDIS_URL", "redis://localhost:6379/0")
 cors_origins = System.get_env("CORS_ORIGINS", "http://localhost:5173")
 

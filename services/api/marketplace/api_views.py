@@ -24,8 +24,10 @@ class FreightListingListCreateView(APIView):
 
     def get_permissions(self):
         if self.request.method == 'POST':
-            return [IsAuthenticated(), CanManageMarketplace]
+            return [IsAuthenticated(), CanManageMarketplace()]
         return [permission() for permission in self.permission_classes]
+
+    def get(self, request, **kwargs):
         listings = FreightListing.objects.select_related('posted_by').prefetch_related(
             'bids', 'bids__carrier',
         ).order_by('-created_at')

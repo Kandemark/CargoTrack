@@ -7,13 +7,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Package, Clock, AlertTriangle, CheckCircle, RefreshCw,
   ArrowUpRight, MapPin, Bell, CreditCard, FileText,
-  Search, TrendingUp, Truck, Star, Shield,
+  Search, Shield,
   BarChart2, ChevronRight, Download, Phone,
-  Globe, Activity, DollarSign, Target,
+  Globe, DollarSign, Target,
 } from 'lucide-react'
 import {
-  PieChart, Pie, Cell, AreaChart, Area,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  PieChart, Pie, Cell,
+  Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { shipmentsApi } from '@/api/shipments'
@@ -300,7 +300,7 @@ export default function ClientPortal() {
                     <Pie data={statusPie} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={2} dataKey="value">
                       {statusPie.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                     </Pie>
-                    <Tooltip formatter={(v: number, n: string) => [v, n]} />
+                    <Tooltip formatter={((v: number, n: string) => [v, n]) as any} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="w-full space-y-1.5">
@@ -564,7 +564,7 @@ export default function ClientPortal() {
                                                       'bg-blue-100 dark:bg-blue-900/20 text-blue-600')}>
                           {a.severity}
                         </span>
-                        <p className="text-[10px] text-gray-300 dark:text-white/20 mt-1">{timeAgo(a.created_at)}</p>
+                        <p className="text-[10px] text-gray-300 dark:text-white/20 mt-1">{timeAgo(a.created_at ?? '')}</p>
                       </div>
                     </motion.div>
                   ))}

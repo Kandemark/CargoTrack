@@ -30,6 +30,10 @@ class Route(models.Model):
 
     class Meta:
         ordering = ["origin", "destination"]
+        indexes = [
+            models.Index(fields=["origin"]),
+            models.Index(fields=["destination"]),
+        ]
 
 
 class Shipment(models.Model):
@@ -137,6 +141,9 @@ class Document(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=["shipment", "created_at"]),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.filename and self.file:

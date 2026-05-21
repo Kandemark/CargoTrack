@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { apiClient } from '@/lib/api'
 import { useAppTheme } from '@/lib/useAppTheme'
 import ScreenHeader from '@/components/ScreenHeader'
+import RequireRole from '@/components/RequireRole'
 
 type DriverStatus = 'AVAILABLE' | 'ON_ROUTE' | 'OFF_DUTY' | 'ON_LEAVE' | 'SUSPENDED'
 
@@ -121,8 +122,9 @@ export default function FleetDriversScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Drivers" backButton />
+    <RequireRole roles={['ADMIN', 'LOGISTICS_MGR', 'DISPATCHER']}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenHeader title="Drivers" backButton />
       <FlatList
         data={drivers}
         keyExtractor={(d) => String(d.id)}
@@ -184,6 +186,7 @@ export default function FleetDriversScreen() {
         )}
       />
     </View>
+  </RequireRole>
   )
 }
 

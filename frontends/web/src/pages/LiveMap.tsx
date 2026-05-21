@@ -1,35 +1,38 @@
 /**
- * LiveMap.tsx — Uber-style real-time shipment tracking map.
+ * LiveMap.tsx — Real-time shipment tracking with road-following routes.
  *
  * Features:
- *  - Animated truck markers with direction arrows and status glow
- *  - Progress-based route lines (completed= solid, remaining= dashed)
- *  - Uber-style floating DriverInfoCard on marker click (live ETA countdown)
- *  - Cluster markers at low zoom levels
- *  - Trade corridor overlays (Northern, Central, LAPSSET)
- *  - Filter panel with glassmorphism styling
- *  - "Fit All" zoom-to-bounds
- *  - 60-second auto-refresh
+ *  - OSRM routing engine fetches actual road geometry (not straight lines)
+ *  - Animated truck markers that slide smoothly along road waypoints
+ *  - Real GPS positions from active drivers/trucks via fleet API
+ *  - Progress-based route coloring (completed=solid, remaining=dashed)
+ *  - Trade corridor overlays
+ *  - Glassmorphism filter panel with live stats
+ *  - Fullscreen mode, Fit-All, auto-refresh every 15s
  */
 import 'leaflet/dist/leaflet.css'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Polyline, Popup, Circle, useMap, useMapEvents } from 'react-leaflet'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MapContainer, TileLayer, Polyline, Popup, Circle, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Link } from 'react-router-dom'
 import {
-  Search, RefreshCw, X, Filter, Layers, Package, AlertTriangle,
-  Clock, CheckCircle2, ChevronRight, Activity, Truck, Navigation,
-  ArrowRight, TrendingUp, Minimize2, Maximize2, MapPin, Zap,
+  Search, RefreshCw, X, Layers, Package, AlertTriangle,
+  Clock, CheckCircle2, Activity, Truck, Navigation,
+  ArrowRight, Minimize2, Maximize2, MapPin,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { fleetApi, type Driver } from '@/api/fleet'
 import { shipmentsApi } from '@/api/shipments'
 import type { ShipmentListItem } from '@/types'
-import { buildTruckMarkerSVG } from '@/components/map/TruckMarker'
 import DriverInfoCard from '@/components/map/DriverInfoCard'
-import RoutePolyline from '@/components/map/RoutePolyline'
+import RoadRoute from '@/components/map/RoadRoute'
+import AnimatedTruck from '@/components/map/AnimatedTruck'
 import ClusterMarker from '@/components/map/ClusterMarker'
-import { CITY_COORDS, lookupCoords, EAST_AFRICA_CENTER, MAP_DEFAULT_ZOOM, CORRIDORS, STATUS_COLORS } from '@/lib/coords'
+import { preloadRoutes, type RouteGeometry } from '@/lib/routing'
+import {
+  lookupCoords, EAST_AFRICA_CENTER, MAP_DEFAULT_ZOOM,
+  CORRIDORS, STATUS_COLORS,
+} from '@/lib/coords'
 
 // ── Fix Leaflet default icon ──────────────────────────────────────────────────
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
@@ -38,6 +41,12 @@ L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const MAP_CENTER = EAST_AFRICA_CENTER
+const MAP_ZOOM = MAP_DEFAULT_ZOOM
+const FALLBACK: [number, number] = MAP_CENTER
+const REFRESH_MS = 15_000
 
 function bearingDeg(from: [number, number], to: [number, number]): number {
   const lat1 = (from[0] * Math.PI) / 180
@@ -48,15 +57,13 @@ function bearingDeg(from: [number, number], to: [number, number]): number {
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
 }
 
-function simProgress(trackingNum: string, status: string): number {
-  if (status === 'PENDING') return 0
-  if (status === 'DELIVERED') return 100
-  let hash = 0
-  for (const ch of trackingNum) hash = (hash * 31 + ch.charCodeAt(0)) & 0xffffffff
-  const base = (Math.abs(hash) % 60) + 15
-  if (status === 'CUSTOMS') return Math.min(base + 18, 88)
-  if (status === 'DELAYED') return Math.min(base + 5, 78)
-  return base
+// ── Status config ─────────────────────────────────────────────────────────────
+const STATUS_CFG: Record<string, { color: string; label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
+  IN_TRANSIT: { color: STATUS_COLORS.IN_TRANSIT, label: 'In Transit',  icon: Activity      },
+  CUSTOMS:    { color: STATUS_COLORS.CUSTOMS,    label: 'At Customs',  icon: Clock         },
+  DELAYED:    { color: STATUS_COLORS.DELAYED,    label: 'Delayed',     icon: AlertTriangle },
+  PENDING:    { color: STATUS_COLORS.PENDING,    label: 'Pending',     icon: Package       },
+  DELIVERED:  { color: STATUS_COLORS.DELIVERED,  label: 'Delivered',   icon: CheckCircle2  },
 }
 
 function fmtETA(iso: string): string {
@@ -72,32 +79,30 @@ function fmtETA(iso: string): string {
   return 'Arriving soon'
 }
 
-const MAP_CENTER = EAST_AFRICA_CENTER
-const MAP_ZOOM = MAP_DEFAULT_ZOOM
-const FALLBACK: [number, number] = MAP_CENTER
-
-// ── Status config ─────────────────────────────────────────────────────────────
-const STATUS_CFG: Record<string, { color: string; label: string; icon: React.ElementType }> = {
-  IN_TRANSIT: { color: STATUS_COLORS.IN_TRANSIT, label: 'In Transit',  icon: Activity      },
-  CUSTOMS:    { color: STATUS_COLORS.CUSTOMS,    label: 'At Customs',  icon: Clock         },
-  DELAYED:    { color: STATUS_COLORS.DELAYED,    label: 'Delayed',     icon: AlertTriangle },
-  PENDING:    { color: STATUS_COLORS.PENDING,    label: 'Pending',     icon: Package       },
-  DELIVERED:  { color: STATUS_COLORS.DELIVERED,  label: 'Delivered',   icon: CheckCircle2  },
-}
-
 function riskColor(score: number): string {
   if (score >= 0.7) return '#ef4444'
   if (score >= 0.4) return '#f59e0b'
   return '#22c55e'
 }
 
-// ── Enriched shipment type ────────────────────────────────────────────────────
-interface MappedShipment extends ShipmentListItem {
-  pos:       [number, number]
+// ── Enriched map entity ───────────────────────────────────────────────────────
+interface MapEntity {
+  id: number
+  type: 'shipment'
+  trackingNumber: string
+  status: string
+  carrierName: string
+  origin: string
+  destination: string
   originPos: [number, number] | null
-  destPos:   [number, number] | null
-  bearing:   number
-  progress:  number
+  destPos: [number, number] | null
+  gpsPos: [number, number]           // real GPS from driver/truck, or interpolated
+  bearing: number
+  progress: number                   // 0-100
+  risk: number
+  scheduledArrival: string
+  route?: RouteGeometry | null
+  shipment: ShipmentListItem
 }
 
 // ── PanTo helper ──────────────────────────────────────────────────────────────
@@ -110,12 +115,12 @@ function PanToMarker({ target }: { target: [number, number] | null }) {
 }
 
 // ── FitAll helper ─────────────────────────────────────────────────────────────
-function FitAllButton({ shipments }: { shipments: MappedShipment[] }) {
+function FitAllButton({ entities }: { entities: MapEntity[] }) {
   const map = useMap()
   function fitAll() {
-    if (shipments.length === 0) return
-    const lats = shipments.map(s => s.pos[0])
-    const lngs = shipments.map(s => s.pos[1])
+    if (entities.length === 0) return
+    const lats = entities.map(s => s.gpsPos[0])
+    const lngs = entities.map(s => s.gpsPos[1])
     map.fitBounds([
       [Math.min(...lats), Math.min(...lngs)],
       [Math.max(...lats), Math.max(...lngs)],
@@ -130,16 +135,6 @@ function FitAllButton({ shipments }: { shipments: MappedShipment[] }) {
   )
 }
 
-// ── Zoom watcher for clusters ────────────────────────────────────────────────
-function useZoom(): number {
-  const [zoom, setZoom] = useState(MAP_ZOOM)
-  useMapEvents({
-    zoomend: (e) => setZoom((e.target as L.Map).getZoom()),
-    load:    (e) => setZoom((e.target as L.Map).getZoom()),
-  } as Parameters<typeof useMapEvents>[0])
-  return zoom
-}
-
 // ── Filter options ────────────────────────────────────────────────────────────
 type FilterKey = 'ALL' | 'IN_TRANSIT' | 'CUSTOMS' | 'DELAYED' | 'PENDING'
 const FILTER_OPTS: { key: FilterKey; label: string }[] = [
@@ -150,7 +145,6 @@ const FILTER_OPTS: { key: FilterKey; label: string }[] = [
   { key: 'PENDING',    label: 'Pending'    },
 ]
 
-// ── Live dot ──────────────────────────────────────────────────────────────────
 function LiveDot() {
   return (
     <span className="relative flex h-2 w-2">
@@ -162,29 +156,28 @@ function LiveDot() {
 
 // ── MapContent (child of MapContainer) ─────────────────────────────────────────
 function MapContent({
-  shipments, visible, showCorridors, selectedId, panTo, onSelect, clusterZoom, loading,
+  entities, visible, showCorridors, selectedId, panTo, onSelect, clusterZoom,
 }: {
-  shipments: MappedShipment[]
-  visible: MappedShipment[]
+  entities: MapEntity[]
+  visible: MapEntity[]
   showCorridors: boolean
   selectedId: number | null
   panTo: [number, number] | null
-  onSelect: (s: MappedShipment) => void
+  onSelect: (e: MapEntity) => void
   clusterZoom: number
-  loading: boolean
 }) {
-  const selected = shipments.find(s => s.id === selectedId) ?? null
+  const selected = entities.find(e => e.id === selectedId) ?? null
 
   return (
     <>
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         subdomains="abcd"
         maxZoom={19}
       />
       <PanToMarker target={panTo} />
-      <FitAllButton shipments={visible} />
+      <FitAllButton entities={visible} />
 
       {/* Trade corridor overlays */}
       {showCorridors && CORRIDORS.map((c) => (
@@ -194,101 +187,165 @@ function MapContent({
         </Polyline>
       ))}
 
-      {/* Progress-based route lines */}
-      {visible.filter(s => ['IN_TRANSIT', 'DELAYED'].includes(s.status) && s.originPos && s.destPos).map(s => (
-        <RoutePolyline key={`route-${s.id}`} shipment={s} selected={selectedId === s.id} />
+      {/* Road-following routes */}
+      {visible.filter(e => ['IN_TRANSIT', 'DELAYED'].includes(e.status) && e.originPos && e.destPos).map(e => (
+        <RoadRoute
+          key={`route-${e.id}`}
+          origin={e.origin}
+          destination={e.destination}
+          risk={e.risk}
+          progress={e.progress}
+          selected={selectedId === e.id}
+        />
       ))}
 
       {/* Risk hotspot halos */}
-      {visible.filter(s => s.delay_risk_score >= 0.7).map(s => (
-        <Circle key={`risk-${s.id}`} center={s.pos} radius={48000}
+      {visible.filter(e => e.risk >= 0.7).map(e => (
+        <Circle key={`risk-${e.id}`} center={e.gpsPos} radius={48000}
           pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.06, weight: 1, opacity: 0.25 }}
         />
       ))}
 
       {/* Cluster markers for zoomed-out view */}
-      <ClusterMarker shipments={visible} zoom={clusterZoom} />
+      <ClusterMarker shipments={visible as any} zoom={clusterZoom} />
 
-      {/* Truck markers (hide when clustered) */}
-      {clusterZoom >= 8 && visible.map(s => (
-        <Marker key={s.id} position={s.pos}
-          icon={L.divIcon({
-            className: '',
-            iconSize: [selectedId === s.id ? 42 : 34, selectedId === s.id ? 42 : 34],
-            iconAnchor: [selectedId === s.id ? 21 : 17, selectedId === s.id ? 21 : 17],
-            popupAnchor: [0, -(selectedId === s.id ? 21 : 17) - 4],
-            html: buildTruckMarkerSVG({
-              status: s.status, risk: s.delay_risk_score, bearing: s.bearing,
-              selected: selectedId === s.id, size: selectedId === s.id ? 42 : 34,
-            }),
-          })}
-          eventHandlers={{ click: () => onSelect(s) }}
-        >
-          <Popup>
-            <div className="min-w-[200px] font-sans">
-              <div className="px-3 py-2 -mx-3 -mt-2 mb-2 rounded-t" style={{ background: STATUS_CFG[s.status]?.color ?? '#94a3b8' }}>
-                <p className="text-white text-xs font-bold font-mono">{s.tracking_number}</p>
-                <p className="text-white/70 text-[10px] mt-0.5">{STATUS_CFG[s.status]?.label ?? s.status}</p>
-              </div>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Route</span>
-                  <span className="font-medium text-gray-700">{s.route.origin} → {s.route.destination}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Carrier</span>
-                  <span className="font-medium text-gray-700">{s.carrier_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Risk</span>
-                  <span className="font-bold" style={{ color: riskColor(s.delay_risk_score) }}>{Math.round(s.delay_risk_score * 100)}%</span>
-                </div>
-              </div>
-              <Link to={`/ops/shipments/${s.id}`} className="mt-2 flex items-center gap-1 text-xs font-semibold text-orange-500 hover:underline">
-                Full detail <ChevronRight className="w-3 h-3" />
-              </Link>
-            </div>
-          </Popup>
-        </Marker>
+      {/* Animated truck markers (hide when clustered) */}
+      {clusterZoom >= 8 && visible.map(e => (
+        <AnimatedTruck
+          key={e.id}
+          position={e.gpsPos}
+          bearing={e.bearing}
+          status={e.status}
+          risk={e.risk}
+          selected={selectedId === e.id}
+          route={e.route}
+          progress={e.progress}
+          onClick={() => onSelect(e)}
+        />
       ))}
+
+      {/* Origin/Destination city labels for selected */}
+      {selected && selected.originPos && selected.destPos && (
+        <>
+          <Polyline key={`orig-dot`} positions={[selected.originPos, selected.originPos]}
+            pathOptions={{ color: '#22c55e', weight: 6, opacity: 0.9 }} />
+          <Polyline key={`dest-dot`} positions={[selected.destPos, selected.destPos]}
+            pathOptions={{ color: '#f5801e', weight: 6, opacity: 0.9 }} />
+        </>
+      )}
     </>
   )
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function LiveMap() {
-  const [shipments,     setShipments]     = useState<MappedShipment[]>([])
-  const [filter,        setFilter]        = useState<FilterKey>('ALL')
-  const [search,        setSearch]        = useState('')
-  const [loading,       setLoading]       = useState(true)
-  const [error,         setError]         = useState<string | null>(null)
-  const [panTo,         setPanTo]         = useState<[number, number] | null>(null)
-  const [carrierFilter, setCarrierFilter] = useState<string>('ALL')
-  const [fullscreen,    setFullscreen]    = useState(false)
-  const [showCorridors, setShowCorridors] = useState(true)
-  const [selectedId,    setSelectedId]    = useState<number | null>(null)
-  const [panelOpen,     setPanelOpen]     = useState(true)
-  const [clusterZoom,   setClusterZoom]   = useState(MAP_ZOOM)
+  const [entities,       setEntities]       = useState<MapEntity[]>([])
+  const [filter,         setFilter]         = useState<FilterKey>('ALL')
+  const [search,         setSearch]         = useState('')
+  const [loading,        setLoading]        = useState(true)
+  const [error,          setError]          = useState<string | null>(null)
+  const [panTo,          setPanTo]          = useState<[number, number] | null>(null)
+  const [carrierFilter,  setCarrierFilter]  = useState<string>('ALL')
+  const [fullscreen,     setFullscreen]     = useState(false)
+  const [showCorridors,  setShowCorridors]  = useState(true)
+  const [selectedId,     setSelectedId]     = useState<number | null>(null)
+  const [panelOpen,      setPanelOpen]      = useState(true)
+  const [clusterZoom] = useState(MAP_ZOOM)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // ── Load data ───────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
-    setLoading(true); setError(null)
+    setLoading(true)
+    setError(null)
     try {
-      const res = await shipmentsApi.getShipments({ page_size: 250 })
-      const all: ShipmentListItem[] = (res.data.results ?? []).filter(s => s.status !== 'DELIVERED')
-      const enriched: MappedShipment[] = all.map(s => {
+      // Fetch shipments + active drivers in parallel
+      const [shipRes, driverRes] = await Promise.allSettled([
+        shipmentsApi.getShipments({ page_size: 250, status: 'IN_TRANSIT,DELAYED,CUSTOMS,PENDING' }),
+        fleetApi.listDrivers({ status: 'ON_ROUTE', page_size: 250 }),
+      ])
+
+      const allShipments: ShipmentListItem[] = shipRes.status === 'fulfilled'
+        ? (shipRes.value.data.results ?? []).filter(s => s.status !== 'DELIVERED')
+        : []
+      const activeDrivers: Driver[] = driverRes.status === 'fulfilled'
+        ? (driverRes.value.data.results ?? [])
+        : []
+
+      // Build GPS lookup: driver → position
+      const gpsLookup = new Map<number, { lat: number; lng: number; label: string }>()
+      for (const d of activeDrivers) {
+        if (d.latitude && d.longitude) {
+          gpsLookup.set(d.id, { lat: d.latitude, lng: d.longitude, label: d.current_location || '' })
+        }
+      }
+
+      // Enrich shipments with real GPS or interpolated position
+      const enriched: MapEntity[] = allShipments.map(s => {
         const originPos = lookupCoords(s.route.origin)
         const destPos   = lookupCoords(s.route.destination)
-        const pos: [number, number] = originPos && destPos
-          ? [(originPos[0] + destPos[0]) / 2, (originPos[1] + destPos[1]) / 2]
-          : (originPos ?? destPos ?? FALLBACK)
+
+        // Try to get real GPS from assigned driver
+        let gpsPos: [number, number]
+        if (s.assigned_driver) {
+          const agps = gpsLookup.get(s.assigned_driver)
+          const truckLat = s.assigned_truck ? (s as any).truck_latitude : null
+          const truckLng = s.assigned_truck ? (s as any).truck_longitude : null
+          if (agps) {
+            gpsPos = [agps.lat, agps.lng]
+          } else if (truckLat && truckLng) {
+            gpsPos = [truckLat, truckLng]
+          } else {
+            gpsPos = originPos && destPos
+              ? [(originPos[0] + destPos[0]) / 2, (originPos[1] + destPos[1]) / 2]
+              : (originPos ?? destPos ?? FALLBACK)
+          }
+        } else {
+          gpsPos = originPos && destPos
+            ? [(originPos[0] + destPos[0]) / 2, (originPos[1] + destPos[1]) / 2]
+            : (originPos ?? destPos ?? FALLBACK)
+        }
+
+        // Progress: compute from GPS position between origin and destination
+        let progress = 0
+        if (s.status === 'PENDING') progress = 0
+        else if (s.status === 'DELIVERED') progress = 100
+        else if (originPos && destPos) {
+          const totalDist = haversineKm(originPos, destPos)
+          const coveredDist = haversineKm(originPos, gpsPos)
+          progress = Math.min(Math.round((coveredDist / totalDist) * 100), 99)
+          if (progress < 5 && s.status === 'IN_TRANSIT') progress = 15 // minimum for in-transit
+        }
+
         const bearing = originPos && destPos ? bearingDeg(originPos, destPos) : 0
-        const progress = simProgress(s.tracking_number, s.status)
-        return { ...s, pos, originPos, destPos, bearing, progress }
+
+        return {
+          id: s.id,
+          type: 'shipment' as const,
+          trackingNumber: s.tracking_number,
+          status: s.status,
+          carrierName: s.carrier_name,
+          origin: s.route.origin,
+          destination: s.route.destination,
+          originPos,
+          destPos,
+          gpsPos,
+          bearing,
+          progress,
+          risk: s.delay_risk_score,
+          scheduledArrival: s.scheduled_arrival,
+          shipment: s,
+        }
       })
-      setShipments(enriched)
+
+      setEntities(enriched)
+
+      // Preload road routes in background
+      const pairs = enriched
+        .filter(e => e.originPos && e.destPos)
+        .map(e => ({ from: e.originPos!, to: e.destPos! }))
+      preloadRoutes(pairs)
     } catch {
-      setError('Failed to load shipment data.')
+      setError('Failed to load tracking data.')
     } finally {
       setLoading(false)
     }
@@ -300,40 +357,41 @@ export default function LiveMap() {
       initialLoadedRef.current = true
       void load()
     }
-    intervalRef.current = setInterval(load, 60_000)
+    intervalRef.current = setInterval(load, REFRESH_MS)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [load])
 
-  const carriers = ['ALL', ...Array.from(new Set(shipments.map(s => s.carrier_name))).sort()]
+  // ── Derived data ────────────────────────────────────────────────────────────
+  const carriers = ['ALL', ...Array.from(new Set(entities.map(s => s.carrierName))).sort()]
 
-  const visible = shipments.filter(s => {
-    if (filter !== 'ALL' && s.status !== filter) return false
-    if (carrierFilter !== 'ALL' && s.carrier_name !== carrierFilter) return false
+  const visible = useMemo(() => entities.filter(e => {
+    if (filter !== 'ALL' && e.status !== filter) return false
+    if (carrierFilter !== 'ALL' && e.carrierName !== carrierFilter) return false
     if (search.trim()) {
       const q = search.toLowerCase()
       return (
-        s.tracking_number.toLowerCase().includes(q) ||
-        s.carrier_name.toLowerCase().includes(q) ||
-        s.route.origin.toLowerCase().includes(q) ||
-        s.route.destination.toLowerCase().includes(q)
+        e.trackingNumber.toLowerCase().includes(q) ||
+        e.carrierName.toLowerCase().includes(q) ||
+        e.origin.toLowerCase().includes(q) ||
+        e.destination.toLowerCase().includes(q)
       )
     }
     return true
-  })
+  }), [entities, filter, carrierFilter, search])
 
-  const counts = {
-    total:      shipments.length,
-    in_transit: shipments.filter(s => s.status === 'IN_TRANSIT').length,
-    delayed:    shipments.filter(s => s.status === 'DELAYED').length,
-    at_customs: shipments.filter(s => s.status === 'CUSTOMS').length,
-    high_risk:  shipments.filter(s => s.delay_risk_score >= 0.7).length,
-  }
+  const counts = useMemo(() => ({
+    total:      entities.length,
+    in_transit: entities.filter(e => e.status === 'IN_TRANSIT').length,
+    delayed:    entities.filter(e => e.status === 'DELAYED').length,
+    at_customs: entities.filter(e => e.status === 'CUSTOMS').length,
+    high_risk:  entities.filter(e => e.risk >= 0.7).length,
+  }), [entities])
 
-  const selected = shipments.find(s => s.id === selectedId) ?? null
+  const selected = entities.find(e => e.id === selectedId) ?? null
 
-  function handleSelect(s: MappedShipment) {
-    setSelectedId(s.id)
-    setPanTo(s.pos)
+  function handleSelect(e: MapEntity) {
+    setSelectedId(e.id)
+    setPanTo(e.gpsPos)
   }
 
   return (
@@ -341,7 +399,6 @@ export default function LiveMap() {
       'relative overflow-hidden rounded-2xl shadow-2xl border border-white/5',
       fullscreen ? 'fixed inset-3 z-50' : 'h-[calc(100vh-7rem)]',
     )}>
-
       {/* ── Full-area Leaflet map ──────────────────────────────────────────── */}
       <MapContainer
         center={MAP_CENTER}
@@ -351,25 +408,24 @@ export default function LiveMap() {
         attributionControl={true}
       >
         <MapContent
-          shipments={shipments}
+          entities={entities}
           visible={visible}
           showCorridors={showCorridors}
           selectedId={selectedId}
           panTo={panTo}
           onSelect={handleSelect}
           clusterZoom={clusterZoom}
-          loading={loading}
         />
       </MapContainer>
 
-      {/* ── Uber-style DriverInfoCard ──────────────────────────────────────── */}
+      {/* ── DriverInfoCard ────────────────────────────────────────────────── */}
       <AnimatePresence>
         {selected && (
           <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[600]">
             <DriverInfoCard
-              shipment={selected}
+              shipment={selected.shipment}
               onClose={() => setSelectedId(null)}
-              onNavigate={() => setPanTo(selected.pos)}
+              onNavigate={() => setPanTo(selected.gpsPos)}
             />
           </div>
         )}
@@ -393,7 +449,7 @@ export default function LiveMap() {
         </button>
       </div>
 
-      {/* ── Toggle panel button ────────────────────────────────────────────── */}
+      {/* ── Toggle panel ──────────────────────────────────────────────────── */}
       <button
         onClick={() => setPanelOpen(v => !v)}
         className="absolute top-3 left-3 z-[500] p-2 rounded-xl bg-[#0a1929]/90 border border-white/10 text-white/60 hover:text-white shadow-lg backdrop-blur-md transition-colors"
@@ -404,13 +460,13 @@ export default function LiveMap() {
       {/* ── High-risk badge ────────────────────────────────────────────────── */}
       {counts.high_risk > 0 && (
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className={cn('absolute z-[500] flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-600/90 backdrop-blur-sm border border-red-500/40 shadow-lg top-3 left-14')}>
+          className="absolute z-[500] flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-600/90 backdrop-blur-sm border border-red-500/40 shadow-lg top-3 left-14">
           <AlertTriangle className="w-3.5 h-3.5 text-white" />
           <span className="text-xs font-bold text-white">{counts.high_risk} high-risk</span>
         </motion.div>
       )}
 
-      {/* ── Floating left panel (glassmorphism) ────────────────────────────── */}
+      {/* ── Floating left panel ────────────────────────────────────────────── */}
       <AnimatePresence>
         {panelOpen && (
           <motion.div
@@ -441,7 +497,8 @@ export default function LiveMap() {
                   { label: 'Delayed', value: counts.delayed,    color: '#ef4444' },
                   { label: 'Customs', value: counts.at_customs, color: '#f59e0b' },
                 ].map(({ label, value, color }) => (
-                  <button key={label} onClick={() => setFilter(label === 'Transit' ? 'IN_TRANSIT' : label === 'Delayed' ? 'DELAYED' : 'CUSTOMS')}
+                  <button key={label}
+                    onClick={() => setFilter(label === 'Transit' ? 'IN_TRANSIT' : label === 'Delayed' ? 'DELAYED' : 'CUSTOMS')}
                     className="rounded-xl px-2 py-2 text-center transition-opacity hover:opacity-80 active:scale-95"
                     style={{ background: `${color}1a` }}>
                     <p className="text-sm font-bold tabular-nums" style={{ color }}>{value}</p>
@@ -454,7 +511,7 @@ export default function LiveMap() {
               <div className="relative mb-2">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Tracking #, carrier, city…"
+                  placeholder="Tracking #, carrier, city..."
                   className="w-full pl-8 pr-8 py-2 rounded-xl bg-white/6 border border-white/8 text-xs text-white/80 placeholder:text-white/25 focus:outline-none focus:ring-1 focus:ring-orange-500/40 focus:border-orange-500/30 transition-colors" />
                 {search && (
                   <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70">
@@ -481,9 +538,8 @@ export default function LiveMap() {
               {/* Carrier filter */}
               {carriers.length > 2 && (
                 <div className="relative mt-2">
-                  <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30 pointer-events-none" />
                   <select value={carrierFilter} onChange={e => setCarrierFilter(e.target.value)}
-                    className="w-full pl-7 pr-3 py-1.5 rounded-xl bg-white/6 border border-white/8 text-[11px] text-white/70 focus:outline-none focus:ring-1 focus:ring-orange-500/40">
+                    className="w-full pl-3 pr-3 py-1.5 rounded-xl bg-white/6 border border-white/8 text-[11px] text-white/70 focus:outline-none focus:ring-1 focus:ring-orange-500/40">
                     {carriers.map(c => (
                       <option key={c} value={c} className="bg-[#0a1929]">
                         {c === 'ALL' ? 'All Carriers' : c}
@@ -497,45 +553,46 @@ export default function LiveMap() {
             {/* Shipment list */}
             <div className="flex-1 overflow-y-auto">
               <AnimatePresence initial={false}>
-                {visible.map((s, i) => {
-                  const cfg   = STATUS_CFG[s.status]
+                {visible.map((e, i) => {
+                  const cfg   = STATUS_CFG[e.status]
                   const color = cfg?.color ?? '#94a3b8'
-                  const rc    = riskColor(s.delay_risk_score)
-                  const isSelected = selectedId === s.id
-                  const eta = fmtETA(s.scheduled_arrival)
+                  const rc    = riskColor(e.risk)
+                  const isSel = selectedId === e.id
+                  const eta   = fmtETA(e.scheduledArrival)
                   return (
-                    <motion.button key={s.id}
+                    <motion.button key={e.id}
                       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                       transition={{ delay: i * 0.02 }} layout
-                      onClick={() => handleSelect(s)}
+                      onClick={() => handleSelect(e)}
                       className={cn('w-full px-4 py-3 text-left transition-all border-b border-white/4',
-                        isSelected ? 'bg-white/10 border-l-2' : 'hover:bg-white/5')}
-                      style={isSelected ? { borderLeftColor: color } : {}}>
+                        isSel ? 'bg-white/10 border-l-2' : 'hover:bg-white/5')}
+                      style={isSel ? { borderLeftColor: color } : {}}>
                       <div className="flex items-start gap-2.5">
                         <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${color}20` }}>
                           <Truck className="w-3.5 h-3.5" style={{ color }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-bold text-white/90 font-mono truncate">{s.tracking_number}</p>
+                            <p className="text-xs font-bold text-white/90 font-mono truncate">{e.trackingNumber}</p>
                             <span className="text-[10px] font-bold tabular-nums ml-2 shrink-0" style={{ color: rc }}>
-                              {Math.round(s.delay_risk_score * 100)}%
+                              {Math.round(e.risk * 100)}%
                             </span>
                           </div>
                           <div className="flex items-center gap-1 mt-0.5 text-[11px] text-white/40">
                             <MapPin className="w-2.5 h-2.5 shrink-0" />
-                            <span className="truncate">{s.route.origin}</span>
+                            <span className="truncate">{e.origin}</span>
                             <ArrowRight className="w-2.5 h-2.5 shrink-0 text-white/20" />
-                            <span className="truncate">{s.route.destination}</span>
+                            <span className="truncate">{e.destination}</span>
                           </div>
+                          {/* Progress bar */}
                           <div className="mt-1.5 h-1 bg-white/8 rounded-full overflow-hidden">
                             <div className="h-full rounded-full transition-all duration-700"
-                              style={{ width: `${s.progress}%`, background: color }} />
+                              style={{ width: `${e.progress}%`, background: color }} />
                           </div>
                           <div className="flex items-center justify-between mt-1">
                             <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-bold"
                               style={{ background: `${color}20`, color }}>
-                              {cfg?.label ?? s.status}
+                              {cfg?.label ?? e.status}
                             </span>
                             <div className="flex items-center gap-1 text-[10px] text-white/30">
                               <Clock className="w-2.5 h-2.5" />
@@ -600,4 +657,15 @@ export default function LiveMap() {
       )}
     </div>
   )
+}
+
+// ── Haversine helper ─────────────────────────────────────────────────────────
+function haversineKm(a: [number, number], b: [number, number]): number {
+  const R = 6371
+  const [lat1, lng1] = [a[0] * Math.PI / 180, a[1] * Math.PI / 180]
+  const [lat2, lng2] = [b[0] * Math.PI / 180, b[1] * Math.PI / 180]
+  const dlat = lat2 - lat1
+  const dlng = lng2 - lng1
+  const h = Math.sin(dlat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dlng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }

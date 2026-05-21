@@ -5,6 +5,7 @@ import { apiClient } from '@/lib/api'
 import { useAppTheme } from '@/lib/useAppTheme'
 import ScreenHeader from '@/components/ScreenHeader'
 import { formatDate } from '@shared/utils/formatters'
+import RequireRole from '@/components/RequireRole'
 
 interface Integration {
   id: number; name: string; category: string; status: string
@@ -52,8 +53,9 @@ export default function IntegrationsScreen() {
   }), [integrations])
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Integrations" backButton />
+    <RequireRole roles={['ADMIN', 'LOGISTICS_MGR']}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenHeader title="Integrations" backButton />
       <FlatList
         data={integrations}
         keyExtractor={(i) => String(i.id)}
@@ -141,6 +143,7 @@ export default function IntegrationsScreen() {
         }}
       />
     </View>
+  </RequireRole>
   )
 }
 

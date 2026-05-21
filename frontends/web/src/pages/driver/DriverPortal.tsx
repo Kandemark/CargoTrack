@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @route /driver/dashboard  @auth CARRIER
  */
 import { useEffect, useMemo, useState } from 'react'
@@ -7,9 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Truck, MapPin, Clock, AlertTriangle, RefreshCw,
   ArrowUpRight, CheckCircle, Package, Activity,
-  Navigation, Star, TrendingUp, Zap,
-  FileText, ChevronRight, Bell, Shield,
-  Target, DollarSign, BarChart2,
+  Navigation, Star, Zap,
+  FileText, ChevronRight, Bell,
+  Target, BarChart2,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -21,7 +21,7 @@ import { alertsApi } from '@/api/alerts'
 import type { ShipmentListItem, ShipmentStatus, Alert } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 
-// ── Status config ──────────────────────────────────────────────────────────────
+// -- Status config --------------------------------------------------------------
 
 const STATUS_CFG: Record<ShipmentStatus, { label: string; bg: string; text: string; dot: string; dark_bg: string; dark_text: string }> = {
   IN_TRANSIT: { label: 'In Transit', bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-400',    dark_bg: 'dark:bg-blue-900/20',    dark_text: 'dark:text-blue-400'    },
@@ -59,7 +59,7 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
+// -- Main -----------------------------------------------------------------------
 
 export default function DriverPortal() {
   const user = useAuthStore((s) => s.user)
@@ -132,7 +132,7 @@ export default function DriverPortal() {
   return (
     <div className="space-y-5 pb-4">
 
-      {/* ── Hero header ─────────────────────────────────────────────────────────── */}
+      {/* -- Hero header ----------------------------------------------------------- */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
         className="rounded-2xl overflow-hidden border border-white/0 shadow-card"
         style={{ background: 'linear-gradient(135deg, #0f2d5e 0%, #071428 100%)' }}>
@@ -176,14 +176,14 @@ export default function DriverPortal() {
             { label: 'On-Time',   value: `${onTimeRate}%`, color: '#fb923c'   },
           ].map(({ label, value, color }, i) => (
             <div key={label} className={cn('px-5 py-3.5', i < 3 && 'border-r border-white/8')}>
-              <p className="text-2xl font-bold tabular-nums" style={{ color }}>{loading ? '—' : value}</p>
+              <p className="text-2xl font-bold tabular-nums" style={{ color }}>{loading ? '�' : value}</p>
               <p className="text-xs text-white/40 mt-0.5">{label}</p>
             </div>
           ))}
         </div>
       </motion.div>
 
-      {/* ── KPI row ─────────────────────────────────────────────────────────────── */}
+      {/* -- KPI row --------------------------------------------------------------- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: 'Active Jobs',   value: active.length.toString(),      icon: Activity,   color: '#3b82f6', bg: 'bg-blue-50 dark:bg-blue-900/15'      },
@@ -199,14 +199,14 @@ export default function DriverPortal() {
               <Icon className="w-4 h-4" style={{ color }} />
             </div>
             <p className="text-lg font-bold text-gray-900 dark:text-white font-heading tabular-nums leading-tight">
-              {loading ? '—' : value}
+              {loading ? '�' : value}
             </p>
             <p className="text-xs text-gray-400 dark:text-white/40 mt-0.5">{label}</p>
           </motion.div>
         ))}
       </div>
 
-      {/* ── Active job highlight ─────────────────────────────────────────────────── */}
+      {/* -- Active job highlight --------------------------------------------------- */}
       {!loading && active.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 overflow-hidden shadow-card">
@@ -243,11 +243,11 @@ export default function DriverPortal() {
                     <span className="font-medium">{s.route.origin}</span>
                     <Navigation className="w-3 h-3 text-gray-300" />
                     <span>{s.route.destination}</span>
-                    <span className="text-xs text-gray-400 dark:text-white/30">· {s.route.distance_km?.toLocaleString() ?? '—'} km</span>
+                    <span className="text-xs text-gray-400 dark:text-white/30">� {s.route.distance_km?.toLocaleString() ?? '�'} km</span>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-white/40">
                     <div className="flex items-center gap-1"><Clock className="w-3 h-3" /> ETA {fmtDate(s.scheduled_arrival)}</div>
-                    <div className="flex items-center gap-1"><Package className="w-3 h-3" /> {s.weight_kg?.toLocaleString() ?? '—'} kg</div>
+                    <div className="flex items-center gap-1"><Package className="w-3 h-3" /> {s.weight_kg?.toLocaleString() ?? '�'} kg</div>
                     <div className="flex items-center gap-1"><Truck className="w-3 h-3" /> {s.carrier_name}</div>
                   </div>
                 </div>
@@ -284,7 +284,7 @@ export default function DriverPortal() {
         </motion.div>
       )}
 
-      {/* ── Main content: tabs + chart ──────────────────────────────────────────── */}
+      {/* -- Main content: tabs + chart -------------------------------------------- */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
         {/* Shipment tabs */}
@@ -337,7 +337,7 @@ export default function DriverPortal() {
                             <StatusBadge status={s.status} />
                           </div>
                           <p className="text-xs text-gray-500 dark:text-white/40">
-                            {s.route.origin} → {s.route.destination} · {s.weight_kg?.toLocaleString() ?? '—'} kg
+                            {s.route.origin} ? {s.route.destination} � {s.weight_kg?.toLocaleString() ?? '�'} kg
                           </p>
                         </div>
                         <div className="shrink-0 flex items-center gap-2">
@@ -346,7 +346,7 @@ export default function DriverPortal() {
                           </span>
                           <Link to={`/driver/shipments/${s.id}/log-event`}
                             className="opacity-0 group-hover:opacity-100 text-xs font-semibold text-orange-500 hover:underline transition-opacity">
-                            Log →
+                            Log ?
                           </Link>
                         </div>
                       </motion.div>
@@ -379,7 +379,7 @@ export default function DriverPortal() {
                             </Link>
                           </div>
                           <p className="text-xs text-gray-500 dark:text-white/40">
-                            {s.route.origin} → {s.route.destination}
+                            {s.route.origin} ? {s.route.destination}
                           </p>
                         </div>
                         <span className="text-xs text-gray-400 dark:text-white/30 shrink-0">
@@ -413,7 +413,7 @@ export default function DriverPortal() {
                           <p className="text-xs font-semibold text-gray-800 dark:text-white/80">{a.title}</p>
                           <p className="text-xs text-gray-500 dark:text-white/40 truncate mt-0.5">{a.message}</p>
                         </div>
-                        <span className="text-[10px] text-gray-300 dark:text-white/20 shrink-0">{timeAgo(a.created_at)}</span>
+                        <span className="text-[10px] text-gray-300 dark:text-white/20 shrink-0">{timeAgo(a.created_at ?? '')}</span>
                       </motion.div>
                     ))}
                   </div>

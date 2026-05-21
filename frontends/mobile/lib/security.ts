@@ -24,7 +24,6 @@ const SESSION_TIMEOUT_SECONDS = 30 * 60 // 30 minutes
 let screenCapturePrevented = false
 let backgroundSince: number | null = null
 let lastActivityAt: number = Date.now()
-let lockResolver: (() => void) | null = null
 let sessionCheckInterval: ReturnType<typeof setInterval> | null = null
 
 // Callbacks set by the UI layer
@@ -89,7 +88,9 @@ function handleAppStateChange(nextState: AppStateStatus) {
     enableScreenCapturePrevention()
     startSessionTimeoutChecker()
   } else if (nextState === 'active') {
-    disableScreenCapturePrevention()
+    // Re-enable screen capture prevention when active — sensitive data is
+    // now visible on screen and could be captured by screen recording.
+    enableScreenCapturePrevention()
     stopSessionTimeoutChecker()
 
     // Check if auto-lock should trigger
@@ -174,5 +175,4 @@ export function destroySecurity() {
   disableScreenCapturePrevention()
   unregisterSecurityCallbacks()
   backgroundSince = null
-  lockResolver = null
 }

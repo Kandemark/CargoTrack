@@ -1,4 +1,5 @@
 """chats/serializers.py — DRF serializers for conversations and messages."""
+from django.conf import settings
 from rest_framework import serializers
 from .models import Conversation, Message, VideoCall
 
@@ -7,16 +8,29 @@ class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source='sender.get_full_name', read_only=True)
     sender_id = serializers.IntegerField(source='sender.id', read_only=True)
     sender_role = serializers.CharField(source='sender.role', read_only=True)
+    attachment_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
         fields = [
             'id', 'conversation', 'sender', 'sender_id', 'sender_name',
-            'sender_role', 'content', 'attachment_url', 'is_read',
-            'is_system', 'created_at',
+            'sender_role', 'content', 'attachment', 'attachment_type',
+            'file_size', 'attachment_url', 'is_read',
+            'is_system', 'is_edited', 'edited_at', 'is_deleted', 'deleted_at',
+            'is_encrypted', 'encryption_metadata', 'created_at',
         ]
         read_only_fields = ['id', 'sender', 'sender_id', 'sender_name',
-                            'sender_role', 'is_read', 'is_system', 'created_at']
+                            'sender_role', 'is_read', 'is_system',
+                            'is_edited', 'edited_at', 'is_deleted', 'deleted_at',
+                            'is_encrypted', 'encryption_metadata', 'created_at']
+
+    def get_attachment_url(self, obj):
+        if obj.attachment:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.attachment.url)
+            return obj.attachment.url
+        return obj.attachment_url or ''
 
 
 class ConversationListSerializer(serializers.ModelSerializer):
@@ -27,7 +41,8 @@ class ConversationListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Conversation
         fields = [
-            'id', 'subject', 'shipment', 'is_group',
+            'id', 'subject', 'description', 'shipment', 'is_group',
+            'is_community', 'is_encrypted', 'announcement',
             'participants', 'participants_display',
             'last_message', 'unread_count', 'created_at', 'updated_at',
         ]
@@ -76,7 +91,8 @@ class ConversationCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Conversation
-        fields = ['subject', 'shipment', 'is_group', 'participant_ids']
+        fields = ['subject', 'description', 'shipment', 'is_group',
+                  'is_community', 'is_encrypted', 'participant_ids']
 
     def validate_participant_ids(self, value):
         from accounts.models import CustomUser
@@ -114,3 +130,47 @@ class VideoCallSerializer(serializers.ModelSerializer):
 
 class StartVideoCallSerializer(serializers.Serializer):
     callee_id = serializers.IntegerField()
+
+
+# ── Social Feed ───────────────────────────────────────────────────────────────
+
+class SocialPostSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_role = serializers.CharField(source='author.role', read_only=True)
+    author_org = serializers.CharField(source='author.organization.name', read_only=True, default=None)
+    is_liked = serializers.SerializerMethodField()
+    comment_count = serializers.IntegerField(source='comments.count', read_only=True)
+
+    class Meta:
+        model = None  # set below
+        fields = [
+            'id', 'author', 'author_name', 'author_role', 'author_org',
+            'content', 'attachment_url', 'conversation',
+            'is_pinned', 'is_announcement', 'like_count', 'reply_count',
+            'is_liked', 'comment_count', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'author', 'like_count', 'reply_count', 'created_at', 'updated_at']
+
+    def get_is_liked(self, obj) -> bool:
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.liked_by.filter(id=request.user.id).exists()
+        return False
+
+
+# Need to set model after SocialPost is imported
+from .models import SocialPost
+SocialPostSerializer.Meta.model = SocialPost
+
+
+class SocialCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+    author_role = serializers.CharField(source='author.role', read_only=True)
+
+    class Meta:
+        model = None
+        fields = ['id', 'post', 'author', 'author_name', 'author_role', 'content', 'created_at']
+        read_only_fields = ['id', 'author', 'created_at']
+
+from .models import SocialComment
+SocialCommentSerializer.Meta.model = SocialComment

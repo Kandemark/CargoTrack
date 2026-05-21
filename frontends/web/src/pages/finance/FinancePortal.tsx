@@ -1,5 +1,5 @@
-﻿/**
- * FinancePortal.tsx — Financial operations dashboard for finance officers.
+/**
+ * FinancePortal.tsx � Financial operations dashboard for finance officers.
  *
  * Responsibilities:
  *  - Revenue vs expenses monthly trend chart
@@ -10,8 +10,8 @@
  *  - Cost-per-shipment analytics
  *
  * Data sources:
- *  - GET /api/v1/invoices/           — invoice data
- *  - GET /api/v1/dashboard/kpis/    — top-level KPIs
+ *  - GET /api/v1/invoices/           � invoice data
+ *  - GET /api/v1/dashboard/kpis/    � top-level KPIs
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
@@ -21,7 +21,7 @@ import {
 } from 'recharts'
 import {
   CreditCard, TrendingUp, TrendingDown, AlertOctagon,
-  CheckCircle2, Clock, RefreshCw, Download, ArrowRight,
+  Clock, RefreshCw, Download, ArrowRight,
   Banknote, BarChart3, Percent, Calculator, Coins, Receipt,
 } from 'lucide-react'
 import { financeApi, type CurrencyConversion, type TaxSummary, type InvoiceCalculation } from '@/api/finance'
@@ -30,7 +30,7 @@ import { cn } from '@/lib/utils'
 import { paymentsApi } from '@/api/payments'
 import type { Invoice } from '@/api/payments'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// -- Helpers -------------------------------------------------------------------
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -68,9 +68,9 @@ function buildRevenueChart(invoices: Invoice[]): { month: string; revenue: numbe
 function buildAging(invoices: Invoice[]): { label: string; amount: number; count: number }[] {
   const now = Date.now()
   const buckets = [
-    { label: '0–30 days',  min: 0,   max: 30,   amount: 0, count: 0 },
-    { label: '31–60 days', min: 31,  max: 60,   amount: 0, count: 0 },
-    { label: '61–90 days', min: 61,  max: 90,   amount: 0, count: 0 },
+    { label: '0�30 days',  min: 0,   max: 30,   amount: 0, count: 0 },
+    { label: '31�60 days', min: 31,  max: 60,   amount: 0, count: 0 },
+    { label: '61�90 days', min: 61,  max: 90,   amount: 0, count: 0 },
     { label: '90+ days',   min: 91,  max: 99999,amount: 0, count: 0 },
   ]
   for (const inv of invoices) {
@@ -82,10 +82,10 @@ function buildAging(invoices: Invoice[]): { label: string; amount: number; count
   return buckets
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// -- Sub-components ------------------------------------------------------------
 
 function StatCard({ icon: Icon, label, value, sub, color, trend }: {
-  icon: React.ElementType; label: string; value: string; sub?: string; color: string; trend?: 'up' | 'down' | null
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; value: string; sub?: string; color: string; trend?: 'up' | 'down' | null
 }) {
   return (
     <div className="bg-white dark:bg-[#1a2235] rounded-xl p-4 border border-gray-100 dark:border-white/6 shadow-sm">
@@ -113,7 +113,7 @@ function StatCard({ icon: Icon, label, value, sub, color, trend }: {
 
 const AGING_COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#991b1b']
 
-// ── Main component ────────────────────────────────────────────────────────────
+// -- Main component ------------------------------------------------------------
 
 export default function FinancePortal() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -202,7 +202,7 @@ export default function FinancePortal() {
   return (
     <div className="space-y-6">
 
-      {/* ── Hero ──────────────────────────────────────────────────────────── */}
+      {/* -- Hero ------------------------------------------------------------ */}
       <div
         className="rounded-2xl p-6 text-white relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #2e1065 0%, #4c1d95 55%, #5b21b6 100%)' }}
@@ -217,7 +217,7 @@ export default function FinancePortal() {
             </div>
             <h1 className="text-2xl font-bold font-heading tracking-tight mb-1">Finance Hub</h1>
             <p className="text-white/50 text-sm">
-              {fmtKES(totalRevenue)} collected · {collectionRate}% collection rate · {overdue.length} overdue
+              {fmtKES(totalRevenue)} collected � {collectionRate}% collection rate � {overdue.length} overdue
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -246,7 +246,7 @@ export default function FinancePortal() {
         </div>
       </div>
 
-      {/* ── KPI cards ───────────────────────────────────────────────────── */}
+      {/* -- KPI cards ----------------------------------------------------- */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={Banknote}       label="Total Revenue"    value={fmtKES(totalRevenue)}  sub="All-time paid"        color="#9333ea" />
         <StatCard icon={Clock}          label="Outstanding"      value={fmtKES(totalPending)}  sub={`${pending.length} invoices`} color="#f59e0b" />
@@ -254,7 +254,7 @@ export default function FinancePortal() {
         <StatCard icon={Percent}        label="Collection Rate"  value={`${collectionRate}%`}  sub="Paid vs total"        color="#22c55e" trend={collectionRate >= 70 ? 'up' : 'down'} />
       </div>
 
-      {/* ── Tab panel ────────────────────────────────────────────────────── */}
+      {/* -- Tab panel ------------------------------------------------------ */}
       <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-100 dark:border-white/6 shadow-sm overflow-hidden">
         <div className="flex border-b border-gray-100 dark:border-white/8">
           {[
@@ -298,7 +298,7 @@ export default function FinancePortal() {
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={48} />
                   <Tooltip
-                    formatter={(v: number, name: string) => [fmtKES(v), name === 'revenue' ? 'Revenue' : 'Expenses']}
+                    formatter={((v: number, name: string) => [fmtKES(v), name === 'revenue' ? 'Revenue' : 'Expenses']) as any}
                     contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
                   />
                   <Area type="monotone" dataKey="revenue"  stroke="#9333ea" fill="url(#revGrad)" strokeWidth={2} dot={false} />
@@ -339,7 +339,7 @@ export default function FinancePortal() {
                     <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                     <Bar dataKey="revenue" fill="#9333ea" radius={[3, 3, 0, 0]} />
                     <Tooltip
-                      formatter={(v: number) => [fmtKES(v), 'Revenue']}
+                      formatter={((v: number) => [fmtKES(v), 'Revenue']) as any}
                       contentStyle={{ borderRadius: 8, border: 'none', fontSize: 11 }}
                     />
                   </BarChart>
@@ -360,11 +360,12 @@ export default function FinancePortal() {
             </thead>
             <tbody>
               {invoices.slice(0, 30).map((inv, i) => {
-                const statusCfg = {
+                const statusCfg: Record<string, { color: string; bg: string; label: string }> = {
                   PAID:    { color: '#22c55e', bg: '#f0fdf4', label: 'Paid'    },
                   PENDING: { color: '#f59e0b', bg: '#fffbeb', label: 'Pending' },
                   OVERDUE: { color: '#ef4444', bg: '#fef2f2', label: 'Overdue' },
-                }[inv.status] ?? { color: '#94a3b8', bg: '#f8fafc', label: inv.status }
+                }
+                const cfg = statusCfg[inv.status] ?? { color: '#94a3b8', bg: '#f8fafc', label: inv.status }
                 return (
                   <motion.tr key={inv.id}
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
@@ -373,8 +374,8 @@ export default function FinancePortal() {
                     <td className="px-4 py-3 text-xs text-gray-500 dark:text-white/50 max-w-[180px] truncate">{inv.description}</td>
                     <td className="px-4 py-3 text-xs font-bold text-gray-700 dark:text-white/80 tabular-nums">{fmtKES(Number(inv.amount_kes))}</td>
                     <td className="px-4 py-3">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${statusCfg.color}22`, color: statusCfg.color }}>
-                        {statusCfg.label}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${cfg.color}22`, color: cfg.color }}>
+                        {cfg.label}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-400 dark:text-white/30">{fmtDate(inv.created_at)}</td>
@@ -408,7 +409,7 @@ export default function FinancePortal() {
               <BarChart data={agingData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={44} />
-                <Tooltip formatter={(v: number) => [fmtKES(v), 'Outstanding']} contentStyle={{ borderRadius: 8, border: 'none' }} />
+                <Tooltip formatter={((v: number) => [fmtKES(v), 'Outstanding']) as any} contentStyle={{ borderRadius: 8, border: 'none' }} />
                 {agingData.map((_, i) => (
                   <Bar key={i} dataKey="amount" fill={AGING_COLORS[i]} radius={[4, 4, 0, 0]} />
                 ))}
@@ -438,7 +439,7 @@ export default function FinancePortal() {
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-400" />
                   <button type="submit" disabled={calcLoading}
                     className="w-full px-4 py-2 rounded-lg text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-60 transition-colors">
-                    {calcLoading ? 'Converting…' : 'Convert'}
+                    {calcLoading ? 'Converting�' : 'Convert'}
                   </button>
                 </form>
                 {convResult && (
@@ -492,7 +493,7 @@ export default function FinancePortal() {
                   </div>
                   <button type="submit" disabled={calcLoading}
                     className="w-full px-4 py-2 rounded-lg text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-60 transition-colors">
-                    {calcLoading ? 'Calculating…' : 'Calculate'}
+                    {calcLoading ? 'Calculating�' : 'Calculate'}
                   </button>
                 </form>
                 {calcError && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg mt-2">{calcError}</p>}

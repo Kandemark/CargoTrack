@@ -1,6 +1,6 @@
 import { View, TouchableOpacity, type ViewProps } from 'react-native'
 import { BlurView } from 'expo-blur'
-import { useThemeStore } from '@/lib/themeStore'
+import { useAppTheme } from '@/lib/useAppTheme'
 
 type GlassVariant = 'default' | 'elevated' | 'subtle'
 
@@ -23,16 +23,15 @@ export default function GlassCard({
   style,
   onPress,
 }: GlassCardProps) {
-  const resolved = useThemeStore((s) => s.resolved)
-  const tint = resolved === 'dark' ? 'dark' : 'light'
-  const bgColor = resolved === 'dark' ? 'rgba(10,25,41,0.85)' : 'rgba(255,255,255,0.85)'
+  const { colors, isDark } = useAppTheme()
+  const tint = isDark ? 'dark' : 'light'
 
   const content = (
     <View style={[{
       overflow: 'hidden',
       borderRadius: 20,
       borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.08)',
+      borderColor: colors.glassBorder,
       ...(variant === 'elevated' && {
         shadowColor: '#000',
         shadowOpacity: 0.2,
@@ -42,7 +41,7 @@ export default function GlassCard({
       }),
     }, style]}>
       <BlurView intensity={INTENSITY[variant]} tint={tint}>
-        <View style={{ backgroundColor: bgColor }}>
+        <View style={{ backgroundColor: colors.glassCard }}>
           {accentColor && accentPosition === 'top' && (
             <View style={{ height: 3, width: '100%', backgroundColor: accentColor }} />
           )}

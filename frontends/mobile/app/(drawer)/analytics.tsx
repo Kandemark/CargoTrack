@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
 import { apiClient } from '@/lib/api'
+import { useAuthStore } from '@/lib/store'
 import { useAppTheme } from '@/lib/useAppTheme'
 import ScreenHeader from '@/components/ScreenHeader'
+
+const ANALYTICS_ROLES = new Set(['ADMIN', 'LOGISTICS_MGR', 'FINANCE_OFFICER'])
 
 interface AnalyticsData { total_shipments: number; active_shipments: number; delivered_shipments: number; on_time_rate: number; avg_delay_hours: number; revenue_total: number }
 interface ProfitData { month: string; revenue: number; cost: number; profit: number }
@@ -14,6 +18,7 @@ interface DriverAnalytics { driver_name: string; shipment_count: number; avg_rat
 const TABS = ['Overview', 'Profit', 'Routes', 'Corridors', 'Drivers']
 
 export default function AnalyticsScreen() {
+  const user = useAuthStore((s) => s.user)
   const [tab, setTab] = useState(0)
   const [overview, setOverview] = useState<AnalyticsData | null>(null)
   const [profit, setProfit] = useState<ProfitData[]>([])
@@ -23,6 +28,22 @@ export default function AnalyticsScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const { colors, font, brand, spacing } = useAppTheme()
+
+  if (user && !ANALYTICS_ROLES.has(user.role)) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0a1929' }}>
+        <ScreenHeader title="Analytics" backButton />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="lock-closed" size={48} color="#64748b" />
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 16 }}>Access Denied</Text>
+          <Text style={{ color: '#93b4d8', fontSize: 14, textAlign: 'center', marginTop: 8 }}>You don't have permission to view analytics.</Text>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 24, backgroundColor: '#f5801e', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
 
   const fetchAll = useCallback(async () => {
     try {

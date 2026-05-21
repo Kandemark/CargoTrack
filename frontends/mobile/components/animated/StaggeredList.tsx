@@ -32,10 +32,10 @@ export default function StaggeredList<T>({
   ...rest
 }: StaggeredListProps<T>) {
   const [ready, setReady] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
-    timerRef.current = setTimeout(() => setReady(true), 50)
+    timerRef.current = setTimeout(() => { setReady(true) }, 50)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [])
 

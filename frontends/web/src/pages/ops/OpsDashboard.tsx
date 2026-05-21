@@ -59,7 +59,7 @@ function StatCard({
 }: {
   label: string; value: string | number; sub: string
   trend: { dir: 'up' | 'down' | 'flat'; label: string }
-  icon: React.ElementType; iconBg: string
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; iconBg: string
 }) {
   const TrendIcon = trend.dir === 'up' ? TrendingUp : trend.dir === 'down' ? TrendingDown : Minus
   const trendColor = trend.dir === 'up'

@@ -133,7 +133,7 @@ daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application
 ### Frontend
 
 ```bash
-cd apps/web
+cd frontends/web
 npm install
 npm run dev
 ```
@@ -143,7 +143,7 @@ npm run dev
 > Requires a development build, not Expo Go (uses native modules for biometrics, maps, notifications).
 
 ```bash
-cd mobile
+cd frontends/mobile
 npm install
 npx expo run:android
 ```
@@ -212,8 +212,8 @@ cargotrack/
 │   ├── webhook-dispatcher/      # External webhook fan-out (Go)
 │   ├── workflow-engine/         # Camunda BPMN workflow engine (Java)
 │   └── edi-integration/         # Apache Camel EDI gateway (Java)
-├── apps/web/                    # React + Vite + TypeScript frontend
-├── mobile/                      # Expo React Native mobile app
+├── frontends/web/                # React + Vite + TypeScript frontend
+├── frontends/mobile/             # Expo React Native mobile app
 ├── libs/shared-types/           # Shared TypeScript types
 ├── deploy/                      # Traefik, Keycloak, Prometheus, Grafana, Loki, K8s, Terraform
 ├── docs/                        # Full documentation → docs/index.md

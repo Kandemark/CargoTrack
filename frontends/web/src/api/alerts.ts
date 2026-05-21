@@ -17,7 +17,7 @@ export const alertsApi = {
    * Returns unacknowledged alerts by default.
    * Pass { all: '1' } to include acknowledged alerts (managers only).
    */
-  getAlerts: (params?: { all?: '1' }) =>
+  getAlerts: (params?: Record<string, unknown>) =>
     apiClient.get<PaginatedResponse<Alert>>('/api/v1/alerts/', { params }),
 
   /**

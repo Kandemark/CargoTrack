@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { apiClient, dashboardApi, shipmentsApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 import { ALERT_SEVERITY_COLORS } from '@shared/utils/statusColors'
 import { timeAgo } from '@shared/utils/formatters'
 import {
@@ -134,12 +135,12 @@ export default function DashboardScreen() {
     : null
 
   return (
-    <View style={{ flex: 1, backgroundColor: isDark ? '#0a1929' : '#F1F5F9' }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaView edges={['top']} style={{ flex: 1 }}>
         <ScrollView
           style={s.flex1}
           contentContainerStyle={{ paddingBottom: 100 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#f5801e" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.color.brand.accent} />}
           showsVerticalScrollIndicator={false}
         >
           {/* ═══ HERO SECTION ═══ */}
@@ -162,7 +163,7 @@ export default function DashboardScreen() {
               </View>
               {/* Role badge + initials */}
               <View style={{ alignItems: 'center' }}>
-                <View style={[s.avatarCircle, { backgroundColor: '#f5801e' }]}>
+                <View style={[s.avatarCircle, { backgroundColor: T.color.brand.accent }]}>
                   <Text style={s.avatarText}>{initials}</Text>
                 </View>
                 <View style={[s.roleBadge, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
@@ -256,7 +257,7 @@ export default function DashboardScreen() {
                           return (
                             <TouchableOpacity
                               key={s}
-                              onPress={() => router.push('/(tabs)/alerts' as any)}
+                              onPress={() => router.push('/(drawer)/(tabs)/alerts' as any)}
                               style={[
                                 { flexDirection: 'row', alignItems: 'center', borderRadius: 9999, paddingHorizontal: spacing.md, paddingVertical: 7, marginBottom: 6, borderWidth: 1 },
                                 { backgroundColor: c.background, borderColor: c.border },
@@ -386,7 +387,7 @@ export default function DashboardScreen() {
                     </View>
                     {data.invoices.slice(0, 3).map((inv) => (
                       <TouchableOpacity
-                        key={inv.id} onPress={() => router.push('/(tabs)/payments' as any)} activeOpacity={0.75}
+                        key={inv.id} onPress={() => router.push('/(drawer)/payments' as any)} activeOpacity={0.75}
                         style={[s.rowSpaceBetween, { paddingVertical: 10, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0' }]}
                       >
                         <View style={{ flex: 1, marginRight: 10 }}>
@@ -457,7 +458,7 @@ const s = StyleSheet.create({
 
   // ── Hero ──
   hero: {
-    backgroundColor: '#0f2d5e',
+    backgroundColor: T.color.brand.primary,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 36,
@@ -494,7 +495,7 @@ const s = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#f5801e',
+    shadowColor: T.color.brand.accent,
     shadowOpacity: 0.4,
     shadowRadius: 8,
   },
@@ -573,7 +574,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: '#f5801e',
+    backgroundColor: T.color.brand.accent,
     borderRadius: 10,
   },
 })

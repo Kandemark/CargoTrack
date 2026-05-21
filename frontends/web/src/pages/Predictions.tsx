@@ -6,8 +6,8 @@ import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, TrendingUp, AlertTriangle, RefreshCw, Search,
-  Shield, Zap, Activity, Target, ChevronDown, ChevronUp,
-  MapPin, Clock, Package, ArrowUpRight, Filter,
+  Shield, Zap, Activity, Target,
+  MapPin, Clock, Package, ArrowUpRight,
   BarChart2, Info,
 } from 'lucide-react'
 import {
@@ -289,7 +289,7 @@ export default function Predictions() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                 <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8', fontFamily: 'monospace' }} tickLine={false} axisLine={false} width={90} />
-                <Tooltip formatter={(v: number) => [`${v}%`, 'Risk Score']} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                <Tooltip formatter={((v: number) => [`${v}%`, 'Risk Score']) as any} contentStyle={{ fontSize: 11, borderRadius: 8 }} />
                 <Bar dataKey="score" radius={[0, 3, 3, 0]}>
                   {scoreChartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                 </Bar>
@@ -314,7 +314,7 @@ export default function Predictions() {
                     <Pie data={riskDistData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={2} dataKey="value">
                       {riskDistData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                     </Pie>
-                    <Tooltip formatter={(v: number, n: string) => [v, n]} />
+                    <Tooltip formatter={((v: number, n: string) => [v, n]) as any} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="w-full space-y-1.5">
@@ -529,7 +529,7 @@ export default function Predictions() {
             title="Demand Forecast"
             desc="Corridor demand prediction"
             fields={[{ key: 'corridor', label: 'Corridor', type: 'select', options: ['Northern', 'Central', 'LAPSSET'] }]}
-            runner={(vals) => predictionsApi.demand({ corridor: vals.corridor }).then(r => r.data)}
+            runner={(vals) => predictionsApi.demand({ corridor: vals.corridor }).then(r => r.data as any)}
             resultFn={(d: Record<string, unknown>) => `${d.forecast_demand_teu} TEU (${d.trend})`}
           />
           <MLToolCard
@@ -539,14 +539,14 @@ export default function Predictions() {
               { key: 'origin', label: 'Origin', type: 'text', placeholder: 'e.g. Nairobi' },
               { key: 'destination', label: 'Destination', type: 'text', placeholder: 'e.g. Kigali' },
             ]}
-            runner={(vals) => predictionsApi.theftRisk({ origin: vals.origin, destination: vals.destination }).then(r => r.data)}
+            runner={(vals) => predictionsApi.theftRisk({ origin: vals.origin, destination: vals.destination }).then(r => r.data as any)}
             resultFn={(d: Record<string, unknown>) => `${d.risk_level} (${Math.round(Number(d.theft_risk_score) * 100)}%)`}
           />
           <MLToolCard
             title="Border Delay"
             desc="Crossing wait time"
             fields={[{ key: 'border_name', label: 'Border', type: 'text', placeholder: 'e.g. Namanga' }]}
-            runner={(vals) => predictionsApi.borderDelay({ border_name: vals.border_name }).then(r => r.data)}
+            runner={(vals) => predictionsApi.borderDelay({ border_name: vals.border_name }).then(r => r.data as any)}
             resultFn={(d: Record<string, unknown>) => `${d.predicted_wait_hours} hrs · ${d.best_crossing_window}`}
           />
           <MLToolCard
@@ -556,7 +556,7 @@ export default function Predictions() {
               { key: 'origin', label: 'Origin', type: 'text', placeholder: 'e.g. Mombasa' },
               { key: 'destination', label: 'Destination', type: 'text', placeholder: 'e.g. Kampala' },
             ]}
-            runner={(vals) => predictionsApi.fuelOptimize({ origin: vals.origin, destination: vals.destination }).then(r => r.data)}
+            runner={(vals) => predictionsApi.fuelOptimize({ origin: vals.origin, destination: vals.destination }).then(r => r.data as any)}
             resultFn={(d: Record<string, unknown>) => `${d.estimated_fuel_savings_pct}% savings · ${d.optimal_speed_kmh} km/h`}
           />
         </div>

@@ -13,6 +13,7 @@
  */
 import * as LocalAuthentication from 'expo-local-authentication'
 import * as SecureStore from 'expo-secure-store'
+import { useAuthStore } from './store'
 
 const BIOMETRIC_ENABLED_KEY = 'cargotrack.biometric.enabled'
 const BIOMETRIC_USERNAME_KEY = 'cargotrack.biometric.username'
@@ -134,6 +135,8 @@ export async function disableBiometrics(): Promise<void> {
     SecureStore.deleteItemAsync(BIOMETRIC_PASSWORD_KEY),
     SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY),
   ])
+  // Sync Zustand store so UI doesn't show stale biometric state
+  useAuthStore.getState().setBiometricEnabled(false)
 }
 
 /**

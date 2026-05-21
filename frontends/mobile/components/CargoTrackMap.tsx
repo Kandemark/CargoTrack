@@ -6,7 +6,7 @@ import { router } from 'expo-router'
 import { shipmentsApi } from '@/lib/api'
 import type { ShipmentListItem, ShipmentStatus } from '@shared/api/types'
 import { AnimatedTruckMarker, getCorridorFeatures, Legend } from '@/components/map'
-import { fetchRoadRoute, fetchRoutes } from '@/lib/routing'
+import { fetchRoutes } from '@/lib/routing'
 
 const MAPLIBRE_SUPPORTED = Constants.appOwnership !== 'expo'
 const MapLibreGL = MAPLIBRE_SUPPORTED

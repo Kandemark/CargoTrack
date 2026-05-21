@@ -4,8 +4,6 @@
 // tracking events over HTTP, buffers them in-memory, and flushes batches
 // to PostgreSQL via COPY protocol for maximum insert throughput.
 //
-// Designed to sit behind Nginx/Caddy as an upstream for POST /api/v1/tracking/events/.
-//
 // Build:  go build -o tracking-server .
 // Run:    TRACKING_DB_URL=postgres://... TRACKING_PORT=8080 ./tracking-server
 package main
@@ -14,12 +12,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -27,20 +27,22 @@ import (
 // ── Configuration ────────────────────────────────────────────────────────────
 
 var (
-	dbURL       = envOrDefault("TRACKING_DB_URL", "postgres://postgres:postgres@localhost:5432/cargotrack?sslmode=disable")
-	listenPort  = envOrDefault("TRACKING_PORT", "8080")
-	batchSize   = 1000              // flush after this many events
-	flushEvery  = 5 * time.Second   // or after this much time, whichever is first
+	dbURL      = envOrDefault("TRACKING_DB_URL", "postgres://postgres:postgres@localhost:5432/cargotrack?sslmode=disable")
+	listenPort = envOrDefault("TRACKING_PORT", "8080")
+	jwtSecret  = os.Getenv("JWT_SECRET_KEY") // HS256 shared secret with Django
+	batchSize  = 1000                        // flush after this many events
+	flushEvery = 5 * time.Second             // or after this much time, whichever is first
+	logger     *slog.Logger
 )
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
 type TrackingEvent struct {
-	ShipmentID  int    `json:"shipment_id"`
-	EventType   string `json:"event_type"`
-	Location    string `json:"location"`
-	Notes       string `json:"notes"`
-	RecordedBy  int    `json:"recorded_by"`
+	ShipmentID int    `json:"shipment_id"`
+	EventType  string `json:"event_type"`
+	Location   string `json:"location"`
+	Notes      string `json:"notes"`
+	RecordedBy int    `json:"recorded_by"`
 }
 
 // ── Ingestor ─────────────────────────────────────────────────────────────────
@@ -87,7 +89,6 @@ func (ing *Ingestor) flushLoop() {
 		case <-ing.flush:
 			ing.flushBatch()
 		default:
-			// Just a ticker fire — flush if there's data
 			ing.mu.Lock()
 			n := len(ing.buf)
 			ing.mu.Unlock()
@@ -112,19 +113,17 @@ func (ing *Ingestor) flushBatch() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Use PostgreSQL COPY via pgx for maximum insert throughput.
-	// Falls back to multi-row INSERT if COPY fails (e.g. permissions).
 	err := ing.copyInsert(ctx, batch)
 	if err != nil {
-		log.Printf("COPY insert failed (%v), falling back to multi-row INSERT", err)
+		logger.Warn("COPY insert failed, falling back to multi-row INSERT", "error", err)
 		err = ing.rowInsert(ctx, batch)
 		if err != nil {
-			log.Printf("ERROR: batch insert of %d events failed: %v", len(batch), err)
+			logger.Error("batch insert failed", "count", len(batch), "error", err)
 			return
 		}
 	}
 
-	log.Printf("Flushed %d tracking events to PostgreSQL", len(batch))
+	logger.Info("flushed tracking events to PostgreSQL", "count", len(batch))
 }
 
 func (ing *Ingestor) copyInsert(ctx context.Context, batch []TrackingEvent) error {
@@ -156,7 +155,6 @@ func (ing *Ingestor) rowInsert(ctx context.Context, batch []TrackingEvent) error
 	}
 	defer tx.Rollback(ctx)
 
-	// Multi-row INSERT in chunks of 100 to avoid giant queries
 	for i := 0; i < len(batch); i += 100 {
 		end := i + 100
 		if end > len(batch) {
@@ -188,15 +186,30 @@ func (ing *Ingestor) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate auth token (simple shared secret or JWT; production would
-	// verify with the Django backend or a shared Redis cache).
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		http.Error(w, `{"error":"authentication required"}`, http.StatusUnauthorized)
 		return
 	}
-	// Strip "Bearer " prefix and validate with Django's JWT secret.
-	// Simplified: accept any non-empty Bearer token for dev.
+	tokenString, ok := strings.CutPrefix(authHeader, "Bearer ")
+	if !ok {
+		http.Error(w, `{"error":"invalid authorization header format"}`, http.StatusUnauthorized)
+		return
+	}
+	if jwtSecret == "" {
+		http.Error(w, `{"error":"server authentication not configured"}`, http.StatusInternalServerError)
+		return
+	}
+	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(jwtSecret), nil
+	})
+	if err != nil || !token.Valid {
+		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
+		return
+	}
 
 	var ev TrackingEvent
 	if err := json.NewDecoder(r.Body).Decode(&ev); err != nil {
@@ -225,22 +238,27 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 var ing *Ingestor
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Printf("CargoTrack Go Tracking Service starting on :%s", listenPort)
+	jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	logger = slog.New(jsonHandler)
+	slog.SetDefault(logger)
+
+	logger.Info("CargoTrack Go Tracking Service starting", "port", listenPort)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
+		logger.Error("failed to connect to PostgreSQL", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("PostgreSQL ping failed: %v", err)
+		logger.Error("PostgreSQL ping failed", "error", err)
+		os.Exit(1)
 	}
-	log.Println("Connected to PostgreSQL")
+	logger.Info("connected to PostgreSQL")
 
 	ing = NewIngestor(pool)
 
@@ -256,9 +274,10 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Printf("Listening on :%s", listenPort)
+	logger.Info("listening", "port", listenPort)
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("Server error: %v", err)
+		logger.Error("server error", "error", err)
+		os.Exit(1)
 	}
 }
 

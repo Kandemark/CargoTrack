@@ -26,30 +26,41 @@ const HEALTH_TIMEOUT_LAN = 1200     // ms — LAN is fast; no need to wait longe
 
 // ─── URL normalisation ────────────────────────────────────────────────────────
 
+/** Returns true when the configured API URL uses HTTPS (production build). */
+function isProductionBuild(): boolean {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL
+  return envUrl ? envUrl.startsWith('https://') : false
+}
+
 export function normalizeApiBaseUrl(value: string): string {
   const trimmed = value.trim()
   if (!trimmed) return ''
-  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
   return withScheme.replace(/\/+$/, '')
 }
 
 // ─── Candidate generation ─────────────────────────────────────────────────────
 
 export function resolveDefaultApiBaseUrl(): string {
-  // Always prefer the Metro bundler host — it's the same IP the device already
-  // talks to, so the API at that IP:8000 is almost certainly correct.
+  const envUrl = process.env.EXPO_PUBLIC_API_URL
+  const isProduction = envUrl ? envUrl.startsWith('https://') : false
+
+  // Always prefer the Metro bundler host in dev; use env URL in production
   const hostUri = Constants.expoConfig?.hostUri
-  if (hostUri) {
+  if (hostUri && !isProduction) {
     const host = hostUri.split(':')[0]
-    if (Platform.OS === 'android' && (host === 'localhost' || host === '127.0.0.1')) {
-      return 'http://10.0.2.2:8000'
+    // localhost works on real Android devices via adb reverse AND on emulators
+    // (modern emulators forward localhost to the host). 10.0.2.2 is kept as a
+    // discovery fallback for older emulators where localhost means the emulator itself.
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:8000'
     }
     return `http://${host}:8000`
   }
 
   // Fall back to .env override or sensible defaults
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return normalizeApiBaseUrl(process.env.EXPO_PUBLIC_API_URL)
+  if (envUrl) {
+    return normalizeApiBaseUrl(envUrl)
   }
 
   return Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000'
@@ -134,17 +145,20 @@ function buildCandidates(): string[] {
 
 async function probeHealth(url: string, timeoutMs = HEALTH_TIMEOUT_LAN): Promise<{ url: string; reachable: boolean }> {
   try {
-    const res = await axios.get(`${normalizeApiBaseUrl(url)}/api/health/`, {
+    const normalized = normalizeApiBaseUrl(url)
+    const res = await axios.get(`${normalized}/api/health/`, {
       timeout: timeoutMs,
       validateStatus: (s) => s === 200,
+      headers: { 'Accept': 'application/json' },
     })
-    const data = res.data as { service?: string }
-    if (data.service === 'CargoTrack API') {
-      return { url: normalizeApiBaseUrl(url), reachable: true }
+    const data = res.data as { service?: string; version?: string }
+    // Require both the service name AND a version field to prevent trivial spoofing
+    if (data.service === 'CargoTrack API' && typeof data.version === 'string') {
+      return { url: normalized, reachable: true }
     }
-    return { url, reachable: false }
+    return { url: normalized, reachable: false }
   } catch {
-    return { url, reachable: false }
+    return { url: normalizeApiBaseUrl(url), reachable: false }
   }
 }
 
@@ -216,10 +230,10 @@ export async function discoverApiServer(): Promise<string> {
     }
 
     // ── Phase 2: LAN scan (quick batch probe) ─────────────────────────────
-    // Only scan when no explicit tunnel URL is configured — if the user set
-    // EXPO_PUBLIC_API_URL, they intend to use it and LAN scanning is wasted
-    // time when the device is off-LAN.
-    if (!envUrl) {
+    // Only scan when no explicit env URL is configured and not in production.
+    // In production the env URL is authoritative and scanning 40+ LAN IPs
+    // is both wasteful and a security risk (opens the door to server spoofing).
+    if (!envUrl && !isProductionBuild()) {
       const allCandidates = buildCandidates()
       const tried = new Set([
         ...unique0.map(normalizeApiBaseUrl),

@@ -23,4 +23,8 @@ export const adminApi = {
   /** PATCH /api/v1/accounts/users/<id>/ — change role or deactivate a user. */
   updateUser: (id: number, data: Partial<Pick<AdminUser, 'role' | 'is_active'>>) =>
     apiClient.patch<AdminUser>(`/api/v1/accounts/users/${id}/`, data),
+
+  /** DELETE /api/v1/accounts/users/<id>/ — permanently remove a user. */
+  deleteUser: (id: number) =>
+    apiClient.delete(`/api/v1/accounts/users/${id}/`),
 }

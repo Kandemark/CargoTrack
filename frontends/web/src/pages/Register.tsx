@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent, type ChangeEvent } from 'react'
+import { useState, type FormEvent, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -6,12 +6,11 @@ import { ArrowLeft, ArrowRight, Truck, Shield, Globe2, BarChart3, CheckCircle2 }
 import { useAuthStore } from '@/store/authStore'
 import { getRoleDashboard } from '@/lib/roleUtils'
 import type { RegisterPayload } from '@/api/auth'
-import StepIndicator from '@/components/onboarding/StepIndicator'
 import AccountStep, { type AccountFields } from '@/components/onboarding/AccountStep'
 import RoleOrgStep, { type RoleOrgFields } from '@/components/onboarding/RoleOrgStep'
 import RoleProfileStep, { type RoleProfileFields } from '@/components/onboarding/RoleProfileStep'
 
-// ─── Types ──────────────────────────────────────────────────────────────────────
+// --- Types ----------------------------------------------------------------------
 
 type FieldErrors = Partial<Record<string, string>>
 
@@ -27,7 +26,7 @@ const EMPTY_FORM: WizardForm = {
   profile: { license_number: '', license_class: '', years_experience: 0, certifications: '', cargo_prefs: '', tax_id: '' },
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
+// --- Helpers --------------------------------------------------------------------
 
 function parseApiErrors(err: unknown): { fields: FieldErrors; general: string | null } {
   if (axios.isAxiosError(err) && err.response?.status === 400) {
@@ -81,7 +80,7 @@ const STEP_SUBS: Record<number, string> = {
   3: 'A few more role-specific details to tailor your experience.',
 }
 
-// ─── Component ──────────────────────────────────────────────────────────────────
+// --- Component ------------------------------------------------------------------
 
 export default function Register() {
   const navigate = useNavigate()
@@ -94,7 +93,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const [direction, setDirection] = useState(1)
 
-  // ── Per-field change handler ──────────────────────────────────────────────────
+  // -- Per-field change handler --------------------------------------------------
   function updateField(
     section: keyof WizardForm,
     name: string,
@@ -124,7 +123,7 @@ export default function Register() {
     updateField('profile', e.target.name, val)
   }
 
-  // ── Validation ────────────────────────────────────────────────────────────────
+  // -- Validation ----------------------------------------------------------------
   function validateStep1(): boolean {
     const errs: FieldErrors = {}
     if (!form.account.first_name.trim()) errs.first_name = 'First name is required.'
@@ -145,7 +144,7 @@ export default function Register() {
     return true
   }
 
-  // ── Navigation ────────────────────────────────────────────────────────────────
+  // -- Navigation ----------------------------------------------------------------
   function nextStep() {
     if (step === 1 && !validateStep1()) return
     if (step === 2 && !validateStep2()) return
@@ -162,7 +161,7 @@ export default function Register() {
     setFE({})
   }
 
-  // ── Submit ────────────────────────────────────────────────────────────────────
+  // -- Submit --------------------------------------------------------------------
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setFE({})
@@ -196,14 +195,14 @@ export default function Register() {
     }
   }
 
-  // ── Slide variants ────────────────────────────────────────────────────────────
+  // -- Slide variants ------------------------------------------------------------
   const slideVariants = {
     enter: (dir: number) => ({ x: dir > 0 ? 80 : -80, opacity: 0 }),
     center: { x: 0, opacity: 1 },
     exit: (dir: number) => ({ x: dir > 0 ? -80 : 80, opacity: 0 }),
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // -- Render --------------------------------------------------------------------
   return (
     <div className="min-h-screen flex bg-[#0f2d5e]">
       {/* Left: brand panel (matches Login) */}

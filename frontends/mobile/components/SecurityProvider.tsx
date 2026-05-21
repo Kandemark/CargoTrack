@@ -9,6 +9,7 @@ import {
   destroySecurity,
   clearLock,
 } from '@/lib/security'
+import { handleBiometricEnrollmentChange } from '@/lib/biometrics'
 import { useAuthStore } from '@/lib/store'
 import LockScreen from './LockScreen'
 
@@ -81,6 +82,15 @@ export default function SecurityProvider({ children }: { children: React.ReactNo
       destroySecurity()
     }
   }, [])
+
+  // Check for biometric enrollment changes when app returns to foreground
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') { void handleBiometricEnrollmentChange() }
+    })
+    return () => sub.remove()
+  }, [isAuthenticated])
 
   // Touch activity tracking — any touch on the root view resets the idle timer
   const panResponder = useRef(

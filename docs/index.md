@@ -17,6 +17,7 @@
 | [Development](development.md) | Prerequisites, Docker quick start, Makefile targets, env vars, testing, linting, troubleshooting |
 | [Deployment](deployment.md) | Docker Compose, Kubernetes manifests, Terraform IaC, monitoring setup, backup strategy |
 | [Webhook Events](webhook-events.md) | 8 event types, delivery guarantees, HMAC signing, retry schedule, circuit breaker |
+| [ADR: Directory Structure](adr/001-monorepo-directory-structure.md) | Rationale for `apps/` → `frontends/` rename, root cleanup, language version decisions |
 
 ---
 
@@ -36,8 +37,10 @@ cargotrack/
 │   ├── webhook-dispatcher/   # External webhook fan-out (Go)
 │   ├── workflow-engine/      # Camunda BPMN workflow engine (Java)
 │   └── edi-integration/      # Apache Camel EDI gateway (Java)
-├── apps/web/                 # React + Vite frontend
-├── libs/shared-types/        # Shared TypeScript types
+├── frontends/
+│   ├── web/                  # React + Vite frontend
+│   └── mobile/               # Expo React Native mobile app
+├── libs/                     # Shared libraries
 ├── deploy/                   # Traefik, Keycloak, Prometheus, Grafana, Loki, K8s, Terraform
 ├── docs/                     # This documentation
 ├── docker-compose.yml        # Full production stack (30+ services)

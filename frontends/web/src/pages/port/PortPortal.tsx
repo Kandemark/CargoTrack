@@ -15,9 +15,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Anchor, Package, AlertTriangle, CheckCircle2, Clock,
+  Anchor, Package, CheckCircle2,
   RefreshCw, ChevronRight, Ship, Container, FileText,
-  TrendingUp, Activity, MapPin, CalendarDays, Calculator,
+  Activity, MapPin, Calculator,
 } from 'lucide-react'
 import { demurrageApi, type DemurrageResult, type PortStatus } from '@/api/demurrage'
 import { Link, useLocation } from 'react-router-dom'
@@ -54,7 +54,7 @@ function fmtDate(iso: string): string {
 }
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
-  icon: React.ElementType; label: string; value: string | number; sub?: string; color: string
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; value: string | number; sub?: string; color: string
 }) {
   return (
     <div className="bg-white dark:bg-[#1a2235] rounded-xl p-4 border border-gray-100 dark:border-white/6 shadow-sm">

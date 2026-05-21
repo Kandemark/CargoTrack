@@ -2,12 +2,12 @@
  * Settings.tsx — Profile, Notifications, API Keys, Billing, Payment Providers,
  * Sessions, Security, and Preferences tabs.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentType, type CSSProperties } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   User, Bell, Key, CreditCard, Zap, Eye, EyeOff, Copy, Check,
   Plus, Trash2, RefreshCw, Shield, Monitor, Sliders, Activity,
-  Clock, FileText, LogIn, AlertTriangle, Smartphone, Globe,
+  Clock, FileText, LogIn, AlertTriangle, Smartphone,
   Truck, Package, QrCode, Download,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -41,7 +41,7 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-const ACTION_ICONS: Record<string, React.ElementType> = {
+const ACTION_ICONS: Record<string, ComponentType<{ className?: string; style?: CSSProperties }>> = {
   tracking_event: Activity, document_upload: FileText, login: LogIn, logout: LogIn,
   password_change: Shield, api_key_create: Key, api_key_delete: Trash2,
 }
@@ -176,7 +176,7 @@ function ProfileTab() {
             { label: 'Events Logged', value: stats.events_logged, sub: `${stats.events_mtd} this month`, color: '#f5801e', bg: 'bg-orange-50 dark:bg-orange-900/15', Icon: Activity },
             { label: 'Docs Uploaded', value: stats.docs_uploaded, sub: 'Total', color: '#22c55e', bg: 'bg-emerald-50 dark:bg-emerald-900/15', Icon: FileText },
             { label: 'Top Carrier', value: stats.most_used_carrier ?? '—', sub: 'Most used', color: '#a78bfa', bg: 'bg-violet-50 dark:bg-violet-900/15', isText: true, Icon: Truck },
-          ].map(({ label, value, sub, color, bg, isText, Icon }, i) => (
+          ].map(({ label, value, color, bg, isText, Icon }, i) => (
             <motion.div key={label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
               className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card overflow-hidden"
             >
@@ -1157,7 +1157,7 @@ function PreferencesTab() {
 export default function Settings() {
   const [tab, setTab] = useState<Tab>('profile')
   const { user } = useAuthStore()
-  const roleColor = ROLE_COLOR[user?.role ?? ''] ?? '#0f2d5e'
+  void (ROLE_COLOR[user?.role ?? ''] ?? '#0f2d5e') /* roleColor — reserved for header accent */
 
   return (
     <div className="space-y-5 pb-10">

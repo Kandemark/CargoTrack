@@ -37,7 +37,7 @@ jobs:
         with:
           filters: |
             api: services/api/**
-            frontend: apps/web/**|libs/shared-types/**
+            frontend: frontends/web/**|libs/shared-types/**
             go-tracking: services/tracking-ingest/**
             elixir-ws: services/ws/**
             gps-ingest: services/gps-ingest/**
@@ -69,7 +69,7 @@ jobs:
       - name: Lint TypeScript
         if: matrix.service == 'frontend'
         run: |
-          cd apps/web
+          cd frontends/web
           npx biome check --max-diagnostics=50 src/
 
   # ── Test ────────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ jobs:
             if: ${{ needs.changes.outputs.api == 'true' }}
           - name: frontend
             context: .
-            dockerfile: apps/web/Dockerfile
+            dockerfile: frontends/web/Dockerfile
             if: ${{ needs.changes.outputs.frontend == 'true' }}
           - name: go-tracking
             context: services/tracking-ingest

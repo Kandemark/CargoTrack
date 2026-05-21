@@ -1,4 +1,4 @@
-import { View, StyleSheet } from 'react-native'
+import { View } from 'react-native'
 import CargoTrackMap from '@/components/CargoTrackMap'
 import { useAppTheme } from '@/lib/useAppTheme'
 import ScreenHeader from '@/components/ScreenHeader'
@@ -15,5 +15,3 @@ export default function LiveMapScreen() {
     </View>
   )
 }
-
-const s = StyleSheet.create({})

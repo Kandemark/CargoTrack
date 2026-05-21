@@ -8,7 +8,7 @@ import { usePermission } from '@/hooks/usePermission'
 import { Permission } from '@/lib/roleUtils'
 import { integrationsApi, type Integration } from '@/api/integrations'
 
-const STATUS_CFG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+const STATUS_CFG: Record<string, { label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
   CONNECTED:    { label: 'Connected',    icon: CheckCircle,  color: 'text-green-500' },
   DISCONNECTED: { label: 'Disconnected', icon: XCircle,      color: 'text-gray-400' },
   ERROR:        { label: 'Error',        icon: AlertCircle,  color: 'text-red-500' },

@@ -1,10 +1,10 @@
-﻿/**
- * Login.tsx — Authenticated entry point for CargoTrack.
+/**
+ * Login.tsx � Authenticated entry point for CargoTrack.
  */
 import { useState, type FormEvent } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Eye, EyeOff, LogIn, Shield, Truck, ArrowRight, AlertTriangle, Globe2, BarChart3 } from 'lucide-react'
+import { Eye, EyeOff, LogIn, Shield, Truck, AlertTriangle, Globe2, BarChart3 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { getRoleDashboard } from '@/lib/roleUtils'
 

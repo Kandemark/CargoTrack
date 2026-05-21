@@ -110,7 +110,7 @@ export default function SLAMonitor() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: number) => [`${v}%`, 'Compliance']} />
+              <Tooltip formatter={((v: number) => [`${v}%`, 'Compliance']) as any} />
               <Bar dataKey="compliance" fill="#3b82f6" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>

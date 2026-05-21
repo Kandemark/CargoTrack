@@ -61,11 +61,14 @@ class InvoiceListCreateAPIView(OrgScopedQueryset, generics.ListCreateAPIView):
         return Response(out.data, status=status.HTTP_201_CREATED)
 
 
-class InvoiceDetailAPIView(generics.RetrieveAPIView):
+class InvoiceDetailAPIView(OrgScopedQueryset, generics.RetrieveAPIView):
     """GET /api/v1/invoices/<pk>/"""
     permission_classes = [permissions.IsAuthenticated, CanViewFinance]
     queryset = Invoice.objects.select_related('shipment').prefetch_related('payments')
     serializer_class = InvoiceSerializer
+
+    def get_queryset(self):
+        return self.scope_by_org(super().get_queryset())
 
 
 class InvoicePayAPIView(APIView):

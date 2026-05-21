@@ -9,6 +9,7 @@ import CommandPalette from '@/components/CommandPalette'
 import RealTimeProvider from '@/components/RealTimeProvider'
 import ErrorBoundary from '@/components/ui/ErrorBoundary'
 import OfflineIndicator from '@/components/ui/OfflineIndicator'
+import ImpersonationBanner from './ImpersonationBanner'
 import { useSidebarStore } from '@/store/sidebarStore'
 
 function useMobile() {
@@ -44,7 +45,6 @@ export default function PageWrapper({ children }: { children?: ReactNode }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const showSidebar = !isMobile && !collapsed
   const showMobileOverlay = isMobile && !collapsed
 
   return (
@@ -62,8 +62,9 @@ export default function PageWrapper({ children }: { children?: ReactNode }) {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <OfflineIndicator />
         <Navbar onCmdK={() => setCmdOpen(true)} />
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
+        <ImpersonationBanner />
+        <main className="flex-1 min-h-0">
+          <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 sm:py-6 overflow-y-auto">
             <ErrorBoundary section="This page">
               <RealTimeProvider>
                 {children ?? <Outlet />}

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Thermometer, Droplets, AlertTriangle, RefreshCw, CheckCircle, XCircle, Clock, Activity, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { coldchainApi, type ColdChainShipment, type TemperatureExcursion, type ComplianceReport } from '@/api/coldchain'
+import { coldchainApi, type ColdChainShipment, type ComplianceReport } from '@/api/coldchain'
 
 const SEVERITY_COLORS: Record<string, string> = {
   WARNING: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
@@ -29,9 +29,8 @@ export default function ColdChain() {
   const [shipments, setShipments] = useState<ColdChainShipment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedId, setExpandedId] = useState<number | null>(null)
   const [report, setReport] = useState<ComplianceReport | null>(null)
-  const [loadingReport, setLoadingReport] = useState(false)
+  const [_loadingReport, setLoadingReport] = useState(false)
 
   async function load() {
     setLoading(true); setError(null)

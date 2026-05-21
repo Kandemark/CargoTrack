@@ -1,10 +1,10 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plus, CreditCard, AlertTriangle, RefreshCw, X, DollarSign,
+  Plus, CreditCard, AlertTriangle, RefreshCw, X,
   TrendingUp, TrendingDown, ArrowUpRight, Download,
-  CheckCircle, Clock, XCircle, RotateCcw, FileText,
+  CheckCircle, Clock, XCircle, RotateCcw,
 } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -15,7 +15,7 @@ import { usePermission } from '@/hooks/usePermission'
 import { Permission } from '@/lib/roleUtils'
 import { paymentsApi } from '@/api/payments'
 import { shipmentsApi } from '@/api/shipments'
-import DataTable, { type ColumnDef } from '@/components/ui/DataTable'
+import DataTable from '@/components/ui/DataTable'
 import type { Invoice, InvoiceStatus, ShipmentListItem } from '@/types'
 
 const fmtKES = (v: number) =>
@@ -57,13 +57,14 @@ function calcMoMTrend(data: { income: number }[]) {
   return ((curr - prev) / prev) * 100
 }
 
-// ── Status config ─────────────────────────────────────────────────────────────
+// -- Status config -------------------------------------------------------------
 
-const STATUS_CFG: Record<InvoiceStatus, { label: string; bg: string; text: string; icon: React.ElementType }> = {
+const STATUS_CFG: Record<InvoiceStatus, { label: string; bg: string; text: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }> = {
   PENDING:  { label: 'Pending',  bg: 'bg-amber-50 dark:bg-amber-900/20',      text: 'text-amber-700 dark:text-amber-300',    icon: Clock       },
   PAID:     { label: 'Paid',     bg: 'bg-emerald-50 dark:bg-emerald-900/20',  text: 'text-emerald-700 dark:text-emerald-300', icon: CheckCircle },
   FAILED:   { label: 'Failed',   bg: 'bg-red-50 dark:bg-red-900/20',          text: 'text-red-700 dark:text-red-300',         icon: XCircle     },
   REFUNDED: { label: 'Refunded', bg: 'bg-gray-100 dark:bg-white/8',           text: 'text-gray-600 dark:text-white/60',       icon: RotateCcw   },
+  OVERDUE:  { label: 'Overdue',  bg: 'bg-orange-50 dark:bg-orange-900/20',    text: 'text-orange-700 dark:text-orange-300',   icon: AlertTriangle },
 }
 
 function StatusBadge({ status }: { status: InvoiceStatus }) {
@@ -88,7 +89,7 @@ function exportInvoicesCSV(invoices: Invoice[]) {
     String(inv.amount_kes),
     inv.currency,
     inv.status,
-    inv.payments[0]?.provider ?? '—',
+    inv.payments[0]?.provider ?? '�',
     new Date(inv.created_at).toISOString().split('T')[0],
   ])
   const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${c}"`).join(','))].join('\n')
@@ -101,7 +102,7 @@ function exportInvoicesCSV(invoices: Invoice[]) {
   URL.revokeObjectURL(url)
 }
 
-// ── Create modal (unchanged) ──────────────────────────────────────────────────
+// -- Create modal (unchanged) --------------------------------------------------
 
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [shipments, setShipments] = useState<ShipmentListItem[]>([])
@@ -142,9 +143,9 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">Shipment *</label>
             <select value={form.shipment} onChange={(e) => setForm((f) => ({ ...f, shipment: e.target.value }))}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
-              <option value="">Select shipment…</option>
+              <option value="">Select shipment�</option>
               {shipments.map((s) => (
-                <option key={s.id} value={s.id}>{s.tracking_number} · {s.route.origin} → {s.route.destination}</option>
+                <option key={s.id} value={s.id}>{s.tracking_number} � {s.route.origin} ? {s.route.destination}</option>
               ))}
             </select>
           </div>
@@ -173,7 +174,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <button type="submit" disabled={saving}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 hover:opacity-90 transition-opacity"
               style={{ background: 'var(--ct-navy)' }}>
-              {saving ? 'Creating…' : 'Create Invoice'}
+              {saving ? 'Creating�' : 'Create Invoice'}
             </button>
           </div>
         </form>
@@ -182,7 +183,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   )
 }
 
-// ── Custom tooltip ────────────────────────────────────────────────────────────
+// -- Custom tooltip ------------------------------------------------------------
 
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null
@@ -200,7 +201,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// -- Main ----------------------------------------------------------------------
 
 export default function Payments() {
   const [invoices,    setInvoices]    = useState<Invoice[]>([])
@@ -268,7 +269,7 @@ export default function Payments() {
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white font-heading">Payments & Invoices</h1>
-          <p className="text-sm text-gray-500 dark:text-white/50 mt-0.5">{stats.total} invoices · financial overview</p>
+          <p className="text-sm text-gray-500 dark:text-white/50 mt-0.5">{stats.total} invoices � financial overview</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={load} disabled={loading}
@@ -302,7 +303,7 @@ export default function Payments() {
             <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center mb-3', bg)}>
               <Icon className="w-5 h-5" style={{ color }} />
             </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white font-heading tabular-nums">{loading ? '—' : value}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white font-heading tabular-nums">{loading ? '�' : value}</p>
             <p className="text-sm font-medium text-gray-500 dark:text-white/50 mt-0.5">{label}</p>
             <p className="text-xs text-gray-400 dark:text-white/25 mt-2 border-t border-gray-100 dark:border-white/6 pt-2">{sub}</p>
           </motion.div>
@@ -318,7 +319,7 @@ export default function Payments() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-bold text-gray-800 dark:text-white font-heading">Revenue Overview</h2>
-              <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">Income vs expenses — 6-month trend</p>
+              <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">Income vs expenses � 6-month trend</p>
             </div>
             <div className={cn('flex items-center gap-1 text-xs font-semibold', momTrend >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500')}>
               {momTrend >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -360,7 +361,7 @@ export default function Payments() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={fmtKES} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={60} />
-                  <Tooltip formatter={(v: number) => fmtKES(v)} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                  <Tooltip formatter={((v: number) => fmtKES(v)) as any} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                   <Bar dataKey="value" name="Revenue" radius={[0, 3, 3, 0]}>
                     {providerBreakdown.map((_, i) => <Cell key={i} fill={PROVIDER_COLORS[i % PROVIDER_COLORS.length]} />)}
                   </Bar>
@@ -417,7 +418,7 @@ export default function Payments() {
               )},
               { key: 'status', header: 'Status', render: (row: Invoice) => <StatusBadge status={row.status} /> },
               { key: 'provider', header: 'Provider', render: (row: Invoice) => (
-                <span className="text-xs text-gray-500 dark:text-white/40">{row.payments[0]?.provider ?? '—'}</span>
+                <span className="text-xs text-gray-500 dark:text-white/40">{row.payments[0]?.provider ?? '�'}</span>
               )},
               { key: 'created_at', header: 'Date', render: (row: Invoice) => (
                 <span className="text-xs text-gray-500 dark:text-white/40">{new Date(row.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -425,10 +426,10 @@ export default function Payments() {
               { key: 'actions', header: 'Actions', align: 'center', render: (row: Invoice) => (
                 <Link to={`/payments/${row.id}`} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"><ArrowUpRight className="w-3 h-3" /></Link>
               )},
-            ] as ColumnDef<Record<string, unknown>>[]}
-            data={(filtered as unknown as Record<string, unknown>[])}
+            ] as any[]}
+            data={filtered as any[]}
             searchable
-            searchPlaceholder="Search invoices…"
+            searchPlaceholder="Search invoices�"
             emptyTitle="No invoices found"
             emptyDescription="Create your first invoice to get started."
             pageSize={15}

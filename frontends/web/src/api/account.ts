@@ -118,6 +118,19 @@ export interface OrganizationItem {
   created_at: string
 }
 
+export interface PublicUserProfile {
+  id: number
+  username: string
+  first_name: string
+  last_name: string
+  role: string
+  role_display: string
+  org_id: number | null
+  org_name: string | null
+  date_joined: string
+  last_login: string | null
+}
+
 export interface DataExport {
   export_id: string
   status: string
@@ -129,12 +142,35 @@ export interface DataExport {
 // ── API ─────────────────────────────────────────────────────────────────────
 
 export const accountApi = {
+  // Admin — user management
+  listUsers: (params?: { page?: number; page_size?: number; role?: string; search?: string }) =>
+    apiClient.get<{ results: UserProfile[]; count: number }>('/api/v1/accounts/users/', { params }),
+
+  // Admin — impersonation
+  impersonate: (userId: number) =>
+    apiClient.post<{
+      access: string
+      refresh: string
+      impersonated_user: PublicUserProfile
+      impersonated_by: PublicUserProfile
+    }>(`/api/v1/accounts/users/${userId}/impersonate/`),
+
+  stopImpersonating: () =>
+    apiClient.post<{
+      access: string
+      refresh: string
+      user: PublicUserProfile
+    }>('/api/v1/accounts/impersonate/stop/'),
+
   // Profile
   me: () =>
     apiClient.get<UserProfile>('/api/v1/accounts/me/'),
 
   updateProfile: (data: Partial<Pick<UserProfile, 'first_name' | 'last_name' | 'phone'>>) =>
     apiClient.patch<UserProfile>('/api/v1/accounts/me/', data),
+
+  getPublicProfile: (userId: number) =>
+    apiClient.get<PublicUserProfile>(`/api/v1/accounts/users/${userId}/profile/`),
 
   // Password
   changePassword: (data: { current_password: string; new_password: string }) =>
@@ -206,7 +242,7 @@ export const accountApi = {
     apiClient.get<OrganizationItem>(`/api/v1/accounts/organizations/${id}/`),
 
   updateOrganization: (id: number, data: Partial<OrganizationItem>) =>
-    apiClient.patch<OrganizationItem>(`/api/v1/accounts/organizations/${id}/`),
+    apiClient.patch<OrganizationItem>(`/api/v1/accounts/organizations/${id}/`, data),
 
   // ── Display & Locale Preferences ────────────────────────────────────────
 

@@ -20,11 +20,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from cargotrack.authz import CanViewAnalytics
+from domains._authz import OrgScopedQueryset
 from .models import Alert
 from .serializers import AlertSerializer, AlertAcknowledgeSerializer
 
 
-class AlertListAPIView(generics.ListAPIView):
+class AlertListAPIView(OrgScopedQueryset, generics.ListAPIView):
     """
     GET /api/v1/alerts/
     Returns all unacknowledged alerts, newest first.
@@ -35,6 +36,7 @@ class AlertListAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         qs = Alert.objects.select_related('shipment').order_by('-sent_at')
+        qs = self.scope_by_org(qs)
         show_all = self.request.query_params.get('all') == '1'
         user = self.request.user
         if not show_all or not (user.is_admin or user.is_logistics_manager):
@@ -42,7 +44,7 @@ class AlertListAPIView(generics.ListAPIView):
         return qs
 
 
-class AlertAcknowledgeAPIView(APIView):
+class AlertAcknowledgeAPIView(OrgScopedQueryset, APIView):
     """
     POST /api/v1/alerts/<pk>/acknowledge/
     Marks an alert as acknowledged. Any authenticated user can acknowledge.
@@ -51,7 +53,7 @@ class AlertAcknowledgeAPIView(APIView):
 
     def post(self, request, pk, **kwargs):
         try:
-            alert = Alert.objects.get(pk=pk)
+            alert = self.scope_by_org(Alert.objects.all()).get(pk=pk)
         except Alert.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 

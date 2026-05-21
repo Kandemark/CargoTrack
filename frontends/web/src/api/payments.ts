@@ -3,6 +3,7 @@
  */
 import apiClient from './client'
 import type { Invoice, PaginatedResponse, PaymentProvider } from '@/types'
+export type { Invoice }
 
 export const paymentsApi = {
   /** GET /api/v1/invoices/ */

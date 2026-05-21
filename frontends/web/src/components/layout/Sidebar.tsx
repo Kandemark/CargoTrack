@@ -1,17 +1,18 @@
-﻿/**
- * Sidebar.tsx — Premium collapsible navigation for CargoTrack.
+/**
+ * Sidebar.tsx � Premium collapsible navigation for CargoTrack.
  *
  * Supports all 9 user roles with role-specific nav sections.
  */
+import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, Map, BarChart3, CreditCard, FileText,
   Users, Settings, Bell, Brain, LogOut, ChevronRight, MessageCircle,
   PanelLeftClose, PanelLeftOpen, Truck, UserCheck,
-  ClipboardList, Anchor, Warehouse, Banknote, ShieldCheck,
+  ClipboardList, Anchor, Warehouse, ShieldCheck,
   Route, AlertTriangle, TrendingUp, Radio, Leaf,
   Link2, ScrollText, DollarSign, BarChart2, BellRing, Gavel,
-  ClipboardCheck, Thermometer, Clock,
+  ClipboardCheck, Thermometer, Clock, Megaphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ROLE_COLOR, ROLE_LABELS } from '@/lib/roleUtils'
@@ -19,12 +20,12 @@ import { useAuthStore } from '@/store/authStore'
 import { useAlertStore } from '@/store/alertStore'
 import { useSidebarStore } from '@/store/sidebarStore'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// -- Types ---------------------------------------------------------------------
 
 interface NavItem {
   to: string
   label: string
-  icon: React.ElementType
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
   alertBadge?: boolean
 }
 
@@ -33,9 +34,9 @@ interface NavSection {
   items: NavItem[]
 }
 
-// ── Role metadata ─────────────────────────────────────────────────────────────
+// -- Role metadata -------------------------------------------------------------
 
-// ── Role → nav sections ───────────────────────────────────────────────────────
+// -- Role ? nav sections -------------------------------------------------------
 
 const ROLE_SECTIONS: Record<string, NavSection[]> = {
 
@@ -45,6 +46,7 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
         { to: '/admin/dashboard', label: 'Admin Home',    icon: LayoutDashboard },
         { to: '/ops/dashboard',   label: 'Operations',    icon: BarChart3       },
         { to: '/messages',        label: 'Messages',      icon: MessageCircle   },
+        { to: '/social',          label: 'Social Center',  icon: Megaphone       },
       ],
     },
     {
@@ -355,6 +357,61 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
     },
   ],
 
+  PLATFORM_OWNER: [
+    {
+      items: [
+        { to: '/platform/dashboard', label: 'Platform',       icon: LayoutDashboard },
+        { to: '/messages',           label: 'Messages',       icon: MessageCircle   },
+        { to: '/social',             label: 'Social Center',  icon: Megaphone       },
+      ],
+    },
+    {
+      title: 'Platform Admin',
+      items: [
+        { to: '/admin/dashboard',    label: 'System Admin',   icon: ShieldCheck     },
+        { to: '/team',               label: 'All Users',       icon: Users           },
+        { to: '/audit',              label: 'Audit Log',      icon: ScrollText      },
+        { to: '/integrations',       label: 'Integrations',   icon: Link2           },
+        { to: '/notifications',      label: 'Notifications',  icon: BellRing        },
+      ],
+    },
+    {
+      title: 'Fleet & Logistics',
+      items: [
+        { to: '/fleet/trucks',       label: 'Trucks',         icon: Truck           },
+        { to: '/fleet/drivers',      label: 'Drivers',        icon: UserCheck       },
+        { to: '/fleet/analytics',    label: 'Fleet Analytics', icon: TrendingUp      },
+        { to: '/carriers',           label: 'Carriers',       icon: Truck           },
+        { to: '/live-map',           label: 'Live Map',       icon: Map             },
+      ],
+    },
+    {
+      title: 'Operations',
+      items: [
+        { to: '/ops/shipments',      label: 'Shipments',      icon: Package         },
+        { to: '/payments',           label: 'Payments',       icon: CreditCard      },
+        { to: '/rates',              label: 'Rate Cards',     icon: DollarSign      },
+        { to: '/documents',          label: 'Documents',      icon: FileText        },
+        { to: '/compliance',         label: 'Compliance',     icon: ShieldCheck     },
+      ],
+    },
+    {
+      title: 'Intelligence',
+      items: [
+        { to: '/analytics',          label: 'Analytics',      icon: BarChart2       },
+        { to: '/performance',        label: 'Performance',    icon: TrendingUp      },
+        { to: '/carbon',             label: 'Carbon Tracker', icon: Leaf            },
+        { to: '/sla',                label: 'SLA Monitor',    icon: AlertTriangle   },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        { to: '/settings',           label: 'Settings',       icon: Settings        },
+      ],
+    },
+  ],
+
   FINANCE_OFFICER: [
     {
       items: [
@@ -393,7 +450,7 @@ const ROLE_SECTIONS: Record<string, NavSection[]> = {
   ],
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// -- Component -----------------------------------------------------------------
 
 export default function Sidebar() {
   const { user, logout } = useAuthStore()
@@ -424,7 +481,7 @@ export default function Sidebar() {
         collapsed ? 'w-16' : 'w-64',
       )}
     >
-      {/* ── Wordmark ──────────────────────────────────────────────────────── */}
+      {/* -- Wordmark -------------------------------------------------------- */}
       <div className={cn(
         'flex items-center border-b border-white/8',
         collapsed ? 'px-3 pt-4 pb-3 justify-center' : 'px-4 pt-5 pb-4 gap-3',
@@ -443,7 +500,7 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ── Navigation ────────────────────────────────────────────────────── */}
+      {/* -- Navigation ------------------------------------------------------ */}
       <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden scrollbar-none">
         {sections.map((section, si) => (
           <div key={si} className={cn('mb-0.5', si > 0 && 'mt-3')}>
@@ -483,13 +540,13 @@ export default function Sidebar() {
                     )}
 
                     <div className="relative shrink-0">
-                      <Icon
-                        className={cn(
+                      {React.createElement(Icon, {
+                        className: cn(
                           'transition-colors',
                           collapsed ? 'w-5 h-5' : 'w-4 h-4',
                           isActive ? 'text-ct-orange' : 'text-white/40 group-hover:text-white/80',
-                        )}
-                      />
+                        ),
+                      })}
                       {alertBadge && unreadAlerts > 0 && collapsed && (
                         <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 ring-1 ring-[#0a1929]" />
                       )}
@@ -516,7 +573,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* ── Collapse toggle ────────────────────────────────────────────────── */}
+      {/* -- Collapse toggle -------------------------------------------------- */}
       <div className="px-2 pb-1">
         <button
           onClick={toggle}
@@ -535,7 +592,7 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* ── User footer ───────────────────────────────────────────────────── */}
+      {/* -- User footer ----------------------------------------------------- */}
       <div className="border-t border-white/8 p-2">
         <div className={cn(
           'flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-white/7 transition-colors cursor-pointer',

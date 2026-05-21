@@ -16,8 +16,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Warehouse, Package, TrendingUp, AlertTriangle, CheckCircle2,
-  Clock, Truck, RefreshCw, ChevronRight, ArrowDownToLine,
+  Warehouse, CheckCircle2,
+  Truck, RefreshCw, ChevronRight, ArrowDownToLine,
   ArrowUpFromLine, BarChart3, Grid3x3,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
@@ -73,7 +73,7 @@ function OccupancyBar({ occupied, total, color }: { occupied: number; total: num
 }
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
-  icon: React.ElementType; label: string; value: string | number; sub?: string; color: string
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; value: string | number; sub?: string; color: string
 }) {
   return (
     <div className="bg-white dark:bg-[#1a2235] rounded-xl p-4 border border-gray-100 dark:border-white/6 shadow-sm">

@@ -31,10 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ── Core security ─────────────────────────────────────────────────────────────
 # In development the insecure default is used automatically.
 # In production, set SECRET_KEY in the environment or .env file.
-SECRET_KEY = config(
-    'SECRET_KEY',
-    default='django-insecure-x7k#p!m$v@8wq2ns&4e%yrj6_tf0zhu3ba9odcig5le1',
-)
+SECRET_KEY = config('SECRET_KEY')
 
 # Enables the Django debug toolbar, detailed error pages, and DEBUG SQL logging.
 # Must be False in any internet-facing environment.
@@ -99,6 +96,7 @@ INSTALLED_APPS = [
     'marketplace.apps.MarketplaceConfig',  # Freight marketplace & job board
     'pod.apps.PodConfig',                  # Digital proof of delivery
     'coldchain.apps.ColdchainConfig',      # Cold chain temperature monitoring
+    'workflows.apps.WorkflowsConfig',     # Automated workflow rules engine
 ]
 
 # ── Middleware ────────────────────────────────────────────────────────────────
@@ -273,6 +271,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.MultiPartParser',
     ],
 }
 
@@ -361,10 +360,9 @@ ALERT_THRESHOLDS = {
 }
 
 # ── Django system-check silencing ────────────────────────────────────────────
-# Silence W009 in CI/local check --deploy runs where SECRET_KEY env var is not
-# yet set. The insecure default is never used in production — decouple reads the
-# real key from the environment (see .env.example).
-SILENCED_SYSTEM_CHECKS = ['security.W009']
+# All security checks are enforced.  SECRET_KEY must be set via environment
+# or .env file.  The deploy check (manage.py check --deploy) will flag any
+# missing production settings.
 
 # ── Email ─────────────────────────────────────────────────────────────────────
 # Development: console backend prints emails to stdout (no SMTP needed).
@@ -407,7 +405,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10_485_760  # 10 MB
 # Max number of fields in a single form/JSON body (prevents hash collision DoS).
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 200
 # Max number of files in a single multipart upload.
-DATA_UPLOAD_MAX_NUMBER_FILES = 5
+DATA_UPLOAD_MAX_NUMBER_FILES = 20
 
 # ── Clickjacking / content-type protection ────────────────────────────────────
 X_FRAME_OPTIONS = 'DENY'

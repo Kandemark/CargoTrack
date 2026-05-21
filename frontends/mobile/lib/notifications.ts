@@ -29,13 +29,13 @@ Notifications.setNotificationHandler({
  */
 export async function registerPushToken(client: AxiosInstance): Promise<void> {
   if (Constants.appOwnership === 'expo') {
-    console.log('[notifications] Skipping remote push registration in Expo Go')
+    if (__DEV__) console.log('[notifications] Skipping remote push registration in Expo Go')
     return
   }
 
   // Push tokens only work on physical devices
   if (!Device.isDevice) {
-    console.log('[notifications] Skipping push registration on simulator/emulator')
+    if (__DEV__) console.log('[notifications] Skipping push registration on simulator/emulator')
     return
   }
 
@@ -48,7 +48,7 @@ export async function registerPushToken(client: AxiosInstance): Promise<void> {
   }
 
   if (finalStatus !== 'granted') {
-    console.log('[notifications] Push permission denied')
+    if (__DEV__) console.log('[notifications] Push permission denied')
     return
   }
 
@@ -69,8 +69,8 @@ export async function registerPushToken(client: AxiosInstance): Promise<void> {
     })
 
     await client.post('/api/v1/accounts/push-token/', { token, platform: Platform.OS })
-    console.log('[notifications] Push token registered:', token)
+    if (__DEV__) console.log('[notifications] Push token registered successfully')
   } catch (err) {
-    console.warn('[notifications] Failed to register push token:', err)
+    if (__DEV__) console.warn('[notifications] Failed to register push token:', (err as Error).message)
   }
 }

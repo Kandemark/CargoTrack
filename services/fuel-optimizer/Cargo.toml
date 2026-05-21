@@ -1,7 +1,7 @@
 [package]
 name = "fuel-optimizer"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "Dynamic programming fuel stop optimizer for CargoTrack — Python binding via PyO3"
 
 [lib]

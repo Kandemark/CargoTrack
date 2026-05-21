@@ -1,21 +1,17 @@
 /**
  * frontend/src/store/authStore.ts
  *
- * Zustand store for authentication state.
+ * Zustand store for authentication state and admin impersonation.
  *
  * Tokens are stored as httpOnly cookies (ct_access, ct_refresh) set by the
  * Django backend — JavaScript never persists them to disk.  The access token
  * is held in JS memory only (not localStorage) so WebSocket connections can
  * use it for query-string auth.
- *
- * Responsibilities:
- *   - Holds the authenticated User object, isAuthenticated flag, and accessToken.
- *   - Exposes login, register, logout, restoreAccessToken, and clearAuth actions.
- *   - Persists only user profile data to localStorage (no tokens).
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { authApi, type RegisterPayload } from '@/api/auth'
+import { accountApi } from '@/api/account'
 import type { User } from '@/types'
 
 export { type RegisterPayload } from '@/api/auth'
@@ -23,48 +19,46 @@ export { type RegisterPayload } from '@/api/auth'
 interface AuthState {
   user: User | null
   isAuthenticated: boolean
-  /** JWT access token held in memory for WebSocket query-string auth. Not persisted. */
   accessToken: string | null
+  /** True after the initial auth restoration attempt completes (success or failure). */
+  authReady: boolean
 
-  /** Exchange credentials for tokens (cookies) and fetch user profile. */
+  /** Impersonation state — set when an admin is viewing as another user. */
+  isImpersonating: boolean
+  originalUser: User | null
+
   login: (credentials: { username: string; password: string }) => Promise<void>
-
-  /** Register a new account, auto-login on success. */
   register: (payload: RegisterPayload) => Promise<void>
-
-  /** Call logout endpoint to clear cookies, then clear local state. */
   logout: () => Promise<void>
-
-  /** Restore the access token by calling the refresh endpoint (uses httpOnly cookie). */
   restoreAccessToken: () => Promise<void>
-
-  /** Imperatively set the user (e.g. after profile update). */
   setUser: (user: User) => void
-
-  /** Clear auth without hitting the server (for error recovery). */
   clearAuth: () => void
+
+  /** Impersonate a target user (ADMIN / PLATFORM_OWNER only). Returns the target role for navigation. */
+  impersonate: (userId: number) => Promise<string | null>
+  /** Stop impersonating and revert to the original admin identity. */
+  stopImpersonating: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       isAuthenticated: false,
       accessToken: null,
+      authReady: false,
+      isImpersonating: false,
+      originalUser: null,
 
       login: async (credentials) => {
-        // POST /api/auth/token/ — backend sets httpOnly cookies AND returns tokens in body
         const { data: tokens } = await authApi.login(credentials)
-        // Fetch user profile now that cookies are set
         const { data: user } = await authApi.getMe()
-        set({ user, isAuthenticated: true, accessToken: tokens.access })
+        set({ user, isAuthenticated: true, accessToken: tokens.access, isImpersonating: false, originalUser: null })
       },
 
       register: async (payload) => {
         const { data: tokens } = await authApi.register(payload)
-        // Backend returns tokens in body for mobile compat; cookies are also set.
         if (tokens.access && tokens.refresh) {
-          // Registration already sets cookies via the same flow; fetch profile
           const { data: user } = await authApi.getMe()
           set({ user, isAuthenticated: true, accessToken: tokens.access })
         }
@@ -72,35 +66,75 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         try {
-          // POST /api/auth/token/logout/ — blacklists refresh token + clears cookies
           await authApi.logout()
         } catch {
           // Non-fatal — tokens may already be expired
         }
-        set({ user: null, isAuthenticated: false, accessToken: null })
+        set({ user: null, isAuthenticated: false, accessToken: null, isImpersonating: false, originalUser: null })
       },
 
       restoreAccessToken: async () => {
         try {
           const { data } = await authApi.refreshToken()
-          set({ accessToken: data.access })
+          set({ accessToken: data.access, authReady: true })
         } catch {
-          // Refresh failed — user needs to log in again.
-          // Clear isAuthenticated so ProtectedRoute doesn't render pages
-          // that will immediately 401, causing a redirect loop.
-          set({ user: null, isAuthenticated: false, accessToken: null })
+          set({ user: null, isAuthenticated: false, accessToken: null, isImpersonating: false, originalUser: null, authReady: true })
         }
       },
 
       setUser: (user) => set({ user, isAuthenticated: true }),
 
       clearAuth: () => {
-        set({ user: null, isAuthenticated: false, accessToken: null })
+        set({ user: null, isAuthenticated: false, accessToken: null, isImpersonating: false, originalUser: null })
+      },
+
+      impersonate: async (userId: number) => {
+        const currentUser = get().user
+        const { data } = await accountApi.impersonate(userId)
+        const targetRole = data.impersonated_user.role
+        set({
+          accessToken: data.access,
+          user: {
+            ...currentUser!,
+            id: data.impersonated_user.id,
+            username: data.impersonated_user.username,
+            first_name: data.impersonated_user.first_name,
+            last_name: data.impersonated_user.last_name,
+            role: data.impersonated_user.role,
+            role_display: data.impersonated_user.role_display,
+            org_id: data.impersonated_user.org_id,
+            org_name: data.impersonated_user.org_name,
+          } as User,
+          isImpersonating: true,
+          originalUser: currentUser ? { ...currentUser } : null,
+        })
+        return targetRole
+      },
+
+      stopImpersonating: async () => {
+        const { data } = await accountApi.stopImpersonating()
+        const restored = data.user
+        set({
+          accessToken: data.access,
+          user: {
+            ...restored,
+            role_display: restored.role_display || restored.role,
+            org_id: restored.org_id,
+            org_name: restored.org_name,
+          } as User,
+          isImpersonating: false,
+          originalUser: null,
+        })
       },
     }),
     {
       name: 'ct-auth',
-      partialize: (s) => ({ user: s.user, isAuthenticated: s.isAuthenticated }),
+      partialize: (s) => ({
+        user: s.user,
+        isAuthenticated: s.isAuthenticated,
+        isImpersonating: s.isImpersonating,
+        originalUser: s.originalUser,
+      }),
     },
   ),
 )

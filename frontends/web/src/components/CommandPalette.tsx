@@ -3,7 +3,7 @@
  * Groups: Pages | Shipments | Alerts
  * Keyboard: arrows to navigate, Enter to go, Escape to close.
  */
-import { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -17,7 +17,7 @@ import type { ShipmentListItem, Alert } from '@/types'
 
 // ── Static nav pages ──────────────────────────────────────────────────────────
 
-interface NavPage { label: string; to: string; icon: React.ElementType; desc?: string }
+interface NavPage { label: string; to: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; desc?: string }
 
 const NAV_PAGES: NavPage[] = [
   { label: 'Dashboard',       to: '/ops/dashboard',   icon: LayoutDashboard, desc: 'Operations overview' },
@@ -41,7 +41,7 @@ interface Result {
   label: string
   sub?: string
   to: string
-  icon: React.ElementType
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
 }
 
 function buildShipmentResult(s: ShipmentListItem): Result {
@@ -173,7 +173,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-white/30">
           {GROUP_LABELS[kind]}
         </div>
-        {items.map((r, idx) => {
+        {items.map((r) => {
           const globalIdx = results.indexOf(r)
           const Icon = r.icon
           return (
@@ -189,7 +189,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                   : 'text-gray-700 dark:text-white/80 hover:bg-gray-50 dark:hover:bg-white/5',
               )}
             >
-              <Icon className={cn('w-4 h-4 shrink-0', globalIdx === active ? 'text-ct-orange' : 'text-gray-400 dark:text-white/30')} />
+              {React.createElement(Icon, { className: cn('w-4 h-4 shrink-0', globalIdx === active ? 'text-ct-orange' : 'text-gray-400 dark:text-white/30') })}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{r.label}</p>
                 {r.sub && <p className={cn('text-xs truncate', globalIdx === active ? 'text-white/70' : 'text-gray-400 dark:text-white/30')}>{r.sub}</p>}

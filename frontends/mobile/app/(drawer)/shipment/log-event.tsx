@@ -5,8 +5,11 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { shipmentsApi } from '@/lib/api'
 import { useAppTheme } from '@/lib/useAppTheme'
+import { useAuthStore } from '@/lib/store'
 import { Button } from '@/components/ui'
 import type { Shipment } from '@shared/api/types'
+
+const LOG_EVENT_ROLES = new Set(['DRIVER', 'DISPATCHER', 'LOGISTICS_MGR', 'ADMIN', 'CARRIER', 'CUSTOMS_BROKER', 'PORT_AGENT', 'WAREHOUSE_MGR'])
 
 type EventTypeCode = 'DEPARTURE' | 'CHECKPOINT' | 'CUSTOMS_ENTRY' | 'CUSTOMS_CLEAR' | 'ARRIVAL' | 'DELAY' | 'NOTE'
 
@@ -24,6 +27,22 @@ export default function LogEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const shipmentId = Number(id)
   const { colors, font, radius, isDark } = useAppTheme()
+  const user = useAuthStore((s) => s.user)
+
+  if (user && !LOG_EVENT_ROLES.has(user.role)) {
+    return (
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="lock-closed" size={48} color="#64748b" />
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 16 }}>Access Denied</Text>
+          <Text style={{ color: '#93b4d8', fontSize: 14, textAlign: 'center', marginTop: 8 }}>You don't have permission to log tracking events.</Text>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 24, backgroundColor: '#f5801e', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
 
   const [shipment, setShipment] = useState<Shipment | null>(null)
   const [eventType, setEventType] = useState<EventTypeCode | null>(null)

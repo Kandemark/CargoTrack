@@ -1,27 +1,60 @@
 import { useMemo, useState } from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { RouteAnalytics } from '@/api/analytics'
+
+interface RouteRow {
+  route: string
+  shipment_count?: number
+  count?: number
+  on_time_rate?: number
+  avg_risk?: number
+  total_revenue?: number
+  revenue?: number
+  avg_margin?: number
+  margin_pct?: number
+  avg_distance?: number
+  profit?: number
+}
 
 interface Props {
-  routes: RouteAnalytics[]
+  routes: RouteRow[]
   className?: string
 }
 
 type SortKey = 'shipment_count' | 'on_time_rate' | 'avg_risk' | 'total_revenue' | 'avg_margin'
 
+const safeNum = (v: unknown): number => (typeof v === 'number' && !Number.isNaN(v)) ? v : 0
+
+function fmtKES(v: unknown): string {
+  const n = safeNum(v)
+  return n >= 1e6 ? `KES ${(n / 1e6).toFixed(2)}M` : `KES ${(n / 1e3).toFixed(0)}K`
+}
+
 export default function RoutePerformanceTable({ routes, className }: Props) {
   const [sort, setSort] = useState<SortKey>('shipment_count')
   const [dir, setDir] = useState<'asc' | 'desc'>('desc')
 
+  const normalized = useMemo(() => {
+    return routes.map(r => ({
+      route: r.route,
+      shipment_count: safeNum(r.shipment_count ?? r.count),
+      on_time_rate: safeNum(r.on_time_rate),
+      avg_risk: safeNum(r.avg_risk),
+      total_revenue: safeNum(r.total_revenue ?? r.revenue),
+      avg_margin: safeNum(r.avg_margin ?? r.margin_pct),
+      avg_distance: safeNum(r.avg_distance),
+      profit: safeNum(r.profit ?? 0),
+    }))
+  }, [routes])
+
   const sorted = useMemo(() => {
-    return [...routes].sort((a, b) => {
+    return [...normalized].sort((a, b) => {
       const va = a[sort]
       const vb = b[sort]
       const cmp = va < vb ? -1 : va > vb ? 1 : 0
       return dir === 'asc' ? cmp : -cmp
     })
-  }, [routes, sort, dir])
+  }, [normalized, sort, dir])
 
   function toggleSort(key: SortKey) {
     if (sort === key) setDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -72,10 +105,10 @@ export default function RoutePerformanceTable({ routes, className }: Props) {
                 </span>
               </td>
               <td className="py-2.5 px-3 text-xs tabular-nums text-gray-700 dark:text-white/60">
-                KES {r.total_revenue.toLocaleString()}
+                {fmtKES(r.total_revenue)}
               </td>
               <td className={cn('py-2.5 px-3 text-xs font-semibold tabular-nums', r.avg_margin >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                {r.avg_margin >= 0 ? '+' : ''}KES {r.avg_margin.toLocaleString()}
+                {r.avg_margin >= 0 ? '+' : ''}{fmtKES(r.avg_margin)}
               </td>
             </tr>
           ))}

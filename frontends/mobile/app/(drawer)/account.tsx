@@ -213,7 +213,7 @@ export default function AccountScreen() {
       prefs: prefsData ?? { email_alerts: true, sms_alerts: false, push_alerts: true, daily_digest: true },
     })
     setLoading(false)
-  }, [canSeeManagerData, fetchAlerts, setUser, user])
+  }, [canSeeManagerData, fetchAlerts, setUser])
 
   useEffect(() => { void load() }, [load])
 

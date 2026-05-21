@@ -102,7 +102,7 @@ daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application
 ### Frontend (React Web App)
 
 ```bash
-cd apps/web
+cd frontends/web
 npm install
 npm run dev
 ```
@@ -110,7 +110,7 @@ npm run dev
 ### Mobile App (React Native / Expo)
 
 ```bash
-cd apps/mobile
+cd frontends/mobile
 npm install
 npx expo run:android
 ```
@@ -187,7 +187,7 @@ make clean             # remove build artifacts
 
 ## Frontend Development
 
-### Web App (`apps/web/`)
+### Web App (`frontends/web/`)
 
 **Stack**: React 19 + TypeScript 6 + Vite 8 + Tailwind CSS v4 + React Router 7
 
@@ -216,7 +216,7 @@ npm run lint     # ESLint with TypeScript strict mode
 npm run preview  # Preview production build
 ```
 
-### Mobile App (`apps/mobile/`)
+### Mobile App (`frontends/mobile/`)
 
 **Stack**: Expo SDK 54 + React Native 0.81 + NativeWind v4 + TypeScript
 
@@ -234,9 +234,9 @@ npm run preview  # Preview production build
 - Offline-first with local storage
 - Server connection configuration (gear icon on login screen)
 
-### Shared Libraries (`apps/shared/`)
+### Shared Libraries (`libs/shared-types/`)
 
-Platform-agnostic API factories shared between web and mobile apps.
+Platform-agnostic API types, factories, and utilities shared between web and mobile apps.
 
 ---
 

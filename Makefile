@@ -114,7 +114,7 @@ test-ws:
 	cd services/ws && mix test
 
 test-web:
-	cd apps/web && npm run lint
+	cd frontends/web && npm run lint
 
 test: test-api test-go
 
@@ -135,7 +135,7 @@ lint-api:
 	cd services/api && ruff check .
 
 lint-web:
-	cd apps/web && npm run lint
+	cd frontends/web && npm run lint
 
 lint: lint-api lint-web
 
@@ -156,6 +156,6 @@ clean:
 	find . -type f -name '*.pyc' -delete 2>/dev/null || true
 	rm -rf services/ws/_build services/ws/deps 2>/dev/null || true
 	rm -rf services/tracking-ingest/tracking-server 2>/dev/null || true
-	rm -rf apps/web/dist 2>/dev/null || true
+	rm -rf frontends/web/dist 2>/dev/null || true
 	rm -f erl_crash.dump 2>/dev/null || true
 	rm -f services/api/schema.openapi.yml 2>/dev/null || true

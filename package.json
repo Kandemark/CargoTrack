@@ -11,6 +11,6 @@
     "ios": "cd frontends/mobile && expo run:ios"
   },
   "overrides": {
-    "@types/react": "^18.3.18"
+    "@types/react": "18.3.18"
   }
 }

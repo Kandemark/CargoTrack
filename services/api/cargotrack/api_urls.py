@@ -12,8 +12,9 @@ from django.urls import include, path
 from domains.analytics import (
     AnalyticsExportView, AnalyticsView, BidAnalyticsView, CarbonView,
     CarrierBenchmarkView, CorridorAnalyticsView, CustomerAnalyticsView,
-    DriverLeaderboardView, PerformanceAnalyticsView, ProfitAnalyticsView,
-    RouteAnalyticsView, SLAListView, TemporalAnalyticsView,
+    DriverLeaderboardView, HeatmapAnalyticsView, PerformanceAnalyticsView,
+    ProbabilityAnalyticsView, ProfitAnalyticsView, RouteAnalyticsView,
+    SankeyAnalyticsView, SLAListView, TemporalAnalyticsView,
 )
 from domains.contracts import RateComparisonView, RateLookupView
 from domains.finance import (
@@ -62,6 +63,9 @@ urlpatterns = [
     path('analytics/performance/',         PerformanceAnalyticsView.as_view(), name='v1-analytics-performance'),
     path('analytics/driver-leaderboard/',  DriverLeaderboardView.as_view(),   name='v1-analytics-driver-leaderboard'),
     path('analytics/bid-analytics/',       BidAnalyticsView.as_view(),        name='v1-analytics-bid-analytics'),
+    path('analytics/probability/',         ProbabilityAnalyticsView.as_view(), name='v1-analytics-probability'),
+    path('analytics/heatmap/',             HeatmapAnalyticsView.as_view(),     name='v1-analytics-heatmap'),
+    path('analytics/sankey/',              SankeyAnalyticsView.as_view(),      name='v1-analytics-sankey'),
     path('sla/',                           SLAListView.as_view(),             name='v1-sla'),
     path('carbon/',                        CarbonView.as_view(),              name='v1-carbon'),
 
@@ -109,4 +113,7 @@ urlpatterns = [
     # ── Integrations ─────────────────────────────────────────────────────
     path('integrations/',            IntegrationListView.as_view(),   name='v1-integrations-list'),
     path('integrations/<int:pk>/',   IntegrationDetailView.as_view(), name='v1-integrations-detail'),
+
+    # ── Workflow Engine ───────────────────────────────────────────────────
+    path('workflows/',          include('workflows.urls')),
 ]

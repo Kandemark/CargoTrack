@@ -6,7 +6,6 @@ import {
   Activity, AlertTriangle,
 } from 'lucide-react'
 import { fleetApi, type Truck as TruckType } from '@/api/fleet'
-import { useAuthStore } from '@/store/authStore'
 
 // ─── Truck Load Visual ──────────────────────────────────────────────────────────
 
@@ -167,7 +166,6 @@ function MaintenanceTimeline({ logs }: { logs: TruckType['maintenance_logs'] }) 
 export default function TruckDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
   const [truck, setTruck] = useState<TruckType | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

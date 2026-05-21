@@ -35,10 +35,15 @@ export default function AnalyticsProfit() {
     <div className="flex items-center justify-center h-64 text-red-500">{error}</div>
   )
 
-  const fmtKES = (v: number) => v >= 1_000_000 ? `KES ${(v / 1_000_000).toFixed(2)}M` : `KES ${(v / 1_000).toFixed(0)}K`
+  const safeNum = (v: unknown): number => (typeof v === 'number' && !Number.isNaN(v)) ? v : 0
+  const fmtKES = (v: unknown) => {
+    const n = safeNum(v)
+    return n >= 1_000_000 ? `KES ${(n / 1_000_000).toFixed(2)}M` : `KES ${(n / 1_000).toFixed(0)}K`
+  }
 
+  const marginPct = safeNum(data.margin_pct)
   const kpis = [
-    { label: 'Gross Margin', value: `${data.margin_pct}%`, icon: TrendingUp, color: data.margin_pct >= 20 ? 'text-emerald-600' : 'text-amber-500', bg: data.margin_pct >= 20 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20' },
+    { label: 'Gross Margin', value: `${marginPct}%`, icon: TrendingUp, color: marginPct >= 20 ? 'text-emerald-600' : 'text-amber-500', bg: marginPct >= 20 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20' },
     { label: 'Total Profit', value: fmtKES(data.profit_total), icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
     { label: 'Total Revenue', value: fmtKES(data.revenue_total), icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
     { label: 'Total Cost', value: fmtKES(data.cost_total), icon: TrendingDown, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20' },

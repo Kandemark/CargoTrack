@@ -32,12 +32,11 @@ cargotrack/
 │   ├── edi-integration/       # EDI/EDIFACT gateway — Apache Camel (Java)
 │   ├── container-matcher/     # Container consolidation optimizer (Rust/PyO3)
 │   └── fuel-optimizer/        # Fuel stop optimizer (Rust/PyO3)
-├── apps/                      # Client applications
+├── frontends/                  # Client applications
 │   ├── web/                   # React SPA (TypeScript, Vite, Tailwind CSS v4)
-│   ├── mobile/                # Mobile app (Expo/React Native, NativeWind)
-│   └── shared/                # Platform-agnostic API factories
+│   └── mobile/                # Mobile app (Expo/React Native, NativeWind)
 ├── libs/                      # Shared libraries
-│   ├── shared-types/          # TypeScript type definitions
+│   ├── shared-types/          # TypeScript type definitions (shared API types, utils)
 │   ├── proto/                 # Protobuf/gRPC service definitions
 │   ├── api-client/            # TypeScript API client
 │   └── rust-core/             # Shared Rust types and utilities

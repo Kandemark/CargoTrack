@@ -2,6 +2,7 @@
  * Team.tsx — User management: list, invite, role assignment, deactivate.
  */
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Users, UserPlus, Shield, X, AlertTriangle, RefreshCw, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -9,7 +10,7 @@ import apiClient from '@/api/client'
 import type { User } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { usePermission } from '@/hooks/usePermission'
-import { Permission } from '@/lib/roleUtils'
+import { Permission, getRoleDashboard } from '@/lib/roleUtils'
 
 interface TeamMember extends User {
   is_active: boolean
@@ -18,13 +19,14 @@ interface TeamMember extends User {
 }
 
 type UserRole =
-  | 'ADMIN' | 'LOGISTICS_MGR' | 'CARRIER' | 'CLIENT'
+  | 'ADMIN' | 'LOGISTICS_MGR' | 'CARRIER' | 'DRIVER' | 'CLIENT'
   | 'DISPATCHER' | 'CUSTOMS_BROKER' | 'WAREHOUSE_MGR' | 'PORT_AGENT' | 'FINANCE_OFFICER'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN:           'Admin',
   LOGISTICS_MGR:   'Logistics Mgr',
   CARRIER:         'Carrier',
+  DRIVER:          'Driver',
   CLIENT:          'Client',
   DISPATCHER:      'Dispatcher',
   CUSTOMS_BROKER:  'Customs Broker',
@@ -37,6 +39,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   ADMIN:           'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300',
   LOGISTICS_MGR:   'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
   CARRIER:         'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+  DRIVER:          'bg-lime-50 text-lime-700 dark:bg-lime-900/20 dark:text-lime-300',
   CLIENT:          'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
   DISPATCHER:      'bg-cyan-50 text-cyan-700 dark:bg-cyan-900/20 dark:text-cyan-300',
   CUSTOMS_BROKER:  'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300',
@@ -110,6 +113,7 @@ function InviteModal({ onClose, onInvited }: { onClose: () => void; onInvited: (
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
                 <option value="CLIENT">Client</option>
                 <option value="CARRIER">Carrier</option>
+                <option value="DRIVER">Driver</option>
                 <option value="LOGISTICS_MGR">Logistics Manager</option>
                 <option value="DISPATCHER">Dispatcher</option>
                 <option value="CUSTOMS_BROKER">Customs Broker</option>
@@ -155,6 +159,7 @@ function RoleSelect({ member, onChanged }: { member: TeamMember; onChanged: (m: 
       className="px-2 py-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-xs font-medium text-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60">
       <option value="CLIENT">Client</option>
       <option value="CARRIER">Carrier</option>
+      <option value="DRIVER">Driver</option>
       <option value="LOGISTICS_MGR">Logistics Mgr</option>
       <option value="DISPATCHER">Dispatcher</option>
       <option value="CUSTOMS_BROKER">Customs Broker</option>
@@ -167,6 +172,7 @@ function RoleSelect({ member, onChanged }: { member: TeamMember; onChanged: (m: 
 }
 
 export default function Team() {
+  const navigate = useNavigate()
   const currentUser = useAuthStore((s) => s.user)
   const [members,    setMembers]    = useState<TeamMember[]>([])
   const [loading,    setLoading]    = useState(true)
@@ -265,17 +271,19 @@ export default function Team() {
                         )}>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                            <button onClick={() => navigate(`/profile/${m.id}`)}
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 hover:opacity-80 transition-opacity"
                               style={{ background: 'var(--ct-navy)' }}>
                               {(m.first_name?.[0] ?? m.username[0]).toUpperCase()}
-                            </div>
+                            </button>
                             <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              <button onClick={() => navigate(`/profile/${m.id}`)}
+                                className="text-sm font-medium text-gray-900 dark:text-white hover:text-ct-navy dark:hover:text-blue-400 transition-colors text-left">
                                 {m.first_name && m.last_name ? `${m.first_name} ${m.last_name}` : m.username}
                                 {m.id === currentUser?.id && (
                                   <span className="ml-1.5 text-xs text-gray-400 dark:text-white/30">(you)</span>
                                 )}
-                              </p>
+                              </button>
                               <p className="text-xs text-gray-400 dark:text-white/30">{m.email}</p>
                             </div>
                           </div>
@@ -314,7 +322,9 @@ export default function Team() {
                         </td>
                         {canAdminUsers && (
                           <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-1.5">
                             {m.id !== currentUser?.id && (
+                              <>
                               <button
                                 onClick={() => void toggleActive(m)}
                                 className={cn(
@@ -325,7 +335,20 @@ export default function Team() {
                                 )}>
                                 {m.is_active ? 'Deactivate' : 'Reactivate'}
                               </button>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const targetRole = await useAuthStore.getState().impersonate(m.id)
+                                    navigate(targetRole ? getRoleDashboard(targetRole) : '/dashboard')
+                                  } catch { /* 403 — silenced */ }
+                                }}
+                                className="text-xs font-medium px-3 py-1 rounded-lg text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 transition-colors"
+                              >
+                                Impersonate
+                              </button>
+                              </>
                             )}
+                            </div>
                           </td>
                         )}
                       </motion.tr>

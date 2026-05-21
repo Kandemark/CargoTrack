@@ -71,7 +71,7 @@ function ProgressBar({ status }: { status: ShipmentStatus }) {
 export default function TrackingPortal() {
   const { tracking_number } = useParams<{ tracking_number?: string }>()
   const [query,    setQuery]    = useState(tracking_number ?? '')
-  const [searched, setSearched] = useState(tracking_number ?? '')
+  const [_searched, _setSearched] = useState(tracking_number ?? '')
   const [shipment, setShipment] = useState<PublicShipment | null>(null)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
@@ -82,7 +82,7 @@ export default function TrackingPortal() {
     try {
       const res = await apiClient.get<PublicShipment>(`/api/v1/shipments/track/${tn.trim()}/`)
       setShipment(res.data)
-      setSearched(tn.trim())
+      _setSearched(tn.trim())
     } catch {
       setError('Tracking number not found. Please check and try again.')
     } finally {

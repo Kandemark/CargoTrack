@@ -134,18 +134,11 @@ http:
       loadBalancer:
         servers:
           - url: "h2c://go-tracking:8080"
-        healthCheck:
-          interval: "30s"
-          timeout: "5s"
 
     keycloak:
       loadBalancer:
         servers:
           - url: "http://keycloak:8080"
-        healthCheck:
-          path: "/health/ready"
-          interval: "15s"
-          timeout: "5s"
 
     workflow-engine:
       loadBalancer:

@@ -22,14 +22,6 @@ export default function CorridorComparison({ corridors, className }: Props) {
     congestion: Math.round(c.congestion_index * 100),
   }))
 
-  const metrics = [
-    { key: 'on_time_rate', label: 'On-Time Rate', suffix: '%', good: true },
-    { key: 'avg_risk', label: 'Avg Risk', suffix: '%', good: false },
-    { key: 'shipment_count', label: 'Shipments', suffix: '', good: true },
-    { key: 'total_volume_kg', label: 'Volume', suffix: 't', good: true, fmt: (v: number) => `${Math.round(v / 1000).toLocaleString()}` },
-    { key: 'congestion_index', label: 'Congestion', suffix: 'x', good: false, fmt: (v: number) => v.toFixed(2) },
-  ] as const
-
   return (
     <div className={cn('space-y-4', className)}>
       {/* Bar chart comparing key metrics */}
@@ -56,7 +48,7 @@ export default function CorridorComparison({ corridors, className }: Props) {
       {/* Metric cards per corridor */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {corridors.map((c) => {
-          const color = CORRIDOR_COLORS[c.corridor_name] ?? '#94a3b8'
+          const color = CORRIDOR_COLORS[c.corridor_name as keyof typeof CORRIDOR_COLORS] ?? '#94a3b8'
           return (
             <div key={c.corridor_name} className="rounded-xl border border-gray-200 dark:border-white/8 p-4"
               style={{ borderTopColor: color, borderTopWidth: 3 }}>

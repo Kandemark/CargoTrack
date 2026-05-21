@@ -7,7 +7,7 @@
 services:
   # ── Core infrastructure ──────────────────────────────────────────────────
   db:
-    image: timescale/timescaledb:2.16-pg16
+    image: timescale/timescaledb:latest-pg16
     environment:
       POSTGRES_DB: cargotrack_sandbox
       POSTGRES_USER: cargotrack
@@ -48,7 +48,7 @@ services:
       - "9092:9092"
 
   emqx:
-    image: emqx/emqx:5.7-alpine
+    image: emqx/emqx:5.10.3
     ports:
       - "1883:1883"
       - "18083:18083"
@@ -60,9 +60,9 @@ services:
       - start
       - --import-realm
       - --http-port=8080
-      - --proxy=edge
+      - --proxy-headers=xforwarded
       - --hostname-strict=false
-      - --hostname-strict-https=false
+      - --http-enabled=true
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
@@ -78,11 +78,11 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; head -1 <&3 | grep -q '200'"]
-      interval: 10s
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080 && echo ok"]
+      interval: 5s
       timeout: 5s
-      retries: 30
-      start_period: 60s
+      retries: 20
+      start_period: 90s
 
   # ── API Gateway (Traefik) ─────────────────────────────────────────────────
   traefik:
@@ -125,14 +125,14 @@ services:
       DB_PASSWORD: sandbox
       DB_NAME: cargotrack_sandbox
       REDIS_URL: redis://redis:6379/0
-      OIDC_ENABLED: "true"
+      OIDC_ENABLED: "false"
       OIDC_RP_CLIENT_SECRET: cargotrack-api-secret-change-in-production
       KEYCLOAK_SERVER_URL: http://keycloak:8080
       ALLOWED_HOSTS: "*"
     volumes:
       - ./services/api:/app
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     command: >
       sh -c "python manage.py migrate &&
              daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application"
@@ -140,7 +140,7 @@ services:
   # ── Frontend ──────────────────────────────────────────────────────────────
   frontend:
     build:
-      context: ./apps/web
+      context: ./frontends/web
       dockerfile: Dockerfile
       additional_contexts:
         shared-types: ./libs/shared-types
@@ -149,7 +149,7 @@ services:
     environment:
       API_PROXY_TARGET: http://backend:8000
     volumes:
-      - ./apps/web:/app
+      - ./frontends/web:/app
       - /app/node_modules
       - ./libs/shared-types:/app/shared
     expose:
@@ -157,7 +157,7 @@ services:
 
   # ── Observability ─────────────────────────────────────────────────────────
   prometheus:
-    image: prom/prometheus:v3.2
+    image: prom/prometheus:v3.11.3
     expose:
       - "9090"
     volumes:
@@ -205,7 +205,7 @@ services:
 
   # ── Distributed Tracing (Jaeger) ──────────────────────────────────────────
   jaeger:
-    image: jaegertracing/all-in-one:1.66
+    image: jaegertracing/all-in-one:1.76.0
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
       SPAN_STORAGE_TYPE: badger

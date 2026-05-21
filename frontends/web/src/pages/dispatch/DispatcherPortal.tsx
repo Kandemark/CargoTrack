@@ -1,5 +1,5 @@
-﻿/**
- * DispatcherPortal.tsx — Command center for CargoTrack dispatchers.
+/**
+ * DispatcherPortal.tsx � Command center for CargoTrack dispatchers.
  *
  * Responsibilities:
  *  - Assign available drivers to pending shipments (dispatch queue)
@@ -8,17 +8,17 @@
  *  - View driver and truck availability boards
  *
  * Data sources:
- *  - GET /api/v1/shipments/?status=PENDING  — dispatch queue
- *  - GET /api/v1/fleet/drivers/             — driver roster
- *  - GET /api/v1/fleet/trucks/              — truck inventory
- *  - GET /api/v1/fleet/stats/               — utilisation summary
+ *  - GET /api/v1/shipments/?status=PENDING  � dispatch queue
+ *  - GET /api/v1/fleet/drivers/             � driver roster
+ *  - GET /api/v1/fleet/trucks/              � truck inventory
+ *  - GET /api/v1/fleet/stats/               � utilisation summary
  */
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Truck, UserCheck, Package, AlertTriangle, MapPin, Clock,
-  ChevronRight, RefreshCw, CheckCircle2, Radio, Route,
-  ClipboardList, TrendingUp, Zap, Eye,
+  Truck, UserCheck, AlertTriangle, MapPin,
+  RefreshCw, CheckCircle2, Radio,
+  ClipboardList, Zap,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -27,7 +27,7 @@ import { fleetApi } from '@/api/fleet'
 import type { Truck as TruckType, Driver, FleetStats } from '@/api/fleet'
 import type { ShipmentListItem } from '@/types'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// -- Helpers -------------------------------------------------------------------
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString('en-KE', {
@@ -51,10 +51,10 @@ function RiskPill({ score }: { score: number }) {
   )
 }
 
-// ── Subcomponents ─────────────────────────────────────────────────────────────
+// -- Subcomponents -------------------------------------------------------------
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
-  icon: React.ElementType; label: string; value: string | number; sub?: string; color: string
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; value: string | number; sub?: string; color: string
 }) {
   return (
     <div className="bg-white dark:bg-[#1a2235] rounded-xl p-4 border border-gray-100 dark:border-white/6 shadow-sm">
@@ -92,7 +92,7 @@ const TRUCK_STATUS_CFG: Record<TruckStatus, { color: string; label: string }> = 
   DECOMMISSIONED: { color: '#6b7280', label: 'Decommissioned'},
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// -- Main component ------------------------------------------------------------
 
 export default function DispatcherPortal() {
   const [queue,    setQueue]   = useState<ShipmentListItem[]>([])
@@ -134,12 +134,12 @@ export default function DispatcherPortal() {
   const availableDrivers = drivers.filter((d) => d.status === 'AVAILABLE')
   const availableTrucks  = trucks.filter((t)  => t.status === 'IDLE')
   const onRouteDrivers   = drivers.filter((d) => d.status === 'ON_ROUTE')
-  const activeShipments  = drivers.filter((d) => d.status === 'ON_ROUTE').length
+  void drivers.filter((d) => d.status === 'ON_ROUTE').length /* unused but kept for future KPIs */
 
   return (
     <div className="space-y-6">
 
-      {/* ── Hero header ─────────────────────────────────────────────────── */}
+      {/* -- Hero header --------------------------------------------------- */}
       <div
         className="rounded-2xl p-6 text-white relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #0a1929 0%, #0f2d5e 60%, #1a4080 100%)' }}
@@ -154,7 +154,7 @@ export default function DispatcherPortal() {
             </div>
             <h1 className="text-2xl font-bold font-heading tracking-tight mb-1">Dispatch Hub</h1>
             <p className="text-white/50 text-sm">
-              {availableDrivers.length} drivers available · {availableTrucks.length} trucks idle · {queue.length} jobs queued
+              {availableDrivers.length} drivers available � {availableTrucks.length} trucks idle � {queue.length} jobs queued
             </p>
           </div>
           <button onClick={() => void load()}
@@ -179,7 +179,7 @@ export default function DispatcherPortal() {
         </div>
       </div>
 
-      {/* ── KPI cards ───────────────────────────────────────────────────── */}
+      {/* -- KPI cards ----------------------------------------------------- */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={UserCheck}    label="Available Drivers" value={availableDrivers.length} sub={`${drivers.length} total`}       color="#22c55e" />
         <StatCard icon={Truck}        label="Idle Trucks"        value={availableTrucks.length}  sub={`${trucks.length} total`}        color="#3b82f6" />
@@ -187,7 +187,7 @@ export default function DispatcherPortal() {
         <StatCard icon={AlertTriangle}label="Delayed Shipments"  value={delayed.length}           sub="Needs immediate action"         color="#ef4444" />
       </div>
 
-      {/* ── Delayed alerts banner ────────────────────────────────────────── */}
+      {/* -- Delayed alerts banner ------------------------------------------ */}
       {delayed.length > 0 && (
         <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20">
           <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
@@ -206,7 +206,7 @@ export default function DispatcherPortal() {
         </div>
       )}
 
-      {/* ── Main tabs ────────────────────────────────────────────────────── */}
+      {/* -- Main tabs ------------------------------------------------------ */}
       <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-100 dark:border-white/6 shadow-sm overflow-hidden">
 
         {/* Tab bar */}
@@ -245,7 +245,7 @@ export default function DispatcherPortal() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
           >
-            {/* ── Dispatch Queue ──────────────────────────────────────── */}
+            {/* -- Dispatch Queue ---------------------------------------- */}
             {activeTab === 'queue' && (
               <div>
                 {queue.length === 0 ? (
@@ -276,14 +276,14 @@ export default function DispatcherPortal() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-white/60">
                               <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
-                              {s.route.origin} → {s.route.destination}
+                              {s.route.origin} ? {s.route.destination}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-500 dark:text-white/40 tabular-nums">
                             {Number(s.weight_kg).toLocaleString()} kg
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-500 dark:text-white/40">
-                            {s.scheduled_departure ? fmtDate(s.scheduled_departure) : '—'}
+                            {s.scheduled_departure ? fmtDate(s.scheduled_departure) : '�'}
                           </td>
                           <td className="px-4 py-3"><RiskPill score={s.delay_risk_score} /></td>
                           <td className="px-4 py-3">
@@ -301,7 +301,7 @@ export default function DispatcherPortal() {
               </div>
             )}
 
-            {/* ── Driver Board ─────────────────────────────────────── */}
+            {/* -- Driver Board --------------------------------------- */}
             {activeTab === 'drivers' && (
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {drivers.length === 0 && (
@@ -329,7 +329,7 @@ export default function DispatcherPortal() {
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <p className="text-gray-400 dark:text-white/25">Rating</p>
-                          <p className="font-semibold text-gray-700 dark:text-white/80">{d.rating} ★</p>
+                          <p className="font-semibold text-gray-700 dark:text-white/80">{d.rating} ?</p>
                         </div>
                         <div>
                           <p className="text-gray-400 dark:text-white/25">On-Time</p>
@@ -348,7 +348,7 @@ export default function DispatcherPortal() {
               </div>
             )}
 
-            {/* ── Truck Board ──────────────────────────────────────── */}
+            {/* -- Truck Board ---------------------------------------- */}
             {activeTab === 'trucks' && (
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {trucks.length === 0 && (

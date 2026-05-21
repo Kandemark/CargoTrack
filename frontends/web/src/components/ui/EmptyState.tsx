@@ -1,4 +1,4 @@
-import { type ElementType } from 'react'
+import React, { type ElementType } from 'react'
 import { Package, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +44,7 @@ export default function EmptyState({
           className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
           style={{ background: 'var(--ct-navy)' }}
         >
-          {action.icon && <action.icon className="w-4 h-4" />}
+          {action.icon && React.createElement(action.icon, { className: 'w-4 h-4' })}
           {action.label}
         </button>
       )}

@@ -172,6 +172,8 @@ function PdfViewer({ doc, onClose }: { doc: ShipDoc; onClose: () => void }) {
           <WebView
             source={{ uri: doc.file_url }}
             style={{ flex: 1, backgroundColor: '#1a1a2e' }}
+            originWhitelist={['https://*', 'http://localhost*', 'http://127.0.0.1*', 'http://10.*', 'http://192.168.*']}
+            javaScriptEnabled={false}
             startInLoadingState
             renderLoading={() => (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111827' }}>

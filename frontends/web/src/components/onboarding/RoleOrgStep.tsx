@@ -17,7 +17,8 @@ interface Props {
 
 const ROLES = [
   { value: 'CLIENT',         label: 'Client',         desc: 'Track shipments and view logistics data' },
-  { value: 'CARRIER',        label: 'Carrier / Driver', desc: 'Log tracking events and manage fleet' },
+  { value: 'CARRIER',        label: 'Carrier / Fleet Owner', desc: 'Manage fleet, drivers, and shipments' },
+  { value: 'DRIVER',         label: 'Driver',          desc: 'Drive trucks, log events, and track deliveries' },
   { value: 'LOGISTICS_MGR',  label: 'Logistics Manager', desc: 'Oversee shipments, routes, and carriers' },
   { value: 'ADMIN',          label: 'Administrator',   desc: 'Full platform control and user management' },
   { value: 'DISPATCHER',     label: 'Dispatcher',      desc: 'Assign and coordinate shipments' },

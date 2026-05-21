@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { apiClient } from '@/lib/api'
 import { useAppTheme } from '@/lib/useAppTheme'
 import ScreenHeader from '@/components/ScreenHeader'
+import RequireRole from '@/components/RequireRole'
 
 interface AnalyticsEntry { total_shipments: number; on_time_rate: number; avg_delay_hours: number; revenue_total: number }
 
@@ -33,8 +34,9 @@ export default function FinanceReportsScreen() {
   async function handleRefresh() { setRefreshing(true); await fetchAll(); setRefreshing(false) }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Reports" backButton />
+    <RequireRole roles={['ADMIN', 'LOGISTICS_MGR', 'FINANCE_OFFICER']}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenHeader title="Reports" backButton />
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         contentContainerStyle={{ padding: spacing.md, paddingBottom: 40 }}
@@ -92,6 +94,7 @@ export default function FinanceReportsScreen() {
         ) : null}
       </ScrollView>
     </View>
+  </RequireRole>
   )
 }
 

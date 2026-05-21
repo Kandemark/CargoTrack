@@ -12,11 +12,12 @@ UserMeSerializer
 
 RegisterSerializer
     Write-only serializer for ``POST /api/auth/register/``.  Restricts
-    self-assignable roles to CLIENT and CARRIER; ADMIN and LOGISTICS_MGR
-    must be granted by an administrator in the Django admin panel.
+    self-assignable roles to CLIENT, CARRIER, and DRIVER; elevated roles
+    must be granted by an administrator.
 """
 from rest_framework import serializers
 from .models import APIKey, AuditEntry, CustomUser, Integration, Notification, Organization
+from .validators import validate_password_strength
 
 
 class UserMeSerializer(serializers.ModelSerializer):
@@ -70,6 +71,26 @@ class UserMeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Phone number must be 20 characters or fewer.")
         return value
 
+class UserPublicProfileSerializer(serializers.ModelSerializer):
+    """
+    Public profile for any user visible to members of the same organization.
+    Excludes email and phone for non-admin viewers.
+    """
+
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    org_name = serializers.CharField(source='organization.name', read_only=True, default=None)
+    org_id = serializers.IntegerField(source='organization.id', read_only=True, default=None)
+
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id', 'username', 'first_name', 'last_name',
+            'role', 'role_display', 'org_id', 'org_name',
+            'date_joined', 'last_login',
+        ]
+        read_only_fields = fields
+
+
 class UserAdminSerializer(serializers.ModelSerializer):
     """
     Serializer for the ADMIN-only user management endpoint.
@@ -108,23 +129,8 @@ class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True, min_length=10)
 
-    @staticmethod
-    def _validate_password_strength(password: str) -> str:
-        errors = []
-        if not any(c.isupper() for c in password):
-            errors.append('one uppercase letter')
-        if not any(c.isdigit() for c in password):
-            errors.append('one digit')
-        if not any(c in '!@#$%^&*()-_=+[]{}|;:,.<>?/~`' for c in password):
-            errors.append('one special character')
-        if errors:
-            raise serializers.ValidationError(
-                f'Password must contain at least {", ".join(errors)}.'
-            )
-        return password
-
     def validate_new_password(self, value):
-        self._validate_password_strength(value)
+        validate_password_strength(value)
         return value
 
 
@@ -183,36 +189,29 @@ class RegisterSerializer(serializers.Serializer):
     """
     Write-only serializer for multi-step account registration.
 
-    All 9 roles are self-assignable. Role-specific profile data is collected.
-    On success, creates a CustomUser with optional Organization and role profile.
+    Self-registration is restricted to CLIENT, CARRIER, and DRIVER roles.
+    Elevated roles (ADMIN, LOGISTICS_MGR, DISPATCHER, etc.) must be assigned
+    by an existing administrator or platform owner.
+
+    Role-specific profile data is collected. On success, creates a CustomUser
+    with optional Organization and role profile.
     """
 
     first_name = serializers.CharField(max_length=150)
     last_name  = serializers.CharField(max_length=150)
     email      = serializers.EmailField()
     phone      = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
-    role       = serializers.ChoiceField(choices=[c[0] for c in CustomUser.Role.choices])
+    role       = serializers.ChoiceField(choices=[
+        (CustomUser.Role.CLIENT, 'Client'),
+        (CustomUser.Role.CARRIER, 'Carrier'),
+        (CustomUser.Role.DRIVER, 'Driver'),
+    ])
     password   = serializers.CharField(
         write_only=True, min_length=10, style={'input_type': 'password'},
     )
     password2  = serializers.CharField(
         write_only=True, style={'input_type': 'password'}, label="Confirm password",
     )
-
-    @staticmethod
-    def _validate_password_strength(password: str) -> str:
-        errors = []
-        if not any(c.isupper() for c in password):
-            errors.append('one uppercase letter')
-        if not any(c.isdigit() for c in password):
-            errors.append('one digit')
-        if not any(c in '!@#$%^&*()-_=+[]{}|;:,.<>?/~`' for c in password):
-            errors.append('one special character')
-        if errors:
-            raise serializers.ValidationError(
-                f'Password must contain at least {", ".join(errors)}.'
-            )
-        return password
 
     # ── Organization (step 2) ──────────────────────────────────────────
     org_name   = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
@@ -250,7 +249,7 @@ class RegisterSerializer(serializers.Serializer):
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({'password2': "Passwords do not match."})
-        self._validate_password_strength(attrs['password'])
+        validate_password_strength(attrs['password'])
         return attrs
 
     def create(self, validated_data):

@@ -4,9 +4,9 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  CheckCircle, XCircle, AlertTriangle, RefreshCw, Plus,
-  Camera, FileSearch, MessageSquare, Shield, Search, X,
-  ChevronDown, ChevronUp, Truck, MapPin, Clock, User, Phone,
+  CheckCircle, AlertTriangle, RefreshCw,
+  MessageSquare, Shield, Search, X,
+  ChevronDown, ChevronUp, Truck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { usePermission } from '@/hooks/usePermission'
@@ -30,11 +30,6 @@ const VERIFY_COLORS: Record<string, string> = {
   DISPUTED: 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300',
 }
 
-const DISPUTE_REASONS = ['DAMAGED', 'SHORTAGE', 'WRONG_GOODS', 'LATE', 'CONDITION', 'DOCUMENTATION', 'OTHER'] as const
-const RESOLUTION_STATUSES = [
-  'OPEN', 'UNDER_REVIEW', 'AWAITING_EVIDENCE',
-  'RESOLVED_REFUND', 'RESOLVED_REDELIVERY', 'RESOLVED_ACCEPTED', 'CLOSED',
-] as const
 
 export default function PODPage() {
   const [pods, setPods] = useState<ProofOfDelivery[]>([])
@@ -45,14 +40,14 @@ export default function PODPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
   const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
+  const [_showCreate, _setShowCreate] = useState(false)
   const [disputePod, setDisputePod] = useState<ProofOfDelivery | null>(null)
   const [resolvePod, setResolvePod] = useState<ProofOfDelivery | null>(null)
   const [saving, setSaving] = useState(false)
   const [actionErr, setActionErr] = useState('')
 
-  const canCapturePOD = usePermission(Permission.SHIPMENTS_UPDATE)
-  const canManagePOD = usePermission(Permission.FINANCE_MANAGE)
+  void usePermission(Permission.SHIPMENTS_UPDATE) /* canCapturePOD — gate future button */
+  void usePermission(Permission.FINANCE_MANAGE) /* canManagePOD — gate future actions */
 
   async function load() {
     setLoading(true); setError(null)

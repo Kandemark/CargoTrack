@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { View, Text, FlatList, RefreshControl, ActivityIndicator, StyleSheet } from 'react-native'
+import { View, Text, FlatList, RefreshControl, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
 import { apiClient } from '@/lib/api'
+import { useAuthStore } from '@/lib/store'
 import { useAppTheme } from '@/lib/useAppTheme'
 import ScreenHeader from '@/components/ScreenHeader'
 import { formatDate } from '@shared/utils/formatters'
@@ -23,10 +25,27 @@ const ACTION_ICONS: Record<string, ActionIcon> = {
 const DEFAULT_ACTION_ICON: ActionIcon = 'ellipse'
 
 export default function AuditScreen() {
+  const user = useAuthStore((s) => s.user)
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const { colors, font, brand, spacing } = useAppTheme()
+
+  if (user && user.role !== 'ADMIN') {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0a1929' }}>
+        <ScreenHeader title="Audit Log" backButton />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <Ionicons name="lock-closed" size={48} color="#64748b" />
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 16 }}>Access Denied</Text>
+          <Text style={{ color: '#93b4d8', fontSize: 14, textAlign: 'center', marginTop: 8 }}>Only administrators can view the audit log.</Text>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 24, backgroundColor: '#f5801e', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
 
   const fetchData = useCallback(async () => {
     try { const res = await apiClient.get<AuditEntry[]>('/api/v1/audit/'); setEntries(res.data) } catch {}

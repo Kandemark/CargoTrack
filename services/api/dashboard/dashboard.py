@@ -18,7 +18,40 @@ class LogisticsDashboard:
     """
     Aggregates KPI data for the dashboard view.
     Encapsulates all QuerySet logic so views stay thin.
+
+    If *org_id* is provided, all queries are scoped to that organisation.
     """
+
+    def __init__(self, org_id: int | None = None):
+        self.org_id = org_id
+
+    def _shipments(self):
+        from shipments.models import Shipment
+        qs = Shipment.objects.all()
+        if self.org_id is not None:
+            qs = qs.filter(client__organization_id=self.org_id)
+        return qs
+
+    def _alerts(self):
+        from alerts.models import Alert
+        qs = Alert.objects.all()
+        if self.org_id is not None:
+            qs = qs.filter(shipment__client__organization_id=self.org_id)
+        return qs
+
+    def _invoices(self):
+        from payments.models import Invoice
+        qs = Invoice.objects.all()
+        if self.org_id is not None:
+            qs = qs.filter(shipment__client__organization_id=self.org_id)
+        return qs
+
+    def _tracking_events(self):
+        from tracking.models import TrackingEvent
+        qs = TrackingEvent.objects.all()
+        if self.org_id is not None:
+            qs = qs.filter(shipment__client__organization_id=self.org_id)
+        return qs
 
     def get_summary_stats(self) -> dict:
         """
@@ -26,14 +59,12 @@ class LogisticsDashboard:
 
         Single-aggregation query replaces 7 separate count/sum/avg calls.
         """
-        from shipments.models import Shipment
-        from alerts.models import Alert
         from django.utils import timezone
-        from payments.models import Invoice
         from carriers.models import RateCard
 
+        shipments = self._shipments()
         # Combine 7 shipment queries into one aggregation
-        agg = Shipment.objects.aggregate(
+        agg = shipments.aggregate(
             total=Count('id'),
             delivered=Count('id', filter=Q(status='DELIVERED')),
             delayed=Count('id', filter=Q(status='DELAYED')),
@@ -53,11 +84,11 @@ class LogisticsDashboard:
         delayed = agg['delayed']
         active = total - delivered
         on_time_rate = round((agg['on_time'] / delivered) * 100, 1) if delivered else 100.0
-        carrier_count = Shipment.objects.values('carrier_name').distinct().count()
+        carrier_count = shipments.values('carrier_name').distinct().count()
 
         # Status breakdown (single group-by query)
         by_status = dict(
-            Shipment.objects.values_list('status')
+            shipments.values_list('status')
             .annotate(c=Count('id'))
             .values_list('status', 'c')
         )
@@ -65,7 +96,7 @@ class LogisticsDashboard:
         # Revenue & cost MTD
         now = timezone.now()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        mtd_invoices = Invoice.objects.filter(
+        mtd_invoices = self._invoices().filter(
             status='PAID', created_at__gte=month_start,
         ).select_related('shipment__route')
         total_revenue_mtd = float(sum(inv.amount_kes for inv in mtd_invoices))
@@ -96,6 +127,7 @@ class LogisticsDashboard:
                 cost = float(inv.amount_kes) * 0.62
             total_cost_mtd += cost
 
+        alerts = self._alerts()
         return {
             'total_shipments': total,
             'active_shipments': active,
@@ -104,11 +136,11 @@ class LogisticsDashboard:
             'on_time_rate': on_time_rate,
             'exception_count': delayed,
             'carrier_count': carrier_count,
-            'open_alerts': Alert.objects.filter(acknowledged=False).count(),
+            'open_alerts': alerts.filter(acknowledged=False).count(),
             'by_status': by_status,
             'avg_delay_risk': round(agg['avg_delay_risk'] or 0, 3),
             'high_risk_count': agg['high_risk_count'],
-            'unacknowledged_alerts': Alert.objects.filter(acknowledged=False).count(),
+            'unacknowledged_alerts': alerts.filter(acknowledged=False).count(),
             'total_revenue_mtd': round(total_revenue_mtd, 2),
             'total_cost_mtd': round(total_cost_mtd, 2),
         }
@@ -124,9 +156,7 @@ class LogisticsDashboard:
             list of dicts with keys: shipment__tracking_number, event_type,
             location, timestamp.
         """
-        from tracking.models import TrackingEvent
-
-        events = TrackingEvent.objects.select_related('shipment', 'recorded_by').order_by('-timestamp')[:limit]
+        events = self._tracking_events().select_related('shipment', 'recorded_by').order_by('-timestamp')[:limit]
         return [
             {
                 'id': event.id,
@@ -158,10 +188,8 @@ class LogisticsDashboard:
             list of dicts with keys: carrier_name, shipment_count, avg_risk,
             on_time (count of on-time deliveries).
         """
-        from shipments.models import Shipment
-
         return list(
-            Shipment.objects
+            self._shipments()
             .values('carrier_name')
             .annotate(
                 shipment_count=Count('id'),

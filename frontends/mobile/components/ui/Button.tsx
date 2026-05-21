@@ -25,20 +25,32 @@ const variantBg: Record<ButtonVariant, string> = {
   danger:    T.color.ui.danger,
 }
 
-const variantBorder: Record<ButtonVariant, string | undefined> = {
-  primary:   undefined,
-  secondary: undefined,
-  outline:   T.light.border.mid,
-  ghost:     undefined,
-  danger:    undefined,
+function resolveBorder(variant: ButtonVariant, isDark: boolean): string | undefined {
+  const mode = isDark ? T.dark : T.light
+  const map: Record<ButtonVariant, string | undefined> = {
+    primary:   undefined,
+    secondary: undefined,
+    outline:   mode.border.mid,
+    ghost:     undefined,
+    danger:    undefined,
+  }
+  return map[variant]
 }
 
-const variantText: Record<ButtonVariant, string> = {
-  primary:   '#FFFFFF',
-  secondary: '#FFFFFF',
-  outline:   T.light.text.primary,
-  ghost:     T.color.brand.primary,
-  danger:    '#FFFFFF',
+function resolveText(variant: ButtonVariant, isDark: boolean): string {
+  const mode = isDark ? T.dark : T.light
+  const map: Record<ButtonVariant, string> = {
+    primary:   '#FFFFFF',
+    secondary: '#FFFFFF',
+    outline:   mode.text.primary,
+    ghost:     isDark ? mode.text.primary : T.color.brand.primary,
+    danger:    '#FFFFFF',
+  }
+  return map[variant]
+}
+
+function resolveAccent(isDark: boolean): string {
+  return isDark ? T.dark.text.primary : T.color.brand.primary
 }
 
 const sizeHeight: Record<ButtonSize, number> = { sm: 36, md: 44, lg: 52 }
@@ -57,12 +69,13 @@ export default function Button({
   onPress,
   style,
 }: ButtonProps) {
-  const { font } = useAppTheme()
+  const { font, isDark } = useAppTheme()
   const isDisabled = disabled || loading
   const isOutlineOrGhost = variant === 'outline' || variant === 'ghost'
-  const spinnerColor = isOutlineOrGhost ? T.color.brand.primary : '#fff'
-  const textColor = isOutlineOrGhost ? (variant === 'ghost' ? T.color.brand.primary : T.light.text.primary) : '#fff'
-  const iconColor = isOutlineOrGhost ? T.color.brand.primary : '#fff'
+  const accentColor = resolveAccent(isDark)
+  const spinnerColor = isOutlineOrGhost ? accentColor : '#fff'
+  const textColor = isOutlineOrGhost ? resolveText(variant, isDark) : '#fff'
+  const iconColor = isOutlineOrGhost ? accentColor : '#fff'
 
   return (
     <TouchableOpacity
@@ -74,7 +87,7 @@ export default function Button({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: variantBg[variant],
-        borderColor: variantBorder[variant],
+        borderColor: resolveBorder(variant, isDark),
         borderWidth: variant === 'outline' ? 1.5 : 0,
         height: sizeHeight[size],
         paddingHorizontal: sizePadding[size],

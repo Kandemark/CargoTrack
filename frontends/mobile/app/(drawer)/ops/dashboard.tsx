@@ -6,6 +6,7 @@ import { useAppTheme } from '@/lib/useAppTheme'
 import ScreenHeader from '@/components/ScreenHeader'
 import AnimatedNumber from '@/components/animated/AnimatedNumber'
 import ScreenWrapper from '@/components/animated/ScreenWrapper'
+import RequireRole from '@/components/RequireRole'
 
 interface DashboardSummary { total_shipments: number; active_shipments: number; delivered_shipments: number; delayed_shipments: number; on_time_rate: number; exception_count: number; carrier_count: number; open_alerts: number }
 interface CarrierPerf { carrier_name: string; shipment_count: number; avg_risk: number; on_time: number }
@@ -35,8 +36,9 @@ export default function OpsDashboardScreen() {
   async function handleRefresh() { setRefreshing(true); await fetchAll(); setRefreshing(false) }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Operations" backButton />
+    <RequireRole roles={['ADMIN', 'LOGISTICS_MGR']}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenHeader title="Operations" backButton />
       <ScreenWrapper entrance="fade">
         <ScrollView
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
@@ -105,6 +107,7 @@ export default function OpsDashboardScreen() {
         </ScrollView>
       </ScreenWrapper>
     </View>
+  </RequireRole>
   )
 }
 

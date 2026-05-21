@@ -17,9 +17,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ShieldCheck, FileText, AlertTriangle, CheckCircle2, Clock,
+  ShieldCheck, AlertTriangle, CheckCircle2,
   Package, RefreshCw, XCircle, ChevronDown, ChevronUp,
-  Stamp, Globe, Banknote, TrendingDown, AlertOctagon, Search,
+  Stamp, Globe, AlertOctagon, Search,
 } from 'lucide-react'
 import { customsApi, type BorderCrossingsResponse } from '@/api/customs'
 import { Link, useLocation } from 'react-router-dom'
@@ -64,7 +64,7 @@ function estimateDuty(weightKg: number): number {
 // ── Stat card ─────────────────────────────────────────────────────────────────
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
-  icon: React.ElementType; label: string; value: string | number; sub?: string; color: string
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; value: string | number; sub?: string; color: string
 }) {
   return (
     <div className="bg-white dark:bg-[#1a2235] rounded-xl p-4 border border-gray-100 dark:border-white/6 shadow-sm">

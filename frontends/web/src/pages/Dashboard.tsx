@@ -1,4 +1,4 @@
-﻿import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -7,7 +7,7 @@ import {
 } from 'recharts'
 import {
   Package, Truck, AlertTriangle, CheckCircle, TrendingUp, TrendingDown,
-  ArrowUpRight, RefreshCw, DollarSign, Zap, Globe, BarChart2, Bell,
+  ArrowUpRight, RefreshCw, DollarSign, Globe, BarChart2,
   Activity, Map, ChevronRight, Clock, Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -20,7 +20,7 @@ import type { DashboardSummary, CarrierPerformance, ShipmentListItem, Alert, Ale
 
 const GlobeScene = lazy(() => import('@/components/3d/GlobeScene'))
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
+// -- Utilities -----------------------------------------------------------------
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -82,18 +82,18 @@ function buildRevenueData(invoices: Invoice[], profitMonthly?: ProfitMonthly[]) 
   }))
 }
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
+// -- Skeleton ------------------------------------------------------------------
 
 function Sk({ className }: { className?: string }) {
   return <div className={cn('rounded bg-gray-100 dark:bg-white/8 animate-pulse', className)} />
 }
 
-// ── KPI card ──────────────────────────────────────────────────────────────────
+// -- KPI card ------------------------------------------------------------------
 
 interface KpiProps {
   label: string; value: number; suffix?: string; sub: string
   trend: 'up' | 'down' | 'flat'; trendLabel: string
-  iconBg: string; icon: React.ElementType; delay: number
+  iconBg: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; delay: number
   prefix?: string; sparkline?: number[]
 }
 
@@ -144,7 +144,7 @@ function KpiCard({ label, value, suffix, sub, trend, trendLabel, iconBg, icon: I
   )
 }
 
-// ── Alert severity config ─────────────────────────────────────────────────────
+// -- Alert severity config -----------------------------------------------------
 
 const SEV_CONFIG: Record<AlertSeverity, { label: string; bg: string; text: string; dot: string }> = {
   LOW:      { label: 'Low',      bg: 'bg-blue-50 dark:bg-blue-900/20',     text: 'text-blue-700 dark:text-blue-300',     dot: 'bg-blue-400'   },
@@ -185,7 +185,7 @@ function buildVolumeData(shipments: ShipmentListItem[], range: Range) {
   return Object.entries(buckets).map(([day, v]) => ({ day, ...v }))
 }
 
-// ── Custom tooltip ────────────────────────────────────────────────────────────
+// -- Custom tooltip ------------------------------------------------------------
 
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null
@@ -203,7 +203,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   )
 }
 
-// ── Live dot ──────────────────────────────────────────────────────────────────
+// -- Live dot ------------------------------------------------------------------
 
 function LiveDot() {
   return (
@@ -214,7 +214,7 @@ function LiveDot() {
   )
 }
 
-// ── Section header ────────────────────────────────────────────────────────────
+// -- Section header ------------------------------------------------------------
 
 function SectionHead({ title, sub, action }: { title: string; sub?: string; action?: React.ReactNode }) {
   return (
@@ -228,7 +228,7 @@ function SectionHead({ title, sub, action }: { title: string; sub?: string; acti
   )
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+// -- Main ---------------------------------------------------------------------
 
 export default function Dashboard() {
   const [summary,   setSummary]   = useState<DashboardSummary | null>(null)
@@ -298,7 +298,7 @@ export default function Dashboard() {
 
   const carrierChartData = useMemo(() =>
     carriers.map((c) => ({
-      name: c.carrier_name.length > 14 ? c.carrier_name.slice(0, 14) + '…' : c.carrier_name,
+      name: c.carrier_name.length > 14 ? c.carrier_name.slice(0, 14) + '�' : c.carrier_name,
       fullName: c.carrier_name,
       onTime: c.shipment_count > 0 ? Math.round((c.on_time / c.shipment_count) * 100) : 0,
       risk: Math.round(c.avg_risk * 100),
@@ -354,7 +354,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-5 pb-4">
 
-      {/* ── Page header ──────────────────────────────────────────────────────── */}
+      {/* -- Page header -------------------------------------------------------- */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
         className="flex items-start justify-between gap-4">
         <div>
@@ -377,7 +377,7 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* ── Hero: globe + quick stats ─────────────────────────────────────────── */}
+      {/* -- Hero: globe + quick stats ------------------------------------------- */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.45 }}
         className="relative rounded-2xl overflow-hidden border border-white/0 shadow-2xl shadow-[#0f2d5e]/20"
         style={{ background: 'linear-gradient(135deg, #0f2d5e 0%, #0a1e40 60%, #071428 100%)' }}>
@@ -416,7 +416,7 @@ export default function Dashboard() {
                 <motion.div key={label} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + i * 0.07 }}
                   className="bg-white/6 hover:bg-white/10 backdrop-blur-sm rounded-xl px-3 py-3 border border-white/5 hover:border-white/10 transition-all duration-200">
                   <Icon className="w-4 h-4 text-white/50 mb-1.5" />
-                  <p className="text-xl font-bold text-white tabular-nums">{loading ? '—' : value.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-white tabular-nums">{loading ? '�' : value.toLocaleString()}</p>
                   <p className="text-[10px] text-white/40 mt-0.5 uppercase tracking-wide">{label}</p>
                 </motion.div>
               ))}
@@ -441,14 +441,14 @@ export default function Dashboard() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-400" />
                 </span>
-                <span className="text-[10px] text-white/70 font-medium">Nairobi Hub · Live</span>
+                <span className="text-[10px] text-white/70 font-medium">Nairobi Hub � Live</span>
               </div>
             </div>
           </div>
         </div>
       </motion.div>
 
-      {/* ── KPI row (6 cards) ─────────────────────────────────────────────────── */}
+      {/* -- KPI row (6 cards) --------------------------------------------------- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
         {loading || !summary ? (
           Array.from({ length: 6 }).map((_, i) => (
@@ -469,7 +469,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── Alert severity pills ──────────────────────────────────────────────── */}
+      {/* -- Alert severity pills ------------------------------------------------ */}
       {!loading && (
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
           className="flex flex-wrap gap-2.5">
@@ -492,7 +492,7 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      {/* ── Middle row: charts ────────────────────────────────────────────────── */}
+      {/* -- Middle row: charts -------------------------------------------------- */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
 
         {/* Revenue & Volume Area Chart */}
@@ -500,7 +500,7 @@ export default function Dashboard() {
           className="xl:col-span-8 bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-5 shadow-card">
           <SectionHead
             title="Revenue Overview"
-            sub="Paid invoices vs estimated expenses — 12-month rolling"
+            sub="Paid invoices vs estimated expenses � 12-month rolling"
             action={
               <div className="flex gap-1">
                 {RANGES.map((r) => (
@@ -529,7 +529,7 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={(v) => fmtKES(v)} />
-              <Tooltip content={<ChartTooltip />} formatter={(v: number) => fmtKES(v)} />
+              <Tooltip content={<ChartTooltip />} formatter={((v: number) => fmtKES(v)) as any} />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
               <Area type="monotone" dataKey="income" name="Income" stroke="#0f2d5e" fill="url(#gIncome)" strokeWidth={2.5} dot={false} />
               <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f5801e" fill="url(#gExpenses)" strokeWidth={2} dot={false} />
@@ -548,7 +548,7 @@ export default function Dashboard() {
                   <Pie data={statusBreakdown} cx="50%" cy="50%" innerRadius={52} outerRadius={78} paddingAngle={2} dataKey="value">
                     {statusBreakdown.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number, n: string) => [v, n]} />
+                  <Tooltip formatter={((v: number, n: string) => [v, n]) as any} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="w-full space-y-1.5">
@@ -567,7 +567,7 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {/* ── Shipment volume + on-time + fleet ─────────────────────────────────── */}
+      {/* -- Shipment volume + on-time + fleet ----------------------------------- */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
 
         {/* Shipment volume */}
@@ -644,7 +644,7 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {/* ── Bottom row: risk + carrier + events ───────────────────────────────── */}
+      {/* -- Bottom row: risk + carrier + events --------------------------------- */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
         {/* Delay risk heatmap */}
@@ -704,7 +704,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={80} />
-                <Tooltip content={<ChartTooltip />} formatter={(v: number) => `${v}%`} />
+                <Tooltip content={<ChartTooltip />} formatter={((v: number) => `${v}%`) as any} />
                 <Bar dataKey="onTime" name="On-Time %" fill="#0f2d5e" radius={[0, 3, 3, 0]}>
                   {carrierChartData.map((_, i) => <Cell key={i} fill={i % 2 === 0 ? '#0f2d5e' : '#1e3a5f'} />)}
                 </Bar>
@@ -764,7 +764,7 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {/* ── Recent critical alerts ─────────────────────────────────────────────── */}
+      {/* -- Recent critical alerts ----------------------------------------------- */}
       {!loading && alerts.filter(a => a.severity === 'CRITICAL' || a.severity === 'HIGH').length > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }}
           className="bg-white dark:bg-[#1a2235] rounded-2xl border border-red-100 dark:border-red-900/30 overflow-hidden shadow-card">
@@ -794,7 +794,7 @@ export default function Dashboard() {
                     alert.severity === 'CRITICAL' ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400')}>
                     {alert.severity}
                   </span>
-                  <span className="text-xs text-gray-300 dark:text-white/20">{timeAgo(alert.created_at)}</span>
+                  <span className="text-xs text-gray-300 dark:text-white/20">{timeAgo(alert.created_at ?? '')}</span>
                 </div>
               </motion.div>
             ))}
@@ -802,7 +802,7 @@ export default function Dashboard() {
         </motion.div>
       )}
 
-      {/* ── Quick actions ──────────────────────────────────────────────────── */}
+      {/* -- Quick actions ---------------------------------------------------- */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.70 }}
         className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[

@@ -33,8 +33,8 @@ export const EA_COUNTRY_META: Record<EACountry, { label: string; corridor: strin
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export type UserRole =
-  | 'ADMIN' | 'LOGISTICS_MGR' | 'CLIENT' | 'CARRIER'
-  | 'DISPATCHER' | 'CUSTOMS_BROKER' | 'WAREHOUSE_MGR'
+  | 'PLATFORM_OWNER' | 'ADMIN' | 'LOGISTICS_MGR' | 'CLIENT' | 'CARRIER'
+  | 'DRIVER' | 'DISPATCHER' | 'CUSTOMS_BROKER' | 'WAREHOUSE_MGR'
   | 'PORT_AGENT' | 'FINANCE_OFFICER'
 
 export interface User {
@@ -43,10 +43,12 @@ export interface User {
   username: string
   first_name: string
   last_name: string
+  display_name?: string
   role: UserRole
   role_display: string
   org_id: number | null
   org_name: string | null
+  company?: string | null
   country: EACountry | null
   phone: string
   onboarding_completed: boolean
@@ -105,6 +107,10 @@ export interface ShipmentListItem {
   weight_kg: number
   scheduled_departure: string
   scheduled_arrival: string
+  actual_departure?: string | null
+  actual_arrival?: string | null
+  assigned_driver?: number | null
+  assigned_truck?: number | null
   delay_risk_score: number
 }
 
@@ -149,11 +155,13 @@ export interface Alert {
   id: number
   shipment: number
   shipment_tracking: string
+  title?: string
   message: string
   risk_score: number
   severity: AlertSeverity
   severity_display: string
   sent_at: string
+  created_at?: string
   acknowledged: boolean
 }
 
@@ -182,10 +190,12 @@ export interface CarrierPerformance {
 // ─── Role constants ───────────────────────────────────────────────────────────
 
 export const UserRole = {
+  PLATFORM_OWNER: 'PLATFORM_OWNER',
   ADMIN:          'ADMIN',
   LOGISTICS_MGR:  'LOGISTICS_MGR',
   CLIENT:         'CLIENT',
   CARRIER:        'CARRIER',
+  DRIVER:         'DRIVER',
   DISPATCHER:     'DISPATCHER',
   CUSTOMS_BROKER: 'CUSTOMS_BROKER',
   WAREHOUSE_MGR:  'WAREHOUSE_MGR',
@@ -203,7 +213,7 @@ export interface DashboardResponse {
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
-export type InvoiceStatus   = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED'
+export type InvoiceStatus   = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'OVERDUE'
 export type PaymentProvider = 'MPESA' | 'AIRTEL' | 'MTN' | 'FLUTTERWAVE' | 'STRIPE' | 'PESAPAL'
 export type PaymentStatus   = 'PENDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
 export type Currency        = 'KES' | 'USD' | 'UGX' | 'RWF' | 'TZS'
@@ -303,8 +313,12 @@ export interface LastMessage {
 export interface Conversation {
   id: number
   subject: string
+  description: string
   shipment: number | null
   is_group: boolean
+  is_community: boolean
+  is_encrypted: boolean
+  announcement: string
   participants: number[]
   participants_display: string
   last_message: LastMessage | null
@@ -326,8 +340,16 @@ export interface ChatMessage {
   sender_role: string
   content: string
   attachment_url: string
+  attachment_type: 'IMAGE' | 'AUDIO' | 'DOCUMENT' | 'VIDEO' | ''
+  file_size: number
   is_read: boolean
   is_system: boolean
+  is_edited: boolean
+  edited_at: string | null
+  is_deleted: boolean
+  deleted_at: string | null
+  is_encrypted: boolean
+  encryption_metadata: Record<string, unknown>
   created_at: string
 }
 
@@ -351,7 +373,7 @@ export type CargoType =
 export type ListingStatus =
   | 'OPEN' | 'IN_PROGRESS' | 'AWARDED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED'
 
-export type BidStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN'
+export type BidStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN' | 'COUNTERED'
 
 export interface TruckInfo {
   id: number

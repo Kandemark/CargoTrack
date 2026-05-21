@@ -48,7 +48,7 @@ export default function RegisterScreen() {
   const [fieldErrors, setFE] = useState<FieldErrors>({})
   const [generalError, setGE] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const { colors, font, spacing, radius, isDark } = useAppTheme()
+  const { colors, font, spacing, radius } = useAppTheme()
   const L = T.light
   const insets = useSafeAreaInsets()
 
@@ -170,15 +170,15 @@ export default function RegisterScreen() {
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: isDark ? 'rgba(127,29,29,0.2)' : '#fef2f2',
+              backgroundColor: '#fef2f2',
               borderWidth: StyleSheet.hairlineWidth,
-              borderColor: isDark ? '#991b1b' : '#fecaca',
+              borderColor: '#fecaca',
               borderRadius: radius.md,
               padding: spacing.md,
               marginBottom: 20,
             }}>
               <Ionicons name="alert-circle-outline" size={16} color="#b91c1c" style={{ marginRight: 8 }} />
-              <Text style={{ flex: 1, fontSize: font.size.sm, color: isDark ? '#fecaca' : '#b91c1c', lineHeight: 18 }}>
+              <Text style={{ flex: 1, fontSize: font.size.sm, color: '#b91c1c', lineHeight: 18 }}>
                 {generalError}
               </Text>
             </View>
@@ -266,9 +266,7 @@ export default function RegisterScreen() {
                       borderColor: selected
                         ? '#0f2d5e'
                         : L.border.light,
-                      backgroundColor: selected
-                        ? (isDark ? 'rgba(30,58,138,0.2)' : '#eff6ff')
-                        : L.surface.muted,
+                      backgroundColor: selected ? '#eff6ff' : L.surface.muted,
                     }}
                   >
                     <Ionicons
@@ -281,9 +279,7 @@ export default function RegisterScreen() {
                       fontSize: font.size.xs,
                       fontWeight: font.weight.bold,
                       textAlign: 'center',
-                      color: selected
-                        ? (isDark ? '#93c5fd' : '#0f2d5e')
-                        : L.text.secondary,
+                      color: selected ? '#0f2d5e' : L.text.secondary,
                     }}>
                       {opt.label}
                     </Text>
@@ -292,9 +288,7 @@ export default function RegisterScreen() {
                       textAlign: 'center',
                       marginTop: 2,
                       lineHeight: 13,
-                      color: selected
-                        ? (isDark ? '#60a5fa' : '#3b82f6')
-                        : L.text.faint,
+                      color: selected ? '#3b82f6' : L.text.faint,
                     }}>
                       {opt.sub}
                     </Text>
@@ -339,7 +333,7 @@ export default function RegisterScreen() {
           >
             <Text style={{ fontSize: font.size.base, color: L.text.muted }}>
               Already have an account?{' '}
-              <Text style={{ color: isDark ? '#f5801e' : '#0f2d5e', fontWeight: font.weight.bold }}>Sign in</Text>
+              <Text style={{ color: '#0f2d5e', fontWeight: font.weight.bold }}>Sign in</Text>
             </Text>
           </TouchableOpacity>
 

@@ -1,7 +1,7 @@
 [package]
 name = "gps-ingest"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "CargoTrack GPS telematics ingestion service — MQTT → Kafka bridge with geofencing"
 
 [dependencies]

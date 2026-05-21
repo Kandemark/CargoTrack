@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -15,14 +15,17 @@ import (
 func main() {
 	cfg := LoadConfig()
 
-	if cfg.LogJSON {
-		log.SetFlags(0)
+	var handler slog.Handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	if !cfg.LogJSON {
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
-	log.SetOutput(os.Stdout)
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 
-	log.Println("[INFO] CargoTrack Webhook Dispatcher starting")
-	log.Printf("[INFO] Kafka brokers: %s", cfg.KafkaBrokers)
-	log.Printf("[INFO] Kafka topics: %v", cfg.KafkaTopics)
+	logger.Info("CargoTrack Webhook Dispatcher starting",
+		"kafka_brokers", cfg.KafkaBrokers,
+		"kafka_topics", cfg.KafkaTopics,
+	)
 
 	// HMAC-SHA256 signer
 	signer := dispatcher.NewSigner(cfg.WebhookSecretKey)
@@ -56,7 +59,8 @@ func main() {
 	defer cancel()
 
 	if err := kafkaConsumer.Run(ctx); err != nil {
-		log.Fatalf("[FATAL] %v", err)
+		logger.Error("kafka consumer fatal error", "error", err)
+		os.Exit(1)
 	}
 }
 

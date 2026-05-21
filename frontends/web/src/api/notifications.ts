@@ -1,5 +1,4 @@
 import apiClient from './client'
-import type { PaginatedResponse } from '@/types'
 
 export interface Notification {
   id: number
@@ -14,6 +13,26 @@ export interface Notification {
   created_at: string
 }
 
+export interface NotificationPreferences {
+  channels: {
+    in_app: boolean
+    email: boolean
+    sms: boolean
+    push: boolean
+  }
+  per_type: Record<string, {
+    in_app: boolean
+    email: boolean
+    sms: boolean
+    push: boolean
+  }>
+  digest_enabled: boolean
+  digest_frequency: 'instant' | 'hourly' | 'daily'
+  quiet_hours_enabled: boolean
+  quiet_hours_start: string
+  quiet_hours_end: string
+}
+
 export const notificationsApi = {
   list: (params?: { type?: string; unread?: string }) =>
     apiClient.get<Notification[]>('/api/v1/notifications/', { params }),
@@ -26,4 +45,10 @@ export const notificationsApi = {
 
   dismiss: (id: number) =>
     apiClient.delete(`/api/v1/notifications/${id}/`),
+
+  getPreferences: () =>
+    apiClient.get<NotificationPreferences>('/api/v1/notifications/preferences/'),
+
+  updatePreferences: (data: Partial<NotificationPreferences>) =>
+    apiClient.patch<NotificationPreferences>('/api/v1/notifications/preferences/', data),
 }

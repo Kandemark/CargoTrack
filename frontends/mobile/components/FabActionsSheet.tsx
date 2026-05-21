@@ -11,10 +11,10 @@ interface Action {
 }
 
 const actions: Action[] = [
-  { icon: 'navigate', label: 'Track Map', color: '#2563EB', route: '/(tabs)/track' },
+  { icon: 'navigate', label: 'Track Map', color: '#2563EB', route: '/live-map' },
   { icon: 'add-circle-outline', label: 'Log Event', color: '#16A34A', route: '/shipment/log-event' },
-  { icon: 'cloud-upload-outline', label: 'Upload Document', color: '#7C3AED', route: '/(tabs)/documents' },
-  { icon: 'scan-outline', label: 'Quick Scan', color: '#F59E0B', route: '/(tabs)/payments' },
+  { icon: 'cloud-upload-outline', label: 'Upload Document', color: '#7C3AED', route: '/documents' },
+  { icon: 'card-outline', label: 'Pay Invoice', color: '#F59E0B', route: '/payments' },
 ]
 
 interface FabActionsSheetProps {

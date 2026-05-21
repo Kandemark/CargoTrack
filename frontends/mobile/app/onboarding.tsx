@@ -8,6 +8,7 @@ import * as Notifications from 'expo-notifications'
 import { useOnboardingStore, useAuthStore } from '@/lib/store'
 import { Button } from '@/components/ui'
 import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 
 const { width: SW } = Dimensions.get('window')
 
@@ -15,8 +16,8 @@ const SLIDES = [
   {
     key: 'track',
     icon: 'navigate' as const,
-    iconBg: '#1a3a6b',
-    accent: '#f5801e',
+    iconBg: T.color.brand.secondary,
+    accent: T.color.brand.accent,
     title: 'Know where every\nshipment is',
     subtitle: 'Real-time tracking across the entire\nEast Africa corridor — Mombasa to Kigali,\nNairobi to Kampala, at a glance.',
     cta: 'Next',
@@ -24,8 +25,8 @@ const SLIDES = [
   {
     key: 'fleet',
     icon: 'cube' as const,
-    iconBg: '#f5801e',
-    accent: '#0f2d5e',
+    iconBg: T.color.brand.accent,
+    accent: T.color.brand.primary,
     title: 'Your whole fleet,\none view',
     subtitle: 'AI-powered delay risk scoring, carrier\nperformance analytics, and instant alerts\nwhen something needs your attention.',
     cta: 'Next',
@@ -53,7 +54,7 @@ function Dots({ count, active }: { count: number; active: number }) {
             height: 6,
             borderRadius: 9999,
             width: i === active ? 20 : 6,
-            backgroundColor: i === active ? '#f5801e' : 'rgba(255,255,255,0.25)',
+            backgroundColor: i === active ? T.color.brand.accent : 'rgba(255,255,255,0.25)',
           }}
         />
       ))}
@@ -109,12 +110,12 @@ function PermissionCard({
       <TouchableOpacity
         onPress={onAllow}
         style={{
-          backgroundColor: '#f5801e',
+          backgroundColor: T.color.brand.accent,
           borderRadius: radius.lg,
           paddingVertical: 16,
           alignItems: 'center',
           marginBottom: 12,
-          shadowColor: '#f5801e',
+          shadowColor: T.color.brand.accent,
           shadowOpacity: 0.4,
           shadowOffset: { width: 0, height: 4 },
           shadowRadius: 12,
@@ -148,7 +149,7 @@ export default function OnboardingScreen() {
 
   async function finish() {
     await markOnboarded()
-    router.replace((isAuthenticated ? '/(tabs)' : '/(auth)/login') as any)
+    router.replace((isAuthenticated ? '/(drawer)' : '/(auth)/login') as any)
   }
 
   function nextSlide() {
@@ -171,7 +172,7 @@ export default function OnboardingScreen() {
   const slide = SLIDES[slideIdx]
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0f2d5e' }}>
+    <View style={{ flex: 1, backgroundColor: T.color.brand.primary }}>
       <StatusBar barStyle="light-content" />
       <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
         {phase === 'slides' && (
@@ -256,11 +257,11 @@ export default function OnboardingScreen() {
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
-                    backgroundColor: '#f5801e',
+                    backgroundColor: T.color.brand.accent,
                     paddingHorizontal: 24,
                     paddingVertical: 14,
                     borderRadius: radius.lg,
-                    shadowColor: '#f5801e',
+                    shadowColor: T.color.brand.accent,
                     shadowOpacity: 0.35,
                     shadowOffset: { width: 0, height: 4 },
                     shadowRadius: 12,

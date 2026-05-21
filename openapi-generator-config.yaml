@@ -49,7 +49,7 @@ sortModelPropertiesByRequiredFlag: true
 sortParamsByRequiredFlag: true
 
 # ── TypeScript / Fetch ───────────────────────────────────────────────────────
-# Used by apps/web (React SPA) and apps/mobile (Expo)
+# Used by frontends/web (React SPA) and frontends/mobile (Expo)
 typescript-fetch:
   npmName: "@cargotrack/api-client"
   npmVersion: "1.0.0"
@@ -88,7 +88,7 @@ java:
   invokerPackage: io.cargotrack.client
 
 # ── Kotlin ───────────────────────────────────────────────────────────────────
-# Used by apps/mobile (Kotlin native)
+# Used by frontends/mobile (Kotlin native)
 kotlin:
   groupId: io.cargotrack
   artifactId: cargotrack-sdk

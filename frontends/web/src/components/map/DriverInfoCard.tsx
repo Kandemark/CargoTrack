@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Truck, Clock, MapPin, Navigation, ChevronRight, X, Phone } from 'lucide-react'
+import { Truck, Clock, Navigation, ChevronRight, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { ShipmentListItem } from '@/types'
 

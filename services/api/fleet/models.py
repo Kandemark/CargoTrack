@@ -68,6 +68,12 @@ class Truck(models.Model):
 
     class Meta:
         ordering = ['fleet_id']
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["organization"]),
+            models.Index(fields=["fleet_id"]),
+            models.Index(fields=["assigned_driver"]),
+        ]
 
     def __str__(self):
         return f'{self.fleet_id} — {self.year} {self.make} {self.model}'
@@ -134,6 +140,12 @@ class Driver(models.Model):
 
     class Meta:
         ordering = ['driver_id']
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["organization"]),
+            models.Index(fields=["driver_id"]),
+            models.Index(fields=["rating"]),
+        ]
 
     @property
     def full_name(self):
@@ -224,6 +236,10 @@ class DriverExpense(models.Model):
         ordering = ['-captured_at']
         verbose_name = 'Driver Expense'
         verbose_name_plural = 'Driver Expenses'
+        indexes = [
+            models.Index(fields=["driver", "captured_at"]),
+            models.Index(fields=["shipment"]),
+        ]
 
     def __str__(self):
         try:

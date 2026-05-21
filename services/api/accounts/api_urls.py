@@ -30,5 +30,8 @@ urlpatterns = [
     path('organizations/',           api_views.OrganizationListCreateView.as_view(),  name='v1-organizations'),
     path('organizations/join/',      api_views.OrganizationJoinView.as_view(),        name='v1-org-join'),
     path('organizations/<int:pk>/',  api_views.OrganizationDetailView.as_view(),      name='v1-org-detail'),
+    path('users/<int:pk>/profile/', api_views.UserPublicProfileView.as_view(), name='v1-user-public-profile'),
+    path('users/<int:id>/impersonate/', api_views.ImpersonateUserView.as_view(), name='v1-user-impersonate'),
+    path('impersonate/stop/',           api_views.StopImpersonationView.as_view(), name='v1-impersonate-stop'),
     path('', include(router.urls)),
 ]

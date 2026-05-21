@@ -64,6 +64,7 @@ interface AlertState {
   alerts: Alert[]
   unreadCount: number
   isLoading: boolean
+  error: string | null
   setAlerts: (alerts: Alert[]) => void
   acknowledgeLocal: (id: number) => void
   fetchAlerts: (client: AxiosInstance) => Promise<void>
@@ -73,6 +74,7 @@ export const useAlertStore = create<AlertState>()((set) => ({
   alerts: [],
   unreadCount: 0,
   isLoading: false,
+  error: null,
 
   setAlerts: (alerts) =>
     set({ alerts, unreadCount: alerts.filter((a) => !a.acknowledged).length }),
@@ -86,13 +88,13 @@ export const useAlertStore = create<AlertState>()((set) => ({
     }),
 
   fetchAlerts: async (client) => {
-    set({ isLoading: true })
+    set({ isLoading: true, error: null })
     try {
       const res = await client.get<{ count: number; results: Alert[] }>('/api/v1/alerts/')
       const alerts: Alert[] = res.data.results ?? []
       set({ alerts, unreadCount: alerts.filter((a) => !a.acknowledged).length, isLoading: false })
     } catch {
-      set({ isLoading: false })
+      set({ isLoading: false, error: 'Failed to load alerts' })
     }
   },
 }))
@@ -111,14 +113,27 @@ export const useOnboardingStore = create<OnboardingState>()((set) => ({
   hasOnboarded: null,
 
   checkOnboarded: async () => {
-    const val = await AsyncStorage.getItem(ONBOARD_KEY)
-    const done = val === 'true'
-    set({ hasOnboarded: done })
-    return done
+    try {
+      const val = await AsyncStorage.getItem(ONBOARD_KEY)
+      const done = val === 'true'
+      set({ hasOnboarded: done })
+      return done
+    } catch {
+      // AsyncStorage may be unavailable on first launch or after storage
+      // corruption. Default to false (show onboarding) rather than leaving
+      // hasOnboarded as null, which would block navigation.
+      set({ hasOnboarded: false })
+      return false
+    }
   },
 
   markOnboarded: async () => {
-    await AsyncStorage.setItem(ONBOARD_KEY, 'true')
+    try {
+      await AsyncStorage.setItem(ONBOARD_KEY, 'true')
+    } catch {
+      // If the write fails we still mark the in-memory flag so the user
+      // can proceed past onboarding for this session.
+    }
     set({ hasOnboarded: true })
   },
 }))

@@ -9,11 +9,14 @@ OOP:
 import csv
 import datetime
 import io
+import logging
 import random
 import string
 
-from django.db import models
-from django.db.models import Avg, Count, Sum, Q, F
+from django.db import models, DatabaseError
+from django.db.models import Avg, Count, Sum, Q, F, Value
+from django.db.models.fields import FloatField
+from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
@@ -39,6 +42,8 @@ from .serializers import (
     ShipmentSerializer,
     ShipmentStatusSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ── DateRangeFilterMixin ──────────────────────────────────────────────────────
@@ -125,7 +130,7 @@ class ShipmentListCreateAPIView(OrgScopedQueryset, generics.ListCreateAPIView):
         return Response(out.data, status=status.HTTP_201_CREATED)
 
 
-class ShipmentDetailAPIView(generics.RetrieveUpdateAPIView):
+class ShipmentDetailAPIView(OrgScopedQueryset, generics.RetrieveUpdateAPIView):
     """
     GET   /shipments/<pk>/  — full shipment detail.
     PATCH /shipments/<pk>/  — update the status field only.
@@ -136,6 +141,9 @@ class ShipmentDetailAPIView(generics.RetrieveUpdateAPIView):
     ).all()
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, CanViewShipments]
     http_method_names = ["get", "patch", "head", "options"]
+
+    def get_queryset(self):
+        return self.scope_by_org(super().get_queryset())
 
     def get_serializer_class(self):
         if self.request.method == "PATCH":
@@ -263,7 +271,7 @@ class ShipmentDocumentListCreateAPIView(generics.ListCreateAPIView):
         serializer.save(shipment=shipment, uploaded_by=self.request.user)
 
 
-class ComplianceDocListCreateView(generics.ListCreateAPIView):
+class ComplianceDocListCreateView(OrgScopedQueryset, generics.ListCreateAPIView):
     """
     GET  /api/v1/compliance/                   — list all compliance docs.
     POST /api/v1/compliance/                   — create a compliance doc.
@@ -274,20 +282,25 @@ class ComplianceDocListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         shipment_pk = self.kwargs.get('pk')
+        base = ComplianceDoc.objects.select_related('shipment')
         if shipment_pk:
-            return ComplianceDoc.objects.filter(shipment_id=shipment_pk).select_related('shipment')
-        qs = ComplianceDoc.objects.select_related('shipment').all()
+            qs = base.filter(shipment_id=shipment_pk)
+        else:
+            qs = base.all()
         status_filter = self.request.query_params.get('status')
         if status_filter and status_filter != 'ALL':
             qs = qs.filter(status=status_filter)
-        return qs
+        return self.scope_by_org(qs)
 
 
-class ComplianceDocDetailView(generics.RetrieveUpdateDestroyAPIView):
+class ComplianceDocDetailView(OrgScopedQueryset, generics.RetrieveUpdateDestroyAPIView):
     """GET/PATCH/DELETE /api/v1/compliance/<pk>/"""
     serializer_class   = ComplianceDocSerializer
     permission_classes = [permissions.IsAuthenticated, CanViewDocuments]
     queryset = ComplianceDoc.objects.select_related('shipment').all()
+
+    def get_queryset(self):
+        return self.scope_by_org(super().get_queryset())
 
 
 class SLAListView(APIView):
@@ -301,9 +314,10 @@ class SLAListView(APIView):
         from django.utils import timezone
         import datetime
 
-        shipments = Shipment.objects.select_related('route').filter(
-            status__in=['IN_TRANSIT', 'DELIVERED', 'DELAYED', 'CUSTOMS']
-        ).order_by('-scheduled_arrival')[:200]
+        shipments = _scope_shipments(request).filter(
+            status__in=['IN_TRANSIT', 'DELIVERED', 'DELAYED', 'CUSTOMS'],
+            route__isnull=False,
+        ).select_related('route').order_by('-scheduled_arrival')[:200]
 
         now = timezone.now()
         results = []
@@ -362,9 +376,41 @@ class SLAListView(APIView):
         })
 
 
+def _get_org_client_ids(request):
+    """Return the list of client user IDs in the current user's organisation, or None if PLATFORM_OWNER (no filter)."""
+    from accounts.models import CustomUser
+    from domains._authz import get_user_role
+    if get_user_role(request.user) == 'PLATFORM_OWNER':
+        return None
+    org_id = getattr(request.user, 'organization_id', None)
+    if not org_id:
+        return []
+    return list(CustomUser.objects.filter(organization_id=org_id).values_list('id', flat=True))
+
+
+def _scope_shipments(request):
+    """Return a Shipment queryset scoped to the user's organisation."""
+    client_ids = _get_org_client_ids(request)
+    qs = Shipment.objects.all()
+    if client_ids is not None:
+        qs = qs.filter(client_id__in=client_ids) if client_ids else qs.none()
+    return qs
+
+
+def _scope_invoices(request):
+    """Return an Invoice queryset scoped to the user's organisation via shipment.client."""
+    from payments.models import Invoice
+    client_ids = _get_org_client_ids(request)
+    qs = Invoice.objects.all()
+    if client_ids is not None:
+        qs = qs.filter(shipment__client_id__in=client_ids) if client_ids else qs.none()
+    return qs
+
+
 class AnalyticsView(AsyncCacheMixin, APIView):
     """
     GET /api/v1/analytics/ — aggregated analytics for dashboards.
+    Org-scoped: non-PLATFORM_OWNER users only see their organisation's data.
     """
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
     cache_ttl = 120  # 2-min cache
@@ -377,15 +423,16 @@ class AnalyticsView(AsyncCacheMixin, APIView):
         now = timezone.now()
         start_12m = now - datetime.timedelta(days=365)
 
+        shipments = _scope_shipments(request)
+
         # Shipment status counts
         status_counts = dict(
-            Shipment.objects.values_list('status').annotate(c=Count('id'))
+            shipments.values_list('status').annotate(c=Count('id'))
         )
 
         # Carrier performance
-        from django.db.models import FloatField
         carrier_stats = list(
-            Shipment.objects.values('carrier_name')
+            shipments.values('carrier_name')
             .annotate(
                 total=Count('id'),
                 delivered=Count('id', filter=models.Q(status='DELIVERED')),
@@ -396,12 +443,14 @@ class AnalyticsView(AsyncCacheMixin, APIView):
         for c in carrier_stats:
             c['on_time_rate'] = round(c['delivered'] / c['total'] * 100, 1) if c['total'] else 100
 
-        # Monthly revenue (single query: group by month)
+        # Monthly revenue
         from payments.models import Invoice
         from django.db.models.functions import TruncMonth
 
+        invoices = _scope_invoices(request)
+
         revenue_by_month = dict(
-            Invoice.objects.filter(
+            invoices.filter(
                 created_at__gte=start_12m,
                 status='PAID',
             )
@@ -410,9 +459,9 @@ class AnalyticsView(AsyncCacheMixin, APIView):
             .annotate(total=Sum('amount_kes'))
             .values_list('month', 'total')
         )
-        # Risk by month (single query)
+        # Risk by month
         risk_by_month = dict(
-            Shipment.objects.filter(created_at__gte=start_12m)
+            shipments.filter(created_at__gte=start_12m)
             .annotate(month=TruncMonth('created_at'))
             .values('month')
             .annotate(avg=Avg('delay_risk_score'))
@@ -435,15 +484,16 @@ class AnalyticsView(AsyncCacheMixin, APIView):
                 'avg_risk': round(float(risk_by_month.get(month_start.date(), 0)) * 100, 1),
             })
 
-        total_shipments = status_counts.get('PENDING', 0) + status_counts.get('IN_TRANSIT', 0) + status_counts.get('CUSTOMS', 0) + status_counts.get('DELIVERED', 0) + status_counts.get('DELAYED', 0)
+        total_shipments = sum(status_counts.values())
         delivered = status_counts.get('DELIVERED', 0)
         on_time_rate = round(delivered / total_shipments * 100, 1) if total_shipments else 0
+        avg_risk = round(float(shipments.aggregate(a=Avg('delay_risk_score'))['a'] or 0) * 100, 1)
 
         return Response({
             'total_shipments': total_shipments,
             'status_counts': status_counts,
             'on_time_rate': on_time_rate,
-            'avg_risk': round(float(Shipment.objects.aggregate(a=Avg('delay_risk_score'))['a'] or 0) * 100, 1),
+            'avg_risk': avg_risk,
             'carrier_performance': carrier_stats,
             'monthly_revenue': monthly_revenue,
             'monthly_risk': monthly_risk,
@@ -467,9 +517,10 @@ class CarbonView(AsyncCacheMixin, APIView):
 
         now = timezone.now()
 
-        shipments = Shipment.objects.select_related('route').filter(
+        shipments = _scope_shipments(request).filter(
             status__in=['DELIVERED', 'IN_TRANSIT'],
-        )
+            route__isnull=False,
+        ).select_related('route')
 
         total_kg = 0.0
         carrier_emissions: dict = {}
@@ -535,7 +586,7 @@ class PublicTrackingAPIView(AsyncCacheMixin, APIView):
     permission_classes = [permissions.AllowAny]
     cache_ttl = 60  # 1-min cache
 
-    def get(self, request, tracking_number=None):
+    def get(self, request, tracking_number=None, **kwargs):
         shipment = get_object_or_404(
             Shipment.objects.select_related('route'),
             tracking_number=tracking_number.upper(),
@@ -578,8 +629,11 @@ class ProfitAnalyticsView(AsyncCacheMixin, APIView, DateRangeFilterMixin):
 
         now = timezone.now()
 
-        # Base queryset: only shipments with paid invoices
-        paid_invoices = Invoice.objects.filter(status='PAID').select_related('shipment__route')
+        # Base queryset: only shipments with paid invoices, org-scoped
+        paid_invoices = _scope_invoices(request).filter(
+            status='PAID',
+            shipment__route__isnull=False,
+        ).select_related('shipment__route')
         paid_invoices = self.filter_date_range(paid_invoices, 'created_at')
 
         # Per-carrier margin
@@ -700,12 +754,12 @@ class ProfitAnalyticsView(AsyncCacheMixin, APIView, DateRangeFilterMixin):
 class RouteAnalyticsView(APIView, DateRangeFilterMixin):
     """
     GET /api/v1/analytics/routes/
-    Per-route origin→destination aggregated KPIs.
+    Per-route origin→destination aggregated KPIs. Org-scoped.
     """
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
-        shipments = Shipment.objects.select_related('route').all()
+        shipments = _scope_shipments(request).filter(route__isnull=False).select_related('route').all()
         shipments = self.filter_date_range(shipments, 'created_at')
 
         carrier_filter = request.query_params.get('carrier')
@@ -732,13 +786,15 @@ class RouteAnalyticsView(APIView, DateRangeFilterMixin):
 
         # Single query for all route invoice totals
         from payments.models import Invoice
-        from django.db.models.functions import Coalesce
-        route_invoice_totals = dict(
-            Invoice.objects.filter(status='PAID')
-            .values('shipment__route__origin', 'shipment__route__destination')
-            .annotate(t=Coalesce(Sum('amount_kes'), 0.0))
-            .values_list('shipment__route__origin', 'shipment__route__destination', 't')
-        )
+        route_invoice_totals = {
+            (origin, dest): total
+            for origin, dest, total in (
+                _scope_invoices(request).filter(status='PAID')
+                .values('shipment__route__origin', 'shipment__route__destination')
+                .annotate(t=Sum('amount_kes'))
+                .values_list('shipment__route__origin', 'shipment__route__destination', 't')
+            )
+        }
         for d in route_data.values():
             inv_total = route_invoice_totals.get((d['origin'], d['destination']), 0)
             d['total_revenue'] = float(inv_total)
@@ -762,7 +818,7 @@ class CarrierBenchmarkView(APIView, DateRangeFilterMixin):
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
-        shipments = Shipment.objects.select_related('route').all()
+        shipments = _scope_shipments(request).filter(route__isnull=False).select_related('route').all()
         shipments = self.filter_date_range(shipments, 'created_at')
 
         carrier_data: dict[str, dict] = {}
@@ -790,7 +846,7 @@ class CarrierBenchmarkView(APIView, DateRangeFilterMixin):
         carrier_invoice_totals = dict(
             Invoice.objects.filter(status='PAID')
             .values('shipment__carrier_name')
-            .annotate(t=Coalesce(Sum('amount_kes'), 0.0))
+            .annotate(t=Sum('amount_kes'))
             .values_list('shipment__carrier_name', 't')
         )
         for c_name, d in carrier_data.items():
@@ -827,7 +883,7 @@ class CarrierBenchmarkView(APIView, DateRangeFilterMixin):
 class CorridorAnalyticsView(APIView, DateRangeFilterMixin):
     """
     GET /api/v1/analytics/corridors/
-    KPI comparison across the three East African trade corridors.
+    KPI comparison across the three East African trade corridors. Org-scoped.
     """
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
@@ -839,7 +895,7 @@ class CorridorAnalyticsView(APIView, DateRangeFilterMixin):
     }
 
     def get(self, request, **kwargs):
-        shipments = Shipment.objects.select_related('route').all()
+        shipments = _scope_shipments(request).filter(route__isnull=False).select_related('route').all()
         shipments = self.filter_date_range(shipments, 'created_at')
 
         corridors: dict[str, dict] = {
@@ -906,12 +962,12 @@ class CorridorAnalyticsView(APIView, DateRangeFilterMixin):
 class CustomerAnalyticsView(APIView, DateRangeFilterMixin):
     """
     GET /api/v1/analytics/customers/
-    Per-client shipment volume, spend, on-time rate, and retention metrics.
+    Per-client shipment volume, spend, on-time rate. Org-scoped.
     """
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
-        shipments = Shipment.objects.select_related('route', 'client').all()
+        shipments = _scope_shipments(request).filter(route__isnull=False).select_related('route', 'client').all()
         shipments = self.filter_date_range(shipments, 'created_at')
 
         from payments.models import Invoice
@@ -921,7 +977,7 @@ class CustomerAnalyticsView(APIView, DateRangeFilterMixin):
             cid = s.client_id or 0
             if cid not in customer_data:
                 name = s.client.get_full_name() or s.client.username if s.client else f'Client #{cid}'
-                company = s.client.company if s.client and s.client.company else ''
+                company = s.client.organization.name if s.client and s.client.organization else ''
                 customer_data[cid] = {
                     'client_id': cid, 'client_name': name, 'company': company,
                     'total_shipments': 0, 'active_shipments': 0, 'delivered': 0,
@@ -944,11 +1000,11 @@ class CustomerAnalyticsView(APIView, DateRangeFilterMixin):
         # Single query for all customer invoice totals
         from django.db.models.functions import Coalesce
         invoice_totals = dict(
-            Invoice.objects.filter(
+            _scope_invoices(request).filter(
                 shipment__client__in=customer_data.keys(), status='PAID',
             )
             .values('shipment__client')
-            .annotate(t=Coalesce(Sum('amount_kes'), 0.0))
+            .annotate(t=Sum('amount_kes'))
             .values_list('shipment__client', 't')
         )
         for cid, d in customer_data.items():
@@ -977,7 +1033,7 @@ class TemporalAnalyticsView(APIView, DateRangeFilterMixin):
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
-        shipments = Shipment.objects.all()
+        shipments = _scope_shipments(request).all()
         shipments = self.filter_date_range(shipments, 'created_at')
 
         day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -1063,7 +1119,7 @@ class AnalyticsExportView(APIView, DateRangeFilterMixin):
         return response
 
     def _export_shipments(self):
-        qs = Shipment.objects.select_related('route').all()
+        qs = _scope_shipments(self.request).filter(route__isnull=False).select_related('route').all()
         qs = self.filter_date_range(qs, 'created_at')
         headers = ['Tracking #', 'Status', 'Origin', 'Destination', 'Carrier', 'Weight (kg)',
                    'Scheduled Arrival', 'Actual Arrival', 'Delay Risk %', 'Created']
@@ -1176,14 +1232,14 @@ class PerformanceAnalyticsView(APIView):
         days = int(request.query_params.get('days', 30))
         since = timezone.now() - timedelta(days=days)
 
-        shipments = Shipment.objects.filter(created_at__gte=since)
+        shipments = _scope_shipments(request).filter(created_at__gte=since)
         total = shipments.count()
         on_time = shipments.filter(status='DELIVERED', actual_arrival__lte=F('scheduled_arrival')).count()
         completed = shipments.filter(status='DELIVERED').count()
 
         avg_distance = shipments.aggregate(v=Avg('route__distance_km'))['v'] or 0
 
-        # On-time trend by day (last 30 days)
+        # On-time trend by day
         trend = []
         for d in range(days):
             day = (timezone.now() - timedelta(days=days - d - 1)).date()
@@ -1225,14 +1281,24 @@ class PerformanceAnalyticsView(APIView):
 
 
 class DriverLeaderboardView(APIView):
-    """GET /api/v1/analytics/driver-leaderboard/ — ranked driver performance."""
+    """GET /api/v1/analytics/driver-leaderboard/ — ranked driver performance + fleet summary."""
     permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
-        from fleet.models import Driver
-        from django.db.models import Count, Q
+        from fleet.models import Driver, Truck
+        from django.db.models import Count, Q, Avg, Sum
 
-        drivers = Driver.objects.annotate(
+        drivers_qs = Driver.objects.all()
+        trucks_qs = Truck.objects.all()
+        # Scope by organization for non-PLATFORM_OWNER
+        from domains._authz import get_user_role
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                drivers_qs = drivers_qs.filter(organization_id=org_id)
+                trucks_qs = trucks_qs.filter(organization_id=org_id)
+
+        drivers = drivers_qs.annotate(
             completed_jobs=Count('job_history', filter=Q(job_history__status='COMPLETED')),
             on_time_jobs=Count('job_history', filter=Q(job_history__status='COMPLETED', job_history__on_time=True)),
         ).order_by('-rating')[:20]
@@ -1253,7 +1319,37 @@ class DriverLeaderboardView(APIView):
                 'earnings_mtd': float(d.earnings_mtd),
             })
 
-        return Response(leaderboard)
+        # Fleet summary
+        total_drivers = drivers_qs.count()
+        available_drivers = drivers_qs.filter(status='AVAILABLE').count()
+        on_route_drivers = drivers_qs.filter(status='ON_ROUTE').count()
+        avg_rating = drivers_qs.aggregate(v=Avg('rating'))['v'] or 0
+        total_trucks = trucks_qs.count()
+        active_trucks = trucks_qs.filter(status='ACTIVE').count()
+        avg_fuel_cap = trucks_qs.aggregate(v=Avg('fuel_capacity_l'))['v'] or 0
+
+        # Driver status distribution for pie chart
+        status_dist = list(
+            drivers_qs.values('status').annotate(count=Count('id')).order_by('-count')
+        )
+
+        # Top earners bar chart data
+        top_earners = sorted(leaderboard, key=lambda x: x['earnings_mtd'], reverse=True)[:10]
+
+        return Response({
+            'leaderboard': leaderboard,
+            'fleet_summary': {
+                'total_drivers': total_drivers,
+                'available_drivers': available_drivers,
+                'on_route_drivers': on_route_drivers,
+                'avg_rating': round(avg_rating, 1),
+                'total_trucks': total_trucks,
+                'active_trucks': active_trucks,
+                'avg_fuel_capacity_l': round(avg_fuel_cap, 1),
+            },
+            'status_distribution': status_dist,
+            'top_earners': top_earners,
+        })
 
 
 # ── Document OCR Extraction ──────────────────────────────────────────────────
@@ -1272,7 +1368,7 @@ class DocumentExtractionView(APIView):
     permission_classes = [permissions.IsAuthenticated, CanUploadDocuments]
     parser_classes = []  # use default multipart/form-data parser
 
-    def post(self, request):
+    def post(self, request, **kwargs):
         uploaded_file = request.FILES.get("file")
         if not uploaded_file:
             return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1336,9 +1432,12 @@ class DocumentExtractionView(APIView):
                     tesseract_lang=lang,
                 )
                 extraction_id = extraction.pk
-            except Exception as e:
-                # Document save failed — still return OCR results
-                pass
+            except (DatabaseError, ValidationError) as e:
+                # Document save failed — still return OCR results, but log the failure
+                logger.warning(
+                    "Document save failed for shipment=%s filename=%s: %s",
+                    shipment_id, uploaded_file.name, e, exc_info=True,
+                )
 
         response_data = {
             "document_type": result.document_type,
@@ -1366,7 +1465,7 @@ class DocumentExtractionDetailView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, CanViewDocuments]
 
-    def get(self, request, pk):
+    def get(self, request, pk, **kwargs):
         from .models import DocumentExtraction
         extraction = get_object_or_404(DocumentExtraction, document_id=pk)
         return Response({
@@ -1385,8 +1484,7 @@ class DocumentExtractionDetailView(APIView):
             "extracted_at": extraction.extracted_at,
         })
 
-    def delete(self, request, pk):
-        from .models import DocumentExtraction
+    def delete(self, request, pk, **kwargs):
         extraction = get_object_or_404(DocumentExtraction, document_id=pk)
         extraction.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1405,7 +1503,20 @@ class BidAnalyticsView(APIView):
         days = int(request.query_params.get('days', 30))
         since = timezone.now() - timedelta(days=days)
 
-        bids = Bid.objects.filter(created_at__gte=since)
+        bids = Bid.objects.filter(created_at__gte=since).select_related('carrier', 'freight_listing')
+        # Scope bids by organization for non-PLATFORM_OWNER
+        from domains._authz import get_user_role
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                from accounts.models import CustomUser
+                from django.db.models import Q
+                org_client_ids = list(CustomUser.objects.filter(organization_id=org_id).values_list('id', flat=True))
+                bids = bids.filter(
+                    Q(carrier__organization_id=org_id) |
+                    Q(freight_listing__posted_by_id__in=org_client_ids) |
+                    Q(freight_listing__organization_id=org_id)
+                )
 
         # Bid success by carrier
         carrier_bids = bids.values('carrier__name').annotate(
@@ -1871,3 +1982,198 @@ class DemurragePortStatusView(APIView):
             'total_containers': len(containers),
             'total_demurrage_accruing_usd': str(round(total_accruing, 2)),
         })
+
+
+# ── Visual Analytics (Probability, Heatmap, Sankey) ──────────────────────────
+
+class ProbabilityAnalyticsView(APIView):
+    """GET /api/v1/analytics/probability/ — delivery and customs probability time-series."""
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
+
+    def get(self, request, **kwargs):
+        shipments = _scope_shipments(request)
+        if not shipments.exists():
+            return Response([])
+
+        from django.db.models import Count, Q, F
+        from django.db.models.functions import TruncDate
+        from datetime import date, timedelta
+
+        today = date.today()
+        start = today - timedelta(days=90)
+
+        total = Count('id')
+        daily = (
+            shipments
+            .filter(created_at__date__gte=start)
+            .annotate(d=TruncDate('created_at'))
+            .values('d')
+            .annotate(total=total, delivered=Count('id', filter=Q(status__in=('DELIVERED', 'COMPLETED'))))
+            .order_by('d')
+        )
+
+        data = []
+        for row in daily:
+            pct = round(row['delivered'] / max(row['total'], 1), 4)
+            data.append({
+                'date': row['d'].strftime('%b %d'),
+                'delivery_probability': pct,
+                'customs_probability': None,
+            })
+        return Response(data)
+
+
+class HeatmapAnalyticsView(APIView):
+    """GET /api/v1/analytics/heatmap/ — GeoJSON FeatureCollection with shipment data per East African country."""
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
+
+    # Simplified country polygon coordinates for East Africa (lon, lat order for GeoJSON).
+    # These are approximate outlines — recognisable but not survey-grade.
+    COUNTRY_POLYGONS: dict[str, list[tuple[float, float]]] = {
+        'Kenya': [
+            (33.91, 4.62), (41.91, 4.62), (41.90, -4.68), (39.20, -4.68),
+            (39.20, -3.50), (37.00, -3.00), (36.00, -2.00), (34.00, -1.00),
+            (33.91, -0.90), (33.91, 4.62),
+        ],
+        'Uganda': [
+            (29.57, 4.22), (35.00, 4.22), (35.00, 3.50), (34.30, 2.80),
+            (34.00, 1.00), (33.00, -0.30), (29.57, -1.44), (29.57, 4.22),
+        ],
+        'Tanzania': [
+            (29.33, -0.99), (40.44, -0.99), (40.44, -11.74), (34.80, -11.74),
+            (33.00, -10.80), (30.00, -8.50), (29.33, -7.00), (29.33, -0.99),
+        ],
+        'Rwanda': [
+            (28.86, -1.05), (30.90, -1.05), (30.90, -2.84), (28.86, -2.84), (28.86, -1.05),
+        ],
+        'Burundi': [
+            (29.00, -2.30), (30.85, -2.30), (30.85, -4.47), (29.00, -4.47), (29.00, -2.30),
+        ],
+        'DR Congo': [
+            (12.20, 5.39), (29.80, 5.39), (29.80, 3.70), (30.40, 2.20),
+            (30.60, 0.50), (29.50, -2.80), (29.00, -4.50), (29.20, -6.50),
+            (28.00, -8.00), (26.00, -8.00), (24.00, -8.50), (19.00, -6.50),
+            (14.00, -5.80), (12.20, -5.80), (12.20, 5.39),
+        ],
+        'South Sudan': [
+            (24.15, 12.22), (35.95, 12.22), (35.95, 3.49), (33.00, 3.49),
+            (31.00, 3.80), (30.00, 4.22), (29.57, 4.22), (24.15, 4.22), (24.15, 12.22),
+        ],
+        'Ethiopia': [
+            (33.00, 14.90), (47.99, 14.90), (47.99, 3.42), (44.00, 3.42),
+            (42.00, 4.40), (40.99, 4.62), (35.95, 4.62), (35.95, 5.50),
+            (34.50, 6.50), (33.50, 6.50), (33.00, 7.50), (33.00, 14.90),
+        ],
+        'Somalia': [
+            (40.99, 11.98), (51.42, 11.98), (51.42, -1.66), (42.60, -1.66),
+            (41.90, -1.00), (41.90, 0.00), (40.99, 4.00), (40.99, 11.98),
+        ],
+    }
+
+    COUNTRY_CENTROIDS = {
+        'Kenya': (-1.2, 37.5), 'Uganda': (1.4, 32.5), 'Tanzania': (-6.0, 35.0),
+        'Rwanda': (-1.9, 30.0), 'Burundi': (-3.4, 29.9), 'DR Congo': (-2.0, 24.0),
+        'South Sudan': (7.9, 30.0), 'Ethiopia': (9.0, 40.5), 'Somalia': (5.0, 46.0),
+    }
+
+    def get(self, request, **kwargs):
+        from django.db.models import Count, Sum, Q
+        from collections import defaultdict
+
+        shipments = _scope_shipments(request)
+        total_count = shipments.count()
+
+        # Aggregate shipment data by country using route origin / destination
+        if total_count > 0:
+            route_counts = list(
+                shipments.values('route__origin', 'route__destination')
+                .annotate(cnt=Count('id'), total_kg=Sum('weight_kg'))
+            )
+        else:
+            route_counts = []
+
+        # Distribute shipment counts across countries mentioned in routes
+        country_stats: dict[str, dict] = defaultdict(lambda: {
+            'shipment_count': 0, 'total_weight_kg': 0, 'avg_delay_hours': 0, 'risk_score': 0,
+        })
+
+        country_keywords = {
+            'Kenya': ['nairobi', 'mombasa', 'kisumu', 'eldoret', 'nakuru', 'voi', 'malaba', 'namanga'],
+            'Uganda': ['kampala', 'jinja', 'entebbe', 'gulu', 'malaba', 'busia'],
+            'Tanzania': ['dar es salaam', 'arusha', 'dodoma', 'mwanza', 'tanga', 'zanzibar', 'namanga'],
+            'Rwanda': ['kigali', 'gisenyi', 'gatuna', 'butare'],
+            'Burundi': ['bujumbura', 'gitega'],
+            'DR Congo': ['goma', 'lubumbashi', 'bukavu', 'kinshasa', 'bunia', 'beni'],
+            'South Sudan': ['juba', 'malakal', 'wau', 'nimule'],
+            'Ethiopia': ['addis ababa', 'moyale', 'adama', 'dire dawa', 'jijiga'],
+            'Somalia': ['mogadishu', 'kismayo', 'hargeisa', 'berbera', 'bosaso'],
+        }
+
+        for row in route_counts:
+            origin = (row['route__origin'] or '').lower()
+            dest = (row['route__destination'] or '').lower()
+            for country, keywords in country_keywords.items():
+                if any(kw in origin or kw in dest for kw in keywords):
+                    cs = country_stats[country]
+                    cs['shipment_count'] += row['cnt']
+                    cs['total_weight_kg'] += (row['total_kg'] or 0)
+
+        # If no real data, produce empty features so frontend still renders the map
+        max_volume = max((cs['total_weight_kg'] for cs in country_stats.values()), default=1000)
+
+        features = []
+        for country, polygon in self.COUNTRY_POLYGONS.items():
+            coords = [[[lon, lat] for lon, lat in polygon]]
+            cs = country_stats.get(country, {})
+            count = cs.get('shipment_count', 0)
+            total_kg = cs.get('total_weight_kg', 0)
+            risk = round(min(count / max(total_count, 1), 1.0), 2) if total_count else 0
+            features.append({
+                'type': 'Feature',
+                'properties': {
+                    'country': country,
+                    'shipment_count': count,
+                    'total_weight_kg': total_kg,
+                    'risk_score': risk,
+                    'centroid': list(self.COUNTRY_CENTROIDS.get(country, (0, 0))),
+                },
+                'geometry': {
+                    'type': 'Polygon',
+                    'coordinates': coords,
+                },
+            })
+
+        return Response({'type': 'FeatureCollection', 'features': features})
+
+
+class SankeyAnalyticsView(APIView):
+    """GET /api/v1/analytics/sankey/ — nodes/links for cargo flow Sankey diagram."""
+    permission_classes = [permissions.IsAuthenticated, CanViewAnalytics]
+
+    def get(self, request, **kwargs):
+        shipments = _scope_shipments(request)
+
+        links_qs = (
+            shipments
+            .filter(route__isnull=False)
+            .values('route__origin', 'route__destination')
+            .annotate(value=Count('id'))
+            .order_by('-value')
+        )
+
+        node_names: dict[str, int] = {}
+        links = []
+        for row in links_qs:
+            origin = row['route__origin'] or 'Unknown'
+            dest = row['route__destination'] or 'Unknown'
+            for name in (origin, dest):
+                if name not in node_names:
+                    node_names[name] = len(node_names)
+            links.append({
+                'source': node_names[origin],
+                'target': node_names[dest],
+                'value': row['value'],
+            })
+
+        nodes = [{'name': name, 'category': 'location'} for name in sorted(node_names, key=node_names.get)]
+        return Response({'nodes': nodes, 'links': links})

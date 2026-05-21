@@ -35,6 +35,7 @@ import logging
 from enum import Enum
 from typing import Any, Optional
 
+from django.db import DatabaseError
 from django.db.models import QuerySet
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,27 @@ class Permission(str, Enum):
 
 # These align with ``accounts.models.CustomUser.Role``.
 RolePermissions: dict[str, set[Permission]] = {
-    # ── Full platform access ────────────────────────────────────────────
+    # ── Platform Owner — unrestricted access to all data across orgs ────
+    "PLATFORM_OWNER": {
+        Permission.SHIPMENTS_VIEW, Permission.SHIPMENTS_CREATE,
+        Permission.SHIPMENTS_UPDATE, Permission.SHIPMENTS_DELETE,
+        Permission.SHIPMENTS_DISPATCH, Permission.SHIPMENTS_TRACK,
+        Permission.ROUTES_VIEW, Permission.ROUTES_MANAGE,
+        Permission.RATES_VIEW, Permission.RATES_MANAGE,
+        Permission.CONTRACTS_VIEW, Permission.CONTRACTS_MANAGE,
+        Permission.FINANCE_VIEW, Permission.FINANCE_MANAGE, Permission.FINANCE_APPROVE,
+        Permission.CUSTOMS_VIEW, Permission.CUSTOMS_SUBMIT, Permission.CUSTOMS_CLEAR,
+        Permission.FLEET_VIEW, Permission.FLEET_MANAGE, Permission.FLEET_ASSIGN,
+        Permission.PORTS_VIEW, Permission.PORTS_MANAGE,
+        Permission.COLDCHAIN_VIEW, Permission.COLDCHAIN_MANAGE,
+        Permission.DOCUMENTS_VIEW, Permission.DOCUMENTS_UPLOAD, Permission.DOCUMENTS_VERIFY,
+        Permission.ANALYTICS_VIEW, Permission.ANALYTICS_EXPORT, Permission.PREDICTIONS_VIEW,
+        Permission.CHAT_SEND, Permission.CHAT_MANAGE,
+        Permission.MARKETPLACE_VIEW, Permission.MARKETPLACE_BID, Permission.MARKETPLACE_MANAGE,
+        Permission.ADMIN_USERS, Permission.ADMIN_SYSTEM, Permission.ADMIN_AUDIT,
+    },
+
+    # ── Full platform access (org-scoped) ──────────────────────────────
     "ADMIN": {
         Permission.SHIPMENTS_VIEW, Permission.SHIPMENTS_CREATE,
         Permission.SHIPMENTS_UPDATE, Permission.SHIPMENTS_DELETE,
@@ -447,19 +468,17 @@ class HasObjectPermission:
                                 'obligations': list(decision.obligations),
                             },
                         )
-                    except Exception:
+                    except DatabaseError:
                         logger.exception("Failed to write ABAC denial audit entry")
 
             return decision.allowed
 
-        except Exception:
-            import logging
-            logger = logging.getLogger(__name__)
+        except (DatabaseError, AttributeError, TypeError, ValueError, ImportError):
             logger.exception(
                 "ABAC evaluation failed for %s/%s",
                 self.resource_type, getattr(obj, 'pk', 0),
             )
-            return False
+            return False  # fail-closed: deny access when policy engine itself fails
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -483,32 +502,47 @@ class OrgScopedQueryset:
             return queryset.none()
 
         role = get_user_role(user)
-        # Admin and logistics managers see everything
-        if role in ("ADMIN", "LOGISTICS_MGR"):
+        # Only PLATFORM_OWNER sees across all organisations.
+        # ADMIN / LOGISTICS_MGR are org-scoped — they only see data
+        # belonging to their own organisation.
+        if role == "PLATFORM_OWNER":
             return queryset
 
         org_id = getattr(user, "organization_id", None)
         if org_id:
-            # Try common FK names
             if hasattr(queryset.model, "client"):
                 return queryset.filter(client__organization_id=org_id)
             if hasattr(queryset.model, "organization"):
                 return queryset.filter(organization_id=org_id)
             if hasattr(queryset.model, "client_id"):
-                # Filter by clients in the same org
                 from accounts.models import CustomUser
                 org_client_ids = CustomUser.objects.filter(
                     organization_id=org_id,
                 ).values_list("id", flat=True)
                 return queryset.filter(client_id__in=org_client_ids)
+            if hasattr(queryset.model, "organization_id"):
+                return queryset.filter(organization_id=org_id)
+            if hasattr(queryset.model, "carrier") and hasattr(queryset.model, "carrier_id"):
+                return queryset.filter(carrier__organization_id=org_id)
+            if hasattr(queryset.model, "driver") and hasattr(queryset.model, "driver_id"):
+                from fleet.models import Driver
+                org_driver_ids = Driver.objects.filter(
+                    organization_id=org_id,
+                ).values_list("id", flat=True)
+                return queryset.filter(driver_id__in=org_driver_ids)
+            # Indirect scope via shipment → client → organization
+            if hasattr(queryset.model, "shipment") or hasattr(queryset.model, "shipment_id"):
+                return queryset.filter(shipment__client__organization_id=org_id)
 
         return queryset
 
 
 class CarrierScopedQueryset:
-    """Scope querysets to the user's carrier.
+    """Scope querysets to the user's carrier or organisation.
 
-    Carrier users can only see shipments / rate cards belonging to their carrier.
+    PLATFORM_OWNER / LOGISTICS_MGR / DISPATCHER — see all carriers.
+    CARRIER — see only own carrier.
+    All other roles — see only carriers in own organisation.
     """
 
     def scope_by_carrier(self, queryset: QuerySet) -> QuerySet:
@@ -517,7 +551,7 @@ class CarrierScopedQueryset:
             return queryset.none()
 
         role = get_user_role(user)
-        if role in ("ADMIN", "LOGISTICS_MGR", "DISPATCHER"):
+        if role in ("PLATFORM_OWNER", "LOGISTICS_MGR", "DISPATCHER"):
             return queryset
 
         if role == "CARRIER":
@@ -528,11 +562,19 @@ class CarrierScopedQueryset:
                 if hasattr(queryset.model, "carrier_id"):
                     return queryset.filter(carrier_id=carrier_id)
 
+        # Org-scoped roles (ADMIN, CLIENT, etc.) — filter by org
+        org_id = getattr(user, "organization_id", None)
+        if org_id:
+            if hasattr(queryset.model, "organization"):
+                return queryset.filter(organization_id=org_id)
+            if hasattr(queryset.model, "carrier"):
+                return queryset.filter(carrier__organization_id=org_id)
+
         return queryset
 
 
 class DriverScopedQueryset:
-    """Scope querysets to the driver's own assignments."""
+    """Scope querysets to the driver's own assignments or org's drivers."""
 
     def scope_by_driver(self, queryset: QuerySet) -> QuerySet:
         user = self.request.user
@@ -545,6 +587,14 @@ class DriverScopedQueryset:
                 return queryset.filter(assigned_driver__user_id=user.id)
             if hasattr(queryset.model, "assigned_driver_id"):
                 return queryset.filter(assigned_driver_id=user.driver_profile_id)
+
+        # Org-scoped roles — filter by org
+        org_id = getattr(user, "organization_id", None)
+        if org_id and role != "PLATFORM_OWNER":
+            if hasattr(queryset.model, "organization"):
+                return queryset.filter(organization_id=org_id)
+            if hasattr(queryset.model, "assigned_driver"):
+                return queryset.filter(assigned_driver__organization_id=org_id)
 
         return queryset
 
@@ -600,9 +650,9 @@ CanManageMarketplace = HasPermission(Permission.MARKETPLACE_MANAGE)
 
 CanViewPredictions = HasPermission(Permission.PREDICTIONS_VIEW)
 
-CanAdministerUsers   = HasPermission(Permission.ADMIN_USERS)
-CanAdministerSystem  = HasPermission(Permission.ADMIN_SYSTEM)
-CanViewAudit         = HasPermission(Permission.ADMIN_AUDIT)
+CanAdminUsers  = HasPermission(Permission.ADMIN_USERS)
+CanAdminSystem = HasPermission(Permission.ADMIN_SYSTEM)
+CanViewAudit   = HasPermission(Permission.ADMIN_AUDIT)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

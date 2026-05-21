@@ -5,7 +5,7 @@ import { analyticsApi, type PerformanceData, type DriverLeaderboardEntry, type B
 import Skeleton from '@/components/ui/Skeleton'
 
 interface StatCardProps {
-  label: string; value: string | number; icon: React.ElementType; accent: string; sub?: string
+  label: string; value: string | number; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; accent: string; sub?: string
 }
 
 function StatCard({ label, value, icon: Icon, accent, sub }: StatCardProps) {

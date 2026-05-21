@@ -1,14 +1,13 @@
 import { View } from 'react-native'
 import { Drawer } from 'expo-router/drawer'
-import { useThemeStore } from '@/lib/themeStore'
+import { useAppTheme } from '@/lib/useAppTheme'
 import DrawerContent from '@/components/DrawerContent'
 
 export default function DrawerLayout() {
-  const resolved = useThemeStore((s) => s.resolved)
-  const isDark = resolved === 'dark'
+  const { colors } = useAppTheme()
 
   return (
-    <View style={{ flex: 1, backgroundColor: isDark ? '#0a1929' : '#F1F5F9' }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Drawer
         drawerContent={(props) => <DrawerContent drawerNav={props.navigation} />}
         screenOptions={{
@@ -16,7 +15,7 @@ export default function DrawerLayout() {
           drawerType: 'front',
           drawerStyle: {
             width: 300,
-            backgroundColor: '#0a1929',
+            backgroundColor: colors.background,
           },
           swipeEdgeWidth: 40,
           overlayColor: 'rgba(0,0,0,0.45)',

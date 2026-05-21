@@ -6,5 +6,5 @@ export default function Index() {
   const hasOnboarded   = useOnboardingStore((s) => s.hasOnboarded)
 
   if (!hasOnboarded) return <Redirect href={"/onboarding" as any} />
-  return <Redirect href={(isAuthenticated ? '/(tabs)' : '/(auth)/login') as any} />
+  return <Redirect href={(isAuthenticated ? '/(drawer)' : '/(auth)/login') as any} />
 }

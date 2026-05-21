@@ -1,7 +1,7 @@
 ﻿[package]
 name = "cargotrack-core"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "CargoTrack shared Rust types — used by gps-ingest, route-optimizer, and PyO3 crates"
 
 [dependencies]

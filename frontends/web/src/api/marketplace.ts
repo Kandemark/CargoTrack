@@ -29,4 +29,8 @@ export const marketplaceApi = {
 
   myListings: (params?: { status?: string }) =>
     apiClient.get<FreightListing[]>('/api/v1/marketplace/my-listings/', { params }),
+
+  /** POST /api/v1/marketplace/bids/<id>/counter/ — counter-offer a bid */
+  counterBid: (bidId: number, data: { amount: string; notes?: string }) =>
+    apiClient.post<Bid>(`/api/v1/marketplace/bids/${bidId}/counter/`, data),
 }

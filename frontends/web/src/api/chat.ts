@@ -2,55 +2,52 @@
  * chat.ts — API client for conversations and messages.
  */
 import apiClient from './client'
+import type { Conversation, ConversationDetail, ChatMessage } from '@/types'
 
-export interface ConversationItem {
-  id: number
-  subject: string
-  shipment: number | null
-  is_group: boolean
-  participants: number[]
-  participants_display: string
-  last_message: {
-    id: number
-    content: string
-    sender_name: string
-    created_at: string
-    is_read: boolean
-  } | null
-  unread_count: number
-  created_at: string
-  updated_at: string
-}
-
-export interface MessageItem {
-  id: number
-  conversation: number
-  sender: number
-  sender_id: number
-  sender_name: string
-  sender_role: string
-  content: string
-  attachment_url: string
-  is_read: boolean
-  is_system: boolean
-  created_at: string
-}
+export type ConversationItem = Conversation
+export type MessageItem = ChatMessage
 
 export const chatApi = {
   listConversations: () =>
     apiClient.get<ConversationItem[]>('/api/v1/chat/conversations/'),
 
   getConversation: (id: number) =>
-    apiClient.get<ConversationItem & { messages: MessageItem[] }>(`/api/v1/chat/conversations/${id}/`),
+    apiClient.get<ConversationDetail>(`/api/v1/chat/conversations/${id}/`),
 
-  createConversation: (data: { participant_ids: number[]; subject?: string; shipment?: number }) =>
+  createConversation: (data: {
+    participant_ids: number[]
+    subject?: string
+    description?: string
+    shipment?: number
+    is_group?: boolean
+    is_community?: boolean
+    is_encrypted?: boolean
+  }) =>
     apiClient.post<ConversationItem>('/api/v1/chat/conversations/', data),
 
   sendMessage: (conversationId: number, content: string) =>
     apiClient.post<MessageItem>(`/api/v1/chat/conversations/${conversationId}/messages/`, { content }),
 
+  editMessage: (conversationId: number, messageId: number, content: string) =>
+    apiClient.patch<MessageItem>(`/api/v1/chat/conversations/${conversationId}/messages/${messageId}/`, { content }),
+
+  deleteMessage: (conversationId: number, messageId: number) =>
+    apiClient.delete(`/api/v1/chat/conversations/${conversationId}/messages/${messageId}/`),
+
   markRead: (conversationId: number) =>
     apiClient.post(`/api/v1/chat/conversations/${conversationId}/mark-read/`),
+
+  updateAnnouncement: (conversationId: number, content: string) =>
+    apiClient.post(`/api/v1/chat/conversations/${conversationId}/announcement/`, { content }),
+
+  uploadAttachment: (conversationId: number, file: File, content?: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (content) form.append('content', content)
+    return apiClient.post<MessageItem>(`/api/v1/chat/conversations/${conversationId}/attachments/`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 export function searchUsers(query: string) {

@@ -6,6 +6,7 @@ import { useAppTheme } from '@/lib/useAppTheme'
 import ScreenHeader from '@/components/ScreenHeader'
 import AnimatedNumber from '@/components/animated/AnimatedNumber'
 import ScreenWrapper from '@/components/animated/ScreenWrapper'
+import RequireRole from '@/components/RequireRole'
 
 interface RevenueSummary { total_revenue: number; paid: number; pending: number; overdue: number; mtd_revenue: number; avg_invoice_value: number }
 
@@ -35,8 +36,9 @@ export default function FinanceRevenueScreen() {
   async function handleRefresh() { setRefreshing(true); await fetchAll(); setRefreshing(false) }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Revenue" backButton />
+    <RequireRole roles={['ADMIN', 'LOGISTICS_MGR', 'FINANCE_OFFICER']}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenHeader title="Revenue" backButton />
       <ScreenWrapper entrance="fade">
         <ScrollView
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
@@ -96,6 +98,7 @@ export default function FinanceRevenueScreen() {
         </ScrollView>
       </ScreenWrapper>
     </View>
+  </RequireRole>
   )
 }
 

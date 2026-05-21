@@ -3,7 +3,7 @@
  */
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Clock, MapPin, Truck, Search, RefreshCw, AlertTriangle, TrendingUp, ArrowRight } from 'lucide-react'
+import { Truck, RefreshCw, AlertTriangle, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { etaApi, type ETAResult, type BatchETAResult } from '@/api/eta'
 
@@ -19,7 +19,7 @@ export default function ETA() {
   const [tracking, setTracking] = useState('')
   const [lat, setLat] = useState('')
   const [lon, setLon] = useState('')
-  const [speed, setSpeed] = useState('')
+  const [speed] = useState('')
   const [result, setResult] = useState<ETAResult | null>(null)
   const [batchResult, setBatchResult] = useState<BatchETAResult | null>(null)
   const [loading, setLoading] = useState(false)

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, Download, CreditCard, CheckCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
+import { ChevronLeft, Download, CreditCard, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { paymentsApi } from '@/api/payments'
 import PaymentSheet from '@/components/PaymentSheet'
@@ -15,6 +15,7 @@ const INV_STATUS: Record<InvoiceStatus, { label: string; dot: string; text: stri
   PAID:     { label: 'Paid',     dot: 'bg-emerald-400', text: 'text-emerald-700 dark:text-emerald-300' },
   FAILED:   { label: 'Failed',   dot: 'bg-red-400',     text: 'text-red-700 dark:text-red-300'         },
   REFUNDED: { label: 'Refunded', dot: 'bg-gray-400',    text: 'text-gray-600 dark:text-white/50'       },
+  OVERDUE:  { label: 'Overdue',  dot: 'bg-orange-400',  text: 'text-orange-700 dark:text-orange-300'   },
 }
 const PAY_STATUS_DOT: Record<PaymentStatus, string> = {
   PENDING:   'bg-amber-400',

@@ -62,8 +62,8 @@ class TenantMiddleware:
             try:
                 payload = request.auth.payload if hasattr(request.auth, 'payload') else request.auth
                 org_id = payload.get('org_id')
-            except Exception:
-                pass
+            except (AttributeError, TypeError):
+                logger.debug("Unable to extract org_id from JWT auth payload", exc_info=True)
 
         # 2. Fall back to user.organization
         if not org_id and hasattr(request, 'user') and hasattr(request.user, 'is_authenticated') and request.user.is_authenticated:
@@ -71,6 +71,12 @@ class TenantMiddleware:
 
         if not org_id:
             return
+
+        # PLATFORM_OWNER sees across all organizations — skip tenant scoping
+        if hasattr(request, 'user') and hasattr(request.user, 'is_authenticated') and request.user.is_authenticated:
+            from domains._authz import get_user_role
+            if get_user_role(request.user) == "PLATFORM_OWNER":
+                return
 
         request.tenant_id = org_id
 
@@ -88,7 +94,11 @@ class TenantMiddleware:
             from domains._abac import EACountry
             country = EACountry.from_string(org.country)
             return country.value if country else None
+        except Organization.DoesNotExist:
+            logger.warning("Organization pk=%s not found during tenant country resolution", org_id)
+            return None
         except Exception:
+            logger.exception("Unexpected error resolving tenant country for org pk=%s", org_id)
             return None
 
     @staticmethod
@@ -97,7 +107,11 @@ class TenantMiddleware:
             from accounts.models import Organization
             org = Organization.objects.only('org_type').get(pk=org_id)
             return org.org_type
+        except Organization.DoesNotExist:
+            logger.warning("Organization pk=%s not found during tenant org_type resolution", org_id)
+            return None
         except Exception:
+            logger.exception("Unexpected error resolving tenant org_type for org pk=%s", org_id)
             return None
 
 

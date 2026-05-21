@@ -536,7 +536,7 @@ export default function LoginScreen() {
                     borderRadius: radius.md,
                     borderWidth: 1.5,
                     borderColor: '#0f2d5e',
-                    backgroundColor: isDark ? 'rgba(30,58,138,0.2)' : '#eff6ff',
+                    backgroundColor: '#eff6ff',
                     marginBottom: spacing.lg,
                   }}
                 >
@@ -546,7 +546,7 @@ export default function LoginScreen() {
                     color="#0f2d5e"
                     style={{ marginRight: 8 }}
                   />
-                  <Text style={{ fontSize: font.size.md, fontWeight: font.weight.bold, color: isDark ? '#93c5fd' : '#0f2d5e' }}>
+                  <Text style={{ fontSize: font.size.md, fontWeight: font.weight.bold, color: '#0f2d5e' }}>
                     {bioBusy ? 'Verifying...' : `Sign in with ${bioLabel}`}
                   </Text>
                 </TouchableOpacity>
@@ -600,7 +600,7 @@ export default function LoginScreen() {
             >
               <Text style={{ fontSize: font.size.base, color: L.text.muted }}>
                 Don't have an account?{' '}
-                <Text style={{ color: isDark ? '#f5801e' : '#0f2d5e', fontWeight: font.weight.bold }}>Create one</Text>
+                <Text style={{ color: '#0f2d5e', fontWeight: font.weight.bold }}>Create one</Text>
               </Text>
             </TouchableOpacity>
 

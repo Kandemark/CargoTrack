@@ -10,7 +10,7 @@
 import { Polyline } from 'react-leaflet'
 import { along, lineString } from '@turf/turf'
 import type { ShipmentListItem } from '@/types'
-import { CITY_COORDS, lookupCoords } from '@/lib/coords'
+import { lookupCoords } from '@/lib/coords'
 
 function riskColor(score: number): string {
   if (score >= 0.7) return '#ef4444'

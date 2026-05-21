@@ -29,6 +29,7 @@ class CustomUser(AbstractUser):
     """
 
     class Role(models.TextChoices):
+        PLATFORM_OWNER  = "PLATFORM_OWNER",  "Platform Owner"
         ADMIN           = "ADMIN",           "Administrator"
         LOGISTICS_MGR   = "LOGISTICS_MGR",   "Logistics Manager"
         CLIENT          = "CLIENT",          "Client / Shipper"
@@ -314,6 +315,11 @@ class AuditEntry(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Audit Entry'
         verbose_name_plural = 'Audit Entries'
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["action"]),
+            models.Index(fields=["resource"]),
+        ]
 
     def __str__(self):
         return f'{self.action} {self.resource} — {self.result}'

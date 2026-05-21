@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, TextInput, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
@@ -33,8 +33,14 @@ function PayModal({ invoice, onClose, onPaid }: { invoice: Invoice; onClose: () 
   const [polling, setPolling] = useState(false)
   const [errMsg, setErrMsg] = useState('')
   const [success, setSuccess] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const provider = PROVIDERS.find((p) => p.key === selectedProvider) ?? PROVIDERS[0]
+
+  // Cleanup polling interval on unmount (modal close)
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
 
   async function pay() {
     if (!input.trim()) { setErrMsg(`Please enter your ${provider.inputLabel}.`); return }
@@ -43,13 +49,13 @@ function PayModal({ invoice, onClose, onPaid }: { invoice: Invoice; onClose: () 
       await apiClient.post(`/api/v1/invoices/${invoice.id}/pay/`, { provider: selectedProvider, phone_number: input.trim() })
       setPolling(true)
       let attempts = 0
-      const interval = setInterval(async () => {
+      pollRef.current = setInterval(async () => {
         attempts++
         try {
           const res = await apiClient.get<Invoice>(`/api/v1/invoices/${invoice.id}/`)
-          if (res.data.status === 'PAID') { clearInterval(interval); setPolling(false); setSuccess(true); setTimeout(() => onPaid(), 1800) }
+          if (res.data.status === 'PAID') { clearInterval(pollRef.current!); pollRef.current = null; setPolling(false); setSuccess(true); setTimeout(() => onPaid(), 1800) }
         } catch { /* keep polling */ }
-        if (attempts >= 12) { clearInterval(interval); setPolling(false); setErrMsg('Payment timed out. Check your phone and try again.') }
+        if (attempts >= 12) { clearInterval(pollRef.current!); pollRef.current = null; setPolling(false); setErrMsg('Payment timed out. Check your phone and try again.') }
       }, 5000)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error

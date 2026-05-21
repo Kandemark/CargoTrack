@@ -18,12 +18,16 @@ type Config struct {
 }
 
 func LoadConfig() *Config {
+	webhookSecret := os.Getenv("WEBHOOK_SECRET_KEY")
+	if webhookSecret == "" {
+		panic("FATAL: WEBHOOK_SECRET_KEY environment variable is required but not set")
+	}
 	return &Config{
 		KafkaBrokers:       envOr("KAFKA_BROKERS", "localhost:9092"),
 		KafkaConsumerGroup: envOr("KAFKA_CONSUMER_GROUP", "cargotrack-webhook-dispatcher"),
 		KafkaTopics:        strings.Split(envOr("KAFKA_TOPICS", "cargotrack.shipments.state,cargotrack.tracking.events,cargotrack.alerts.triggered"), ","),
 		RedisURL:           envOr("REDIS_URL", "redis://localhost:6379/0"),
-		WebhookSecretKey:   envOr("WEBHOOK_SECRET_KEY", "change-me-in-production"),
+		WebhookSecretKey:   webhookSecret,
 		MaxRetries:         envInt("MAX_RETRIES", 6),
 		DeadLetterTopic:    envOr("DEAD_LETTER_TOPIC", "cargotrack.webhooks.dlq"),
 		LogJSON:            os.Getenv("LOG_JSON") == "1",

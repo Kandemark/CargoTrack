@@ -1,3 +1,3 @@
 module github.com/cargotrack/webhook-dispatcher
 
-go 1.22
+go 1.24

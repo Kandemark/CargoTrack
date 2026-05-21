@@ -74,9 +74,11 @@ class ChatConsumer(WebSocketAuthMixin, AsyncJsonWebsocketConsumer):
 
         if msg_type == 'message':
             text = content.get('content', '').strip()
+            encrypted = content.get('is_encrypted', False)
+            enc_meta = content.get('encryption_metadata', {})
             if not text:
                 return
-            message = await self._save_message(user, text)
+            message = await self._save_message(user, text, encrypted, enc_meta)
             await self.channel_layer.group_send(
                 self.group_name,
                 {
@@ -88,11 +90,91 @@ class ChatConsumer(WebSocketAuthMixin, AsyncJsonWebsocketConsumer):
                         'sender_name': user.get_full_name() or user.username,
                         'sender_role': user.role,
                         'content': message.content,
+                        'is_encrypted': message.is_encrypted,
+                        'encryption_metadata': message.encryption_metadata,
+                        'is_edited': False,
+                        'is_deleted': False,
                         'created_at': message.created_at.isoformat(),
                         'is_read': False,
                     },
                 },
             )
+
+        elif msg_type == 'message_edit':
+            msg_id = content.get('message_id')
+            new_text = content.get('content', '').strip()
+            if not msg_id or not new_text:
+                return
+            edited = await self._edit_message(user, msg_id, new_text)
+            if edited:
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'message_edited',
+                        'payload': {
+                            'message_id': msg_id,
+                            'content': new_text,
+                            'edited_at': edited.isoformat(),
+                            'editor_id': user.id,
+                            'editor_name': user.get_full_name() or user.username,
+                        },
+                    },
+                )
+
+        elif msg_type == 'message_delete':
+            msg_id = content.get('message_id')
+            if not msg_id:
+                return
+            deleted = await self._delete_message(user, msg_id)
+            if deleted:
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'message_deleted',
+                        'payload': {
+                            'message_id': msg_id,
+                            'deleted_by': user.id,
+                            'deleted_at': deleted.isoformat(),
+                        },
+                    },
+                )
+
+        elif msg_type == 'message_unsend':
+            msg_id = content.get('message_id')
+            if not msg_id:
+                return
+            removed = await self._unsend_message(user, msg_id)
+            if removed:
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'message_unsent',
+                        'payload': {
+                            'message_id': msg_id,
+                            'unsent_by': user.id,
+                        },
+                    },
+                )
+
+        elif msg_type == 'announcement':
+            text = content.get('content', '').strip()
+            if not text:
+                return
+            saved = await self._set_announcement(user, text)
+            if saved:
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        'type': 'announcement_updated',
+                        'payload': {
+                            'conversation_id': int(self.conversation_id),
+                            'content': text,
+                            'set_by': user.id,
+                            'set_by_name': user.get_full_name() or user.username,
+                            'set_at': saved.isoformat(),
+                        },
+                    },
+                )
 
         elif msg_type == 'typing':
             await self.channel_layer.group_send(
@@ -125,6 +207,18 @@ class ChatConsumer(WebSocketAuthMixin, AsyncJsonWebsocketConsumer):
     async def chat_message(self, event):
         await self.send_json({'type': 'message', 'payload': event['payload']})
 
+    async def message_edited(self, event):
+        await self.send_json({'type': 'message_edited', 'payload': event['payload']})
+
+    async def message_deleted(self, event):
+        await self.send_json({'type': 'message_deleted', 'payload': event['payload']})
+
+    async def message_unsent(self, event):
+        await self.send_json({'type': 'message_unsent', 'payload': event['payload']})
+
+    async def announcement_updated(self, event):
+        await self.send_json({'type': 'announcement', 'payload': event['payload']})
+
     async def typing_indicator(self, event):
         user = self.scope.get('user')
         if user and event['payload']['user_id'] != user.id:
@@ -142,15 +236,62 @@ class ChatConsumer(WebSocketAuthMixin, AsyncJsonWebsocketConsumer):
         ).exists()
 
     @database_sync_to_async
-    def _save_message(self, user, text):
+    def _save_message(self, user, text, encrypted=False, enc_meta=None):
         conversation = Conversation.objects.get(id=self.conversation_id)
         msg = Message.objects.create(
             conversation=conversation,
             sender=user,
             content=text,
+            is_encrypted=encrypted,
+            encryption_metadata=enc_meta or {},
         )
         conversation.save()
         return msg
+
+    @database_sync_to_async
+    def _edit_message(self, user, msg_id, new_text):
+        from django.utils import timezone
+        try:
+            msg = Message.objects.get(id=msg_id, sender=user, is_deleted=False)
+            msg.content = new_text
+            msg.is_edited = True
+            msg.edited_at = timezone.now()
+            msg.save(update_fields=['content', 'is_edited', 'edited_at'])
+            return msg.edited_at
+        except Message.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def _delete_message(self, user, msg_id):
+        from django.utils import timezone
+        try:
+            msg = Message.objects.get(id=msg_id, sender=user)
+            msg.is_deleted = True
+            msg.deleted_at = timezone.now()
+            msg.save(update_fields=['is_deleted', 'deleted_at'])
+            return msg.deleted_at
+        except Message.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def _unsend_message(self, user, msg_id):
+        try:
+            msg = Message.objects.get(id=msg_id, sender=user)
+            msg.delete()
+            return True
+        except Message.DoesNotExist:
+            return False
+
+    @database_sync_to_async
+    def _set_announcement(self, user, text):
+        from django.utils import timezone
+        try:
+            conv = Conversation.objects.get(id=self.conversation_id)
+            conv.announcement = text
+            conv.save(update_fields=['announcement', 'updated_at'])
+            return timezone.now()
+        except Conversation.DoesNotExist:
+            return None
 
     @database_sync_to_async
     def _mark_read(self, user):

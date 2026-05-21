@@ -44,6 +44,7 @@ from .serializers import (
     RegisterSerializer,
     UserAdminSerializer,
     UserMeSerializer,
+    UserPublicProfileSerializer,
 )
 
 
@@ -68,13 +69,18 @@ class RegisterAPIView(APIView):
         user: CustomUser = serializer.save()  # type: ignore[assignment]
 
         refresh = RefreshToken.for_user(user)
-        return Response(
-            {
-                'access':  str(refresh.access_token),  # type: ignore[attr-defined]
-                'refresh': str(refresh),
-            },
+        access = str(refresh.access_token)  # type: ignore[attr-defined]
+        refresh_str = str(refresh)
+        response = Response(
+            {'access': access, 'refresh': refresh_str},
             status=status.HTTP_201_CREATED,
         )
+
+        # Set httpOnly cookies so the web frontend session persists across refreshes.
+        from cargotrack.auth_views import _set_token_cookies
+        _set_token_cookies(response, access, refresh_str)
+
+        return response
 
 
 class SecureTokenObtainPairView(TokenObtainPairView):
@@ -214,7 +220,7 @@ class UserAdminViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CanAdminUsers]
     serializer_class = UserAdminSerializer
     queryset = CustomUser.objects.all().order_by('-date_joined')
-    http_method_names = ['get', 'patch', 'head', 'options']
+    http_method_names = ['get', 'patch', 'delete', 'head', 'options']
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -224,6 +230,28 @@ class UserAdminViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
 
+
+class UserPublicProfileView(generics.RetrieveAPIView):
+    """
+    GET /api/v1/accounts/users/<id>/profile/
+
+    Returns a public profile for any user in the viewer's organization.
+    Users outside the organization see a restricted set of fields.
+    ADMIN users can view any profile.
+    """
+    serializer_class = UserPublicProfileSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = CustomUser.objects.select_related('organization').all()
+    lookup_field = 'pk'
+    lookup_url_kwarg = 'pk'
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == CustomUser.Role.PLATFORM_OWNER:
+            return self.queryset
+        if user.organization_id:
+            return self.queryset.filter(organization_id=user.organization_id)
+        return self.queryset.filter(pk=user.pk)
 
 class MeAPIView(generics.RetrieveUpdateAPIView):
     """
@@ -721,9 +749,13 @@ class OrganizationListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, **kwargs):
-        orgs = Organization.objects.filter(
-            db_models.Q(members=request.user) | db_models.Q(id=request.user.organization_id)
-        ).distinct()
+        from domains._authz import get_user_role
+        if get_user_role(request.user) == "PLATFORM_OWNER":
+            orgs = Organization.objects.all()
+        else:
+            orgs = Organization.objects.filter(
+                db_models.Q(members=request.user) | db_models.Q(id=request.user.organization_id)
+            ).distinct()
         return Response(OrganizationSerializer(orgs, many=True).data)
 
     def post(self, request, **kwargs):
@@ -1136,3 +1168,113 @@ class TOTPStatusView(APIView):
             'enabled': user.totp_enabled,
             'backup_codes_remaining': len(user.totp_backup_codes or []),
         })
+
+
+class ImpersonateUserView(APIView):
+    """
+    POST /api/v1/accounts/users/<id>/impersonate/
+
+    ADMIN or PLATFORM_OWNER can impersonate any user.
+    Returns new access + refresh tokens scoped to the target user,
+    with impersonation metadata embedded in the JWT claims.
+    Sets httpOnly cookies so the browser uses the impersonated identity.
+    """
+    permission_classes = [IsAuthenticated, CanAdminUsers]
+
+    def post(self, request, id, **kwargs):
+        if request.user.role not in (CustomUser.Role.PLATFORM_OWNER, CustomUser.Role.ADMIN):
+            return Response(
+                {'detail': 'Only platform owners and admins can impersonate.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            target_user = CustomUser.objects.get(pk=id)
+        except CustomUser.DoesNotExist:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if target_user.id == request.user.id:
+            return Response(
+                {'detail': 'Cannot impersonate yourself.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        refresh = RefreshToken.for_user(target_user)
+        refresh['impersonated_by'] = request.user.id
+        refresh['impersonator_role'] = request.user.role
+
+        access = refresh.access_token
+        access['impersonated_by'] = request.user.id
+        access['impersonator_role'] = request.user.role
+
+        AuditEntry.objects.create(
+            user=request.user, action='IMPERSONATE',
+            resource=f'accounts/users/{id}',
+            description=f'Started impersonating {target_user.username} ({target_user.get_role_display()})',
+            result='SUCCESS',
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+        )
+
+        response = Response({
+            'access': str(access),
+            'refresh': str(refresh),
+            'impersonated_user': UserMeSerializer(target_user).data,
+            'impersonated_by': UserMeSerializer(request.user).data,
+        })
+
+        from cargotrack.auth_views import _set_token_cookies
+        _set_token_cookies(response, str(access), str(refresh))
+        return response
+
+
+class StopImpersonationView(APIView):
+    """
+    POST /api/v1/accounts/impersonate/stop/
+
+    Reverts to the original (impersonator) identity.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, **kwargs):
+        payload = None
+        if hasattr(request, 'auth') and request.auth:
+            payload = request.auth.payload if hasattr(request.auth, 'payload') else getattr(request.auth, 'token', None)
+
+        if not payload:
+            return Response({'detail': 'No token payload found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        original_user_id = payload.get('impersonated_by')
+        if not original_user_id:
+            return Response(
+                {'detail': 'Not currently impersonating.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            original_user = CustomUser.objects.get(pk=original_user_id)
+        except CustomUser.DoesNotExist:
+            return Response(
+                {'detail': 'Original user no longer exists.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        refresh = RefreshToken.for_user(original_user)
+        access = str(refresh.access_token)
+
+        AuditEntry.objects.create(
+            user=original_user, action='IMPERSONATE',
+            resource='accounts/impersonate/stop',
+            description=f'Stopped impersonating {request.user.username}',
+            result='SUCCESS',
+            ip_address=request.META.get('REMOTE_ADDR', ''),
+        )
+
+        response = Response({
+            'access': access,
+            'refresh': str(refresh),
+            'user': UserMeSerializer(original_user).data,
+        })
+
+        from cargotrack.auth_views import _set_token_cookies
+        _set_token_cookies(response, access, str(refresh))
+        return response

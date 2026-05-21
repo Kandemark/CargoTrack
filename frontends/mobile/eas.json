@@ -8,12 +8,14 @@
       "developmentClient": true,
       "distribution": "internal",
       "android": { "buildType": "apk", "gradleCommand": ":app:assembleDebug" },
-      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.100.72:8000" }
+      "ios": { "simulator": true },
+      "env": { "EXPO_PUBLIC_API_URL": "http://localhost:8000" }
     },
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.100.72:8000" }
+      "ios": { "simulator": true },
+      "env": { "EXPO_PUBLIC_API_URL": "http://localhost:8000" }
     },
     "staging": {
       "distribution": "internal",

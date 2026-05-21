@@ -1,12 +1,11 @@
 import Config
 
 # Base config shared across all environments.
-# Runtime overrides go in runtime.exs.
+# secret_key_base is set at runtime via runtime.exs from SECRET_KEY_BASE env var.
+# This value is a build-time fallback only — production MUST override via env.
 
 config :cargotrack_ws, CargoTrackWsWeb.Endpoint,
-  # WebSocket-only — no HTTP server-side sessions, so a static secret is fine.
-  # Override in production via SECRET_KEY_BASE env var.
-  secret_key_base: "ws-dev-secret-change-in-production",
+  secret_key_base: "build-time-placeholder-override-via-SECRET_KEY_BASE-env-var",
   pubsub_server: CargoTrackWs.PubSub,
   render_errors: [accepts: ~w(json)]
 

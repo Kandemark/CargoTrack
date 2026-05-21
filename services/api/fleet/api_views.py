@@ -218,21 +218,32 @@ class FleetStatsView(APIView):
 class DriverAnalyticsView(APIView):
     """
     GET /api/v1/fleet/drivers/stats/
-    Detailed per-driver performance analytics for the analytics dashboard.
+    Detailed per-driver performance analytics with fleet summary for the analytics dashboard.
     """
     permission_classes = [IsAuthenticated, CanViewFleet]
 
     def get(self, request, **kwargs):
-        drivers = Driver.objects.prefetch_related('job_history').all()
-        result = []
-        for d in drivers:
+        from django.db.models import Count, Avg
+        from domains._authz import get_user_role
+
+        drivers_qs = Driver.objects.prefetch_related('job_history').all()
+        trucks_qs = Truck.objects.all()
+        # Scope by organization for non-PLATFORM_OWNER
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                drivers_qs = drivers_qs.filter(organization_id=org_id)
+                trucks_qs = trucks_qs.filter(organization_id=org_id)
+
+        drivers_result = []
+        for d in drivers_qs:
             job_count = d.job_history.count()
-            result.append({
+            drivers_result.append({
                 'driver_id': d.driver_id,
                 'name': d.full_name,
                 'phone': d.phone,
                 'status': d.status,
-                'rating': d.rating,
+                'rating': d.rating or 0,
                 'on_time_rate': d.on_time_rate,
                 'total_jobs': d.total_jobs,
                 'total_km': d.total_km,
@@ -242,7 +253,38 @@ class DriverAnalyticsView(APIView):
                 'certifications': d.certifications,
                 'years_experience': d.years_experience,
             })
-        return Response(result)
+
+        # Fleet summary
+        total_drivers = drivers_qs.count()
+        available_drivers = drivers_qs.filter(status='AVAILABLE').count()
+        on_route_drivers = drivers_qs.filter(status='ON_ROUTE').count()
+        avg_rating = drivers_qs.aggregate(v=Avg('rating'))['v'] or 0
+        total_trucks = trucks_qs.count()
+        active_trucks = trucks_qs.filter(status='ACTIVE').count()
+        avg_fuel_cap = trucks_qs.aggregate(v=Avg('fuel_capacity_l'))['v'] or 0
+
+        # Status distribution for pie/bar chart
+        status_dist = list(
+            drivers_qs.values('status').annotate(count=Count('id')).order_by('-count')
+        )
+
+        # Top earners (top 10 by MTD earnings)
+        top_earners = sorted(drivers_result, key=lambda x: x['earnings_mtd'], reverse=True)[:10]
+
+        return Response({
+            'drivers': drivers_result,
+            'fleet_summary': {
+                'total_drivers': total_drivers,
+                'available_drivers': available_drivers,
+                'on_route_drivers': on_route_drivers,
+                'avg_rating': round(avg_rating, 1),
+                'total_trucks': total_trucks,
+                'active_trucks': active_trucks,
+                'avg_fuel_capacity_l': round(avg_fuel_cap, 1),
+            },
+            'status_distribution': status_dist,
+            'top_earners': top_earners,
+        })
 
 
 class DriverTripSheetView(APIView):

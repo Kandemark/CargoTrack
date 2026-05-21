@@ -1,34 +1,37 @@
-﻿/**
- * Analytics.tsx — Multi-tab analytics hub.
+/**
+ * Analytics.tsx � Multi-tab analytics hub.
  *
  * Tabs: Overview | Profit | Routes | Corridors | Customers | Temporal | Drivers
  * Each tab loads data independently with its own loading/error state.
  */
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line, RadarChart, Radar,
-  PolarGrid, PolarAngleAxis, PolarRadiusAxis, ScatterChart, Scatter,
+  AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  PieChart, Pie, Cell,
 } from 'recharts'
 import {
   TrendingUp, TrendingDown, Package, CheckCircle, AlertTriangle,
   DollarSign, Loader2, Download, BarChart2, Route, Building2,
-  Users, Clock, Truck, FileDown,
+  Users, Clock, Truck, FileDown, GitBranch, Map,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { analyticsApi, type AnalyticsData, type CarrierBenchmarkData, type CustomerAnalyticsData, type TemporalData, type DriverAnalytics } from '@/api/analytics'
+import { analyticsApi, type AnalyticsData, type CustomerAnalyticsData, type TemporalData, type DriverAnalytics, type DriverAnalyticsResponse } from '@/api/analytics'
 import DateRangePicker from '@/components/analytics/DateRangePicker'
 import AnalyticsProfit from './AnalyticsProfit'
 import RoutePerformanceTable from '@/components/analytics/RoutePerformanceTable'
 import CorridorComparison from '@/components/analytics/CorridorComparison'
+import ProbabilityChart from '@/components/analytics/ProbabilityChart'
+import CorridorHeatmap from '@/components/analytics/CorridorHeatmap'
+import SankeyDiagram from '@/components/analytics/SankeyDiagram'
 import DataTable, { type ColumnDef } from '@/components/ui/DataTable'
 
 const fade = { hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }
 
-type Tab = 'overview' | 'profit' | 'routes' | 'corridors' | 'customers' | 'temporal' | 'drivers'
+type Tab = 'overview' | 'profit' | 'routes' | 'corridors' | 'customers' | 'temporal' | 'drivers' | 'probability' | 'heatmap' | 'sankey'
 
-const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }[] = [
   { key: 'overview',  label: 'Overview',   icon: BarChart2 },
   { key: 'profit',    label: 'Profit',     icon: DollarSign },
   { key: 'routes',    label: 'Routes',     icon: Route },
@@ -36,11 +39,17 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: 'customers', label: 'Customers',  icon: Building2 },
   { key: 'temporal',  label: 'Temporal',   icon: Clock },
   { key: 'drivers',   label: 'Drivers',    icon: Users },
+  { key: 'probability', label: 'Probability', icon: TrendingUp },
+  { key: 'heatmap',   label: 'Heatmap',    icon: Map },
+  { key: 'sankey',    label: 'Sankey',     icon: GitBranch },
 ]
 
-const fmtKES = (v: number) => v >= 1_000_000 ? `KES ${(v / 1_000_000).toFixed(2)}M` : `KES ${(v / 1_000).toFixed(0)}K`
+const safeNum = (v: unknown): number => (typeof v === 'number' && !Number.isNaN(v)) ? v : 0
+const safeStr = (v: unknown): string => (typeof v === 'number' && !Number.isNaN(v)) ? v.toLocaleString() : '0'
+const safeFixed = (v: unknown, digits: number = 1): string => (typeof v === 'number' && !Number.isNaN(v)) ? v.toFixed(digits) : (0).toFixed(digits)
+const fmtKES = (v: unknown) => { const n = safeNum(v); return n >= 1_000_000 ? `KES ${(n / 1_000_000).toFixed(2)}M` : `KES ${(n / 1_000).toFixed(0)}K` }
 
-// ── Overview Tab ────────────────────────────────────────────────────────────
+// -- Overview Tab ------------------------------------------------------------
 
 function OverviewTab() {
   const [data, setData] = useState<AnalyticsData | null>(null)
@@ -64,9 +73,9 @@ function OverviewTab() {
 
   const kpis = [
     { label: 'Total Revenue (12m)', value: fmtKES(totalRevenue), trend: `${revenueGrowth}% vs prior 6m`, up: Number(revenueGrowth) >= 0, icon: DollarSign, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
-    { label: 'Total Shipments', value: data.total_shipments.toLocaleString(), trend: `${data.status_counts['IN_TRANSIT'] ?? 0} in transit`, up: true, icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    { label: 'On-Time Rate', value: `${data.on_time_rate}%`, trend: data.on_time_rate >= 85 ? 'On target' : 'Below target', up: data.on_time_rate >= 85, icon: CheckCircle, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-    { label: 'Avg Delay Risk', value: `${data.avg_risk}%`, trend: data.avg_risk < 30 ? 'Low risk' : 'Elevated', up: data.avg_risk < 30, icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+    { label: 'Total Shipments', value: safeStr(data.total_shipments), trend: `${safeNum(data.status_counts?.['IN_TRANSIT'])} in transit`, up: true, icon: Package, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+    { label: 'On-Time Rate', value: `${data.on_time_rate ?? 0}%`, trend: (data.on_time_rate ?? 0) >= 85 ? 'On target' : 'Below target', up: (data.on_time_rate ?? 0) >= 85, icon: CheckCircle, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+    { label: 'Avg Delay Risk', value: `${data.avg_risk ?? 0}%`, trend: (data.avg_risk ?? 0) < 30 ? 'Low risk' : 'Elevated', up: (data.avg_risk ?? 0) < 30, icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
   ]
 
   return (
@@ -148,7 +157,7 @@ function OverviewTab() {
   )
 }
 
-// ── Routes Tab ──────────────────────────────────────────────────────────────
+// -- Routes Tab --------------------------------------------------------------
 
 function RoutesTab() {
   const [data, setData] = useState<{ routes: import('@/api/analytics').RouteAnalytics[] } | null>(null)
@@ -183,7 +192,7 @@ function RoutesTab() {
   )
 }
 
-// ── Corridors Tab ───────────────────────────────────────────────────────────
+// -- Corridors Tab -----------------------------------------------------------
 
 function CorridorsTab() {
   const [data, setData] = useState<{ corridors: import('@/api/analytics').CorridorAnalytics[] } | null>(null)
@@ -218,7 +227,7 @@ function CorridorsTab() {
   )
 }
 
-// ── Customers Tab ───────────────────────────────────────────────────────────
+// -- Customers Tab -----------------------------------------------------------
 
 function CustomersTab() {
   const [data, setData] = useState<CustomerAnalyticsData | null>(null)
@@ -252,7 +261,7 @@ function CustomersTab() {
     { key: 'avg_risk', header: 'Avg Risk', sortable: true, align: 'right', render: (r) => (
       <span className={cn('font-semibold', r.avg_risk < 30 ? 'text-emerald-600' : r.avg_risk < 50 ? 'text-amber-500' : 'text-red-500')}>{r.avg_risk}%</span>
     )},
-    { key: 'preferred_carrier', header: 'Top Carrier', render: (r) => <span className="text-xs text-gray-500">{r.preferred_carrier ?? '—'}</span> },
+    { key: 'preferred_carrier', header: 'Top Carrier', render: (r) => <span className="text-xs text-gray-500">{r.preferred_carrier ?? '�'}</span> },
   ]
 
   return (
@@ -283,13 +292,13 @@ function CustomersTab() {
 
       {/* Full customer table */}
       <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-5">
-        <DataTable columns={columns} data={data.customers} searchable searchPlaceholder="Search clients…" pageSize={10} />
+        <DataTable columns={columns as any[]} data={data.customers as any[]} searchable searchPlaceholder="Search clients�" pageSize={10} />
       </div>
     </div>
   )
 }
 
-// ── Temporal Tab ────────────────────────────────────────────────────────────
+// -- Temporal Tab ------------------------------------------------------------
 
 function TemporalTab() {
   const [data, setData] = useState<TemporalData | null>(null)
@@ -329,8 +338,8 @@ function TemporalTab() {
                 <XAxis dataKey="hour" tick={{ fontSize: 10, fill: 'oklch(0.55 0.015 286)' }} />
                 <YAxis tick={{ fontSize: 11, fill: 'oklch(0.55 0.015 286)' }} />
                 <Tooltip contentStyle={{ background: '#111c2d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12, color: '#fff' }}
-                  formatter={(val: number) => [`${val}`, 'Avg Risk %']}
-                  labelFormatter={(h: number) => `${h}:00`} />
+                  formatter={((val: number) => [`${val}`, 'Avg Risk %']) as any}
+                  labelFormatter={((h: number) => `${h}:00`) as any} />
                 <Bar dataKey="avg_risk" fill="var(--ct-navy)" radius={[2, 2, 0, 0]}>
                   {data.by_hour.map((_, i) => {
                     const colors = ['#22c55e', '#22c55e', '#22c55e', '#3b82f6', '#f59e0b', '#f59e0b', '#f5801e', '#f5801e',
@@ -383,22 +392,29 @@ function TemporalTab() {
   )
 }
 
-// ── Drivers Tab ─────────────────────────────────────────────────────────────
+// -- Drivers Tab -------------------------------------------------------------
+
+const STATUS_COLORS: Record<string, string> = {
+  AVAILABLE: '#22c55e', ON_ROUTE: '#3b82f6', OFF_DUTY: '#6b7280',
+  ON_LEAVE: '#f59e0b', SUSPENDED: '#ef4444', MAINTENANCE: '#8b5cf6',
+}
 
 function DriversTab() {
-  const [drivers, setDrivers] = useState<DriverAnalytics[]>([])
+  const [data, setData] = useState<DriverAnalyticsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     analyticsApi.drivers()
-      .then(r => setDrivers(r.data))
+      .then(r => setData(r.data))
       .catch(() => setError('Failed to load driver analytics'))
       .finally(() => setLoading(false))
   }, [])
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
-  if (error) return <div className="flex items-center justify-center h-64 text-red-500">{error}</div>
+  if (error || !data) return <div className="flex items-center justify-center h-64 text-red-500">{error}</div>
+
+  const { drivers, fleet_summary: fs, status_distribution: statusDist, top_earners: topEarners } = data
 
   const columns: ColumnDef<DriverAnalytics>[] = [
     { key: 'name', header: 'Driver', sortable: true, render: (d) => (
@@ -418,29 +434,101 @@ function DriversTab() {
         d.status === 'ON_ROUTE' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
         'bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-white/40')}>{d.status}</span>
     )},
-    { key: 'rating', header: 'Rating', sortable: true, align: 'right', render: (d) => <span className="font-semibold">{d.rating.toFixed(1)}</span> },
+    { key: 'rating', header: 'Rating', sortable: true, align: 'right', render: (d) => <span className="font-semibold">{safeFixed(d.rating, 1)}</span> },
     { key: 'on_time_rate', header: 'On-Time %', sortable: true, align: 'right', render: (d) => (
       <span className={cn('font-semibold', d.on_time_rate >= 90 ? 'text-emerald-600' : d.on_time_rate >= 75 ? 'text-amber-500' : 'text-red-500')}>{d.on_time_rate}%</span>
     )},
     { key: 'total_jobs', header: 'Jobs', sortable: true, align: 'right' },
-    { key: 'total_km', header: 'Total KM', sortable: true, align: 'right', render: (d) => <span>{d.total_km.toLocaleString()}</span> },
-    { key: 'earnings_mtd', header: 'Earnings MTD', sortable: true, align: 'right', render: (d) => <span>KES {d.earnings_mtd.toLocaleString()}</span> },
+    { key: 'total_km', header: 'Total KM', sortable: true, align: 'right', render: (d) => <span>{safeStr(d.total_km)}</span> },
+    { key: 'earnings_mtd', header: 'Earnings MTD', sortable: true, align: 'right', render: (d) => <span>KES {safeStr(d.earnings_mtd)}</span> },
   ]
 
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-bold text-gray-900 dark:text-white font-heading">Driver Performance</h2>
-        <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">{drivers.length} drivers</p>
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white font-heading">Fleet & Driver Analytics</h2>
+        <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">{fs.total_drivers} drivers � {fs.total_trucks} trucks</p>
       </div>
+
+      {/* Fleet KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-4">
+          <p className="text-[11px] text-gray-500 dark:text-white/40">Total Drivers</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{fs.total_drivers}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{fs.available_drivers} available � {fs.on_route_drivers} on route</p>
+        </div>
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-4">
+          <p className="text-[11px] text-gray-500 dark:text-white/40">Fleet Size</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{fs.total_trucks}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{fs.active_trucks} active trucks</p>
+        </div>
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-4">
+          <p className="text-[11px] text-gray-500 dark:text-white/40">Avg Rating</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{safeFixed(fs.avg_rating, 1)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">Out of 5.0</p>
+        </div>
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-4">
+          <p className="text-[11px] text-gray-500 dark:text-white/40">Avg Fuel Capacity</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{safeFixed(fs.avg_fuel_capacity_l, 1)}L</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">Across fleet</p>
+        </div>
+      </div>
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Top Earners Chart */}
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-5">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-white mb-3">Top Earners (MTD)</h3>
+          <div style={{ height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topEarners} layout="vertical" barSize={18}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.004 286.32 / 30%)" />
+                <XAxis type="number" tick={{ fontSize: 10, fill: 'oklch(0.55 0.015 286)' }} />
+                <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10, fill: 'oklch(0.55 0.015 286)' }} />
+                <Tooltip
+                  contentStyle={{ background: '#111c2d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12, color: '#fff' }}
+                  formatter={((val: number) => [`KES ${val.toLocaleString()}`, 'Earnings MTD']) as any}
+                />
+                <Bar dataKey="earnings_mtd" fill="var(--ct-navy)" radius={[0, 4, 4, 0]}>
+                  {topEarners.map((_, i) => (
+                    <Cell key={i} fill={i < 3 ? '#f5801e' : 'var(--ct-navy)'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Status Distribution */}
+        <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 p-5">
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-white mb-3">Driver Status Distribution</h3>
+          <div style={{ height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={statusDist} dataKey="count" nameKey="status" cx="50%" cy="50%" outerRadius={100} innerRadius={55}
+                  label={(({ status, count }: any) => `${status} (${count})`) as any}
+                  labelLine={{ stroke: 'oklch(0.55 0.015 286 / 50%)', strokeWidth: 1 }}>
+                  {statusDist.map((entry) => (
+                    <Cell key={entry.status} fill={STATUS_COLORS[entry.status] ?? '#6b7280'} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{ background: '#111c2d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12, color: '#fff' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Driver Table */}
       <div className="bg-white dark:bg-[#1a2235] rounded-xl border border-gray-200 dark:border-white/8 shadow-card p-5">
-        <DataTable columns={columns} data={drivers} searchable searchPlaceholder="Search drivers…" pageSize={10} />
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-white mb-3">All Drivers</h3>
+        <DataTable columns={columns as any[]} data={drivers as any[]} searchable searchPlaceholder="Search drivers�" pageSize={10} />
       </div>
     </div>
   )
 }
 
-// ── Export helper ───────────────────────────────────────────────────────────
+// -- Export helper -----------------------------------------------------------
 
 function exportFile(data: Blob, filename: string) {
   const url = URL.createObjectURL(data)
@@ -449,7 +537,7 @@ function exportFile(data: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-// ── Main Analytics Page ─────────────────────────────────────────────────────
+// -- Main Analytics Page -----------------------------------------------------
 
 export default function Analytics() {
   const [tab, setTab] = useState<Tab>('overview')
@@ -521,6 +609,9 @@ export default function Analytics() {
       {tab === 'customers' && <CustomersTab />}
       {tab === 'temporal' && <TemporalTab />}
       {tab === 'drivers' && <DriversTab />}
+      {tab === 'probability' && <ProbabilityChart />}
+      {tab === 'heatmap' && <CorridorHeatmap />}
+      {tab === 'sankey' && <SankeyDiagram />}
     </div>
   )
 }

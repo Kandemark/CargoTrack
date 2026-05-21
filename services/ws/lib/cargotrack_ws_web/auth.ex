@@ -9,7 +9,11 @@ defmodule CargoTrackWsWeb.Auth do
 
   # Joken 2.x exposes verify_and_validate directly on the Joken module
 
-  @secret System.get_env("JWT_SECRET_KEY", "django-insecure-dev-key")
+  @secret case System.get_env("JWT_SECRET_KEY") do
+             nil -> raise "JWT_SECRET_KEY environment variable is required but not set"
+             ""  -> raise "JWT_SECRET_KEY environment variable is required but not set"
+             val -> val
+           end
 
   @signer Joken.Signer.create("HS256", @secret)
 

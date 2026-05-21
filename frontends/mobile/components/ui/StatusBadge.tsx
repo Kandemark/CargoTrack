@@ -1,5 +1,6 @@
 import { View, Text, type ViewProps } from 'react-native'
 import { SHIPMENT_STATUS_COLORS, ALERT_SEVERITY_COLORS, SHIPMENT_STATUS_LABELS } from '@shared/utils/statusColors'
+import { useAppTheme } from '@/lib/useAppTheme'
 import type { ShipmentStatus, AlertSeverity } from '@shared/api/types'
 
 type BadgeSize = 'sm' | 'md'
@@ -23,13 +24,14 @@ function getLabel(status: string, fallback: string) {
 }
 
 export default function StatusBadge({ status, label, size = 'md', style }: StatusBadgeProps) {
-  const colors = getColor(status)
+  const badgeColors = getColor(status)
   const displayLabel = label ?? getLabel(status, status)
+  const { colors } = useAppTheme()
 
-  if (!colors) {
+  if (!badgeColors) {
     return (
       <View style={[{ flexDirection: 'row', alignItems: 'center' }, style]}>
-        <Text style={{ fontSize: 13, color: '#6B7280' }}>{displayLabel}</Text>
+        <Text style={{ fontSize: 13, color: colors.textMuted }}>{displayLabel}</Text>
       </View>
     )
   }
@@ -48,8 +50,8 @@ export default function StatusBadge({ status, label, size = 'md', style }: Statu
         alignSelf: 'flex-start',
         paddingHorizontal: paddingH,
         paddingVertical: paddingV,
-        backgroundColor: colors.background,
-        borderColor: colors.border,
+        backgroundColor: badgeColors.background,
+        borderColor: badgeColors.border,
         borderWidth: 1,
       }, style]}
     >
@@ -58,11 +60,11 @@ export default function StatusBadge({ status, label, size = 'md', style }: Statu
           width: dotSize,
           height: dotSize,
           borderRadius: dotSize / 2,
-          backgroundColor: colors.dot,
+          backgroundColor: badgeColors.dot,
           marginRight: 4,
         }}
       />
-      <Text style={{ color: colors.text, fontSize: textSize, fontWeight: '700' }}>
+      <Text style={{ color: badgeColors.text, fontSize: textSize, fontWeight: '700' }}>
         {displayLabel}
       </Text>
     </View>

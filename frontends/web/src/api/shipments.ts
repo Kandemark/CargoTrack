@@ -61,4 +61,12 @@ export const shipmentsApi = {
   /** POST /api/v1/shipments/<pk>/predict/ — run ML delay prediction. */
   predictDelay: (id: number) =>
     apiClient.post<DelayPrediction>(`/api/v1/shipments/${id}/predict/`, {}),
+
+  /** PATCH /api/v1/shipments/<pk>/ — full update (used by bulk status bar). */
+  updateShipment: (id: number, data: Record<string, unknown>) =>
+    apiClient.patch<Shipment>(`/api/v1/shipments/${id}/`, data),
+
+  /** POST /api/v1/shipments/<pk>/generate-waybill/ — generate waybill PDF. */
+  generateWaybill: (id: number) =>
+    apiClient.post(`/api/v1/shipments/${id}/generate-waybill/`, {}),
 }

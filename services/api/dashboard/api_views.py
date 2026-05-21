@@ -11,13 +11,17 @@ from shipments.models import Shipment
 
 from cargotrack.authz import CanViewAnalytics
 from cargotrack.async_cache import AsyncCacheMixin
+from domains._authz import OrgScopedQueryset
 
 from .dashboard import LogisticsDashboard
 
 
-def _compute_kpis() -> dict:
+def _compute_kpis(*, org_id: int | None = None) -> dict:
+    shipments = Shipment.objects.all()
+    if org_id is not None:
+        shipments = shipments.filter(client__organization_id=org_id)
     # Single aggregation query instead of 8 separate count queries
-    agg = Shipment.objects.aggregate(
+    agg = shipments.aggregate(
         total=db_models.Count("id"),
         delivered=db_models.Count("id", filter=db_models.Q(status="DELIVERED")),
         delayed=db_models.Count("id", filter=db_models.Q(status="DELAYED")),
@@ -37,8 +41,11 @@ def _compute_kpis() -> dict:
     active = total - delivered
     on_time_rate = round((agg["on_time"] / delivered * 100) if delivered else 100, 1)
 
-    # Carrier count + alerts in parallel (still separate — different tables)
-    carrier_count = Shipment.objects.values("carrier_name").distinct().count()
+    # Carrier count + alerts in parallel
+    carrier_count = shipments.values("carrier_name").distinct().count()
+    alerts_qs = Alert.objects.all()
+    if org_id is not None:
+        alerts_qs = alerts_qs.filter(shipment__client__organization_id=org_id)
 
     return {
         "total_shipments":     total,
@@ -48,20 +55,24 @@ def _compute_kpis() -> dict:
         "exception_count":     delayed,
         "on_time_rate":        on_time_rate,
         "carrier_count":       carrier_count,
-        "open_alerts":         Alert.objects.filter(acknowledged=False).count(),
+        "open_alerts":         alerts_qs.filter(acknowledged=False).count(),
     }
 
 
-class KPIApiView(AsyncCacheMixin, APIView):
+class KPIApiView(OrgScopedQueryset, AsyncCacheMixin, APIView):
     """GET /api/v1/dashboard/kpis/ — KPI summary for the React dashboard."""
     permission_classes = [IsAuthenticated, CanViewAnalytics]
     cache_ttl = 60  # 1-min cache
 
     def get(self, request, **kwargs):
-        return Response(_compute_kpis())
+        org_id = getattr(request.user, "organization_id", None)
+        role = getattr(request.user, "role", "")
+        return Response(_compute_kpis(
+            org_id=org_id if role != "PLATFORM_OWNER" else None,
+        ))
 
 
-class MapDataAPIView(APIView):
+class MapDataAPIView(OrgScopedQueryset, APIView):
     """
     GET /api/v1/dashboard/map/?bounds=lat1,lng1,lat2,lng2
     Returns a GeoJSON FeatureCollection of active shipments with route lines.
@@ -107,7 +118,9 @@ class MapDataAPIView(APIView):
         return None
 
     def get(self, request, **kwargs):
-        shipments = Shipment.objects.select_related('route').exclude(status='DELIVERED')[:200]
+        shipments = self.scope_by_org(
+            Shipment.objects.select_related('route').exclude(status='DELIVERED')
+        )[:200]
         features = []
 
         for s in shipments:
@@ -162,7 +175,7 @@ class MapDataAPIView(APIView):
         })
 
 
-class DashboardAPIView(AsyncCacheMixin, APIView):
+class DashboardAPIView(OrgScopedQueryset, AsyncCacheMixin, APIView):
     """
     GET /api/v1/dashboard/stats/
     Returns summary stats, recent events, and per-carrier performance.
@@ -171,11 +184,93 @@ class DashboardAPIView(AsyncCacheMixin, APIView):
     cache_ttl = 30  # 30s cache — main dashboard
 
     def get(self, request, **kwargs):
-        db = LogisticsDashboard()
+        role = getattr(request.user, "role", "")
+        org_id = getattr(request.user, "organization_id", None) if role != "PLATFORM_OWNER" else None
+        db = LogisticsDashboard(org_id=org_id)
         return Response({
             "summary":             db.get_summary_stats(),
             "recent_events":       db.get_recent_events(),
             "carrier_performance": db.get_carrier_performance(),
+        })
+
+
+class PlatformRevenueView(APIView):
+    """
+    GET /api/v1/dashboard/platform/revenue/
+    Returns revenue per organization and corridor shipment volume for
+    Platform Owner dashboard charts.
+    """
+    permission_classes = [IsAuthenticated, CanViewAnalytics]
+
+    def get(self, request, **kwargs):
+        from accounts.models import CustomUser, Organization
+        from payments.models import Invoice
+        from shipments.models import Shipment
+
+        # ── Revenue per organization ──────────────────────────────────
+        org_revenue = (
+            Invoice.objects
+            .filter(status='PAID')
+            .values('shipment__client__organization__name')
+            .annotate(
+                revenue_kes=db_models.Sum('amount_kes'),
+                invoice_count=db_models.Count('id'),
+            )
+            .order_by('-revenue_kes')
+        )
+        revenue_by_org = [
+            {
+                'name': r['shipment__client__organization__name'] or 'Unassigned',
+                'revenue_kes': float(r['revenue_kes'] or 0),
+                'invoice_count': r['invoice_count'],
+            }
+            for r in org_revenue
+        ]
+
+        # ── Shipment volume by corridor ───────────────────────────────
+        corridor_data = (
+            Shipment.objects
+            .values('route__origin', 'route__destination')
+            .annotate(
+                total=db_models.Count('id'),
+                pending=db_models.Count('id', filter=db_models.Q(status='PENDING')),
+                in_transit=db_models.Count('id', filter=db_models.Q(status='IN_TRANSIT')),
+                customs=db_models.Count('id', filter=db_models.Q(status='CUSTOMS')),
+                delivered=db_models.Count('id', filter=db_models.Q(status='DELIVERED')),
+                delayed=db_models.Count('id', filter=db_models.Q(status='DELAYED')),
+            )
+            .order_by('-total')
+        )
+        corridor_volume = [
+            {
+                'corridor': f"{c['route__origin']} → {c['route__destination']}",
+                'origin': c['route__origin'],
+                'destination': c['route__destination'],
+                'total': c['total'],
+                'pending': c['pending'],
+                'in_transit': c['in_transit'],
+                'customs': c['customs'],
+                'delivered': c['delivered'],
+                'delayed': c['delayed'],
+            }
+            for c in corridor_data
+        ]
+
+        # ── Cross-border clearance rate ───────────────────────────────
+        customs_total = Shipment.objects.filter(status='CUSTOMS').count()
+        delivered_total = Shipment.objects.filter(status='DELIVERED').count()
+        total_completed = customs_total + delivered_total
+        clearance_rate = round((delivered_total / total_completed * 100), 1) if total_completed else 100.0
+
+        # ── Active conversations ──────────────────────────────────────
+        from chats.models import Conversation
+        active_conversations = Conversation.objects.filter(is_active=True).count()
+
+        return Response({
+            'revenue_by_org': revenue_by_org,
+            'corridor_volume': corridor_volume,
+            'clearance_rate': clearance_rate,
+            'active_conversations': active_conversations,
         })
 
 

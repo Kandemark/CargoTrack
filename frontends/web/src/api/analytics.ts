@@ -187,6 +187,28 @@ export interface DriverAnalytics {
   years_experience: number
 }
 
+export interface FleetSummary {
+  total_drivers: number
+  available_drivers: number
+  on_route_drivers: number
+  avg_rating: number
+  total_trucks: number
+  active_trucks: number
+  avg_fuel_capacity_l: number
+}
+
+export interface StatusDistribution {
+  status: string
+  count: number
+}
+
+export interface DriverAnalyticsResponse {
+  drivers: DriverAnalytics[]
+  fleet_summary: FleetSummary
+  status_distribution: StatusDistribution[]
+  top_earners: DriverAnalytics[]
+}
+
 // ── SLA ─────────────────────────────────────────────────────────────────────
 
 export interface SLAItem {
@@ -313,7 +335,7 @@ export const analyticsApi = {
     apiClient.get<TemporalData>('/api/v1/analytics/temporal/', { params }),
 
   drivers: () =>
-    apiClient.get<DriverAnalytics[]>('/api/v1/fleet/drivers/stats/'),
+    apiClient.get<DriverAnalyticsResponse>('/api/v1/fleet/drivers/stats/'),
 
   sla: (params?: { status?: string }) =>
     apiClient.get<SLAData>('/api/v1/sla/', { params }),

@@ -53,6 +53,7 @@ import FleetDrivers   from '@/pages/fleet/Drivers'
 import TruckForm      from '@/pages/fleet/TruckForm'
 import TruckDetail    from '@/pages/fleet/TruckDetail'
 import FleetAnalytics from '@/pages/fleet/FleetAnalytics'
+import Maintenance     from '@/pages/fleet/Maintenance'
 
 // ── Shared pages ───────────────────────────────────────────────────────────────
 import Dashboard          from '@/pages/Dashboard'
@@ -82,15 +83,26 @@ import AuditLog           from '@/pages/AuditLog'
 import RateCards          from '@/pages/RateCards'
 import Compliance         from '@/pages/Compliance'
 import JobBoard           from '@/pages/JobBoard'
+import Profile            from '@/pages/Profile'
 import PerformanceMetrics from '@/pages/PerformanceMetrics'
 import POD                 from '@/pages/POD'
 import ColdChain           from '@/pages/ColdChain'
 import ETA                 from '@/pages/ETA'
+import Workflows           from '@/pages/Workflows'
+import SocialCenter         from '@/pages/SocialCenter'
+import PlatformDashboard    from '@/pages/platform/PlatformDashboard'
 
-// ── Landing gate — authenticated users go to their role dashboard ─────────────
+// ── Landing gate — wait for auth restoration, then redirect authenticated users ──
 
 function LandingRoute() {
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated, authReady, user } = useAuthStore()
+  if (!authReady) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#0d1b2e]">
+        <div className="w-8 h-8 border-2 border-gray-300 border-t-ct-navy rounded-full animate-spin" />
+      </div>
+    )
+  }
   return isAuthenticated
     ? <Navigate to={getRoleDashboard(user?.role)} replace />
     : <Landing />
@@ -100,12 +112,15 @@ function LandingRoute() {
 //    access token (held in JS memory only) is lost.  Restore it via the refresh
 //    endpoint which reads the httpOnly refresh cookie.
 function AuthRestorer() {
-  const { isAuthenticated, accessToken, restoreAccessToken } = useAuthStore()
+  const { isAuthenticated, accessToken, authReady, restoreAccessToken } = useAuthStore()
   useEffect(() => {
+    if (authReady) return
     if (isAuthenticated && !accessToken) {
       restoreAccessToken()
+    } else {
+      useAuthStore.setState({ authReady: true })
     }
-  }, [isAuthenticated, accessToken, restoreAccessToken])
+  }, [isAuthenticated, accessToken, authReady, restoreAccessToken])
   return null
 }
 
@@ -144,12 +159,14 @@ export default function App() {
             <Route path="/documents"               element={<Documents />} />
             <Route path="/settings"                element={<Settings />} />
             <Route path="/messages"               element={<Messages />} />
+            <Route path="/profile/:id"          element={<Profile />} />
             <Route path="/fleet/trucks"            element={<FleetTrucks />} />
             <Route path="/fleet/trucks/new"       element={<TruckForm />} />
             <Route path="/fleet/trucks/:id/edit"  element={<TruckForm />} />
             <Route path="/fleet/trucks/:id"       element={<TruckDetail />} />
             <Route path="/fleet/drivers"           element={<FleetDrivers />} />
             <Route path="/fleet/analytics"         element={<FleetAnalytics />} />
+            <Route path="/fleet/maintenance"      element={<Maintenance />} />
             {/* New feature pages */}
             <Route path="/analytics"               element={<Analytics />} />
             <Route path="/carriers"                element={<Carriers />} />
@@ -165,6 +182,8 @@ export default function App() {
             <Route path="/pod"                     element={<POD />} />
             <Route path="/cold-chain"              element={<ColdChain />} />
             <Route path="/eta"                     element={<ETA />} />
+            <Route path="/workflows"               element={<Workflows />} />
+            <Route path="/social"                  element={<SocialCenter />} />
             {/* Legacy shared routes */}
             <Route path="/shared/tracking"         element={<Tracking />} />
             <Route path="/shared/alerts"           element={<Alerts />} />
@@ -260,6 +279,13 @@ export default function App() {
               <Route path="/finance/dashboard" element={<FinancePortal />} />
               <Route path="/finance/revenue"   element={<FinancePortal />} />
               <Route path="/finance/reports"   element={<FinancePortal />} />
+            </Route>
+          </Route>
+
+          {/* /platform/* — PLATFORM_OWNER only */}
+          <Route element={<RoleRoute roles={ROLES.PLATFORM_ONLY} />}>
+            <Route element={<PageWrapper />}>
+              <Route path="/platform/dashboard" element={<PlatformDashboard />} />
             </Route>
           </Route>
 

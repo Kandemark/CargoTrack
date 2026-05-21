@@ -1,5 +1,3 @@
-# CargoTrack Webhook Dispatcher Service
-# Kafka consumer → HMAC-signed outbound webhooks with circuit breaker
 FROM golang:1.24-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum* ./
@@ -8,6 +6,9 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o webhook-dispatcher .
 
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates \
+    && addgroup -S -g 1000 app \
+    && adduser -S -u 1000 -G app app
 COPY --from=builder /app/webhook-dispatcher /usr/local/bin/webhook-dispatcher
+USER app
 ENTRYPOINT ["webhook-dispatcher"]

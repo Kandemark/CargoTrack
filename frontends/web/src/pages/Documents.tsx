@@ -1,12 +1,12 @@
-﻿/**
- * Documents.tsx — Enterprise document management with folder view, search, filter.
+/**
+ * Documents.tsx � Enterprise document management with folder view, search, filter.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, Upload, X, AlertTriangle, RefreshCw, Eye,
-  Search, Download, Filter, FolderOpen, Folder,
-  ChevronRight, Clock, User, Shield, Package,
+  Search, Download, FolderOpen, Folder,
+  Clock, User, Shield, Package,
   FileArchive, FileCog, Grid, List as ListIcon, ScanText,
 } from 'lucide-react'
 import { ocrApi, type DocumentExtraction } from '@/api/ocr'
@@ -17,9 +17,9 @@ import { documentsApi } from '@/api/payments'
 import { shipmentsApi } from '@/api/shipments'
 import type { Document as ShipDoc, DocType, ShipmentListItem } from '@/types'
 
-// ── Config ────────────────────────────────────────────────────────────────────
+// -- Config --------------------------------------------------------------------
 
-const DOC_CFG: Record<DocType, { icon: React.ElementType; label: string; color: string; bg: string }> = {
+const DOC_CFG: Record<DocType, { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; color: string; bg: string }> = {
   BOL:       { icon: FileText,    label: 'Bill of Lading',      color: '#0f2d5e', bg: 'bg-blue-50 dark:bg-blue-900/20'    },
   CUSTOMS:   { icon: Shield,      label: 'Customs Declaration', color: '#8b5cf6', bg: 'bg-violet-50 dark:bg-violet-900/20' },
   PACKING:   { icon: Package,     label: 'Packing List',        color: '#f5801e', bg: 'bg-orange-50 dark:bg-orange-900/20' },
@@ -33,7 +33,7 @@ function Sk({ className }: { className?: string }) {
   return <div className={cn('rounded-lg bg-gray-100 dark:bg-white/8 animate-pulse', className)} />
 }
 
-// ── Upload Modal ──────────────────────────────────────────────────────────────
+// -- Upload Modal --------------------------------------------------------------
 
 function UploadModal({ onClose, onUploaded }: { onClose: () => void; onUploaded: () => void }) {
   const [shipments, setShipments] = useState<ShipmentListItem[]>([])
@@ -80,8 +80,8 @@ function UploadModal({ onClose, onUploaded }: { onClose: () => void; onUploaded:
             <label className="block text-xs font-medium text-gray-700 dark:text-white/70 mb-1">Shipment *</label>
             <select value={shipId} onChange={(e) => setShipId(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-400">
-              <option value="">Select shipment…</option>
-              {shipments.map((s) => <option key={s.id} value={s.id}>{s.tracking_number} · {s.route.origin} → {s.route.destination}</option>)}
+              <option value="">Select shipment�</option>
+              {shipments.map((s) => <option key={s.id} value={s.id}>{s.tracking_number} � {s.route.origin} ? {s.route.destination}</option>)}
             </select>
           </div>
           <div>
@@ -124,7 +124,7 @@ function UploadModal({ onClose, onUploaded }: { onClose: () => void; onUploaded:
             <button type="submit" disabled={saving}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60 hover:opacity-90 transition-opacity"
               style={{ background: 'var(--ct-navy)' }}>
-              {saving ? 'Uploading…' : 'Upload Document'}
+              {saving ? 'Uploading�' : 'Upload Document'}
             </button>
           </div>
         </form>
@@ -133,7 +133,7 @@ function UploadModal({ onClose, onUploaded }: { onClose: () => void; onUploaded:
   )
 }
 
-// ── Document card ─────────────────────────────────────────────────────────────
+// -- Document card -------------------------------------------------------------
 
 function DocCard({ doc, onPreview, gridView }: { doc: ShipDoc; onPreview: (d: ShipDoc) => void; gridView: boolean }) {
   const cfg = DOC_CFG[doc.doc_type] ?? DOC_CFG.OTHER
@@ -209,7 +209,7 @@ function DocCard({ doc, onPreview, gridView }: { doc: ShipDoc; onPreview: (d: Sh
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// -- Main ----------------------------------------------------------------------
 
 export default function Documents() {
   const [docs,       setDocs]       = useState<ShipDoc[]>([])
@@ -334,14 +334,14 @@ export default function Documents() {
           <select value={shipId} onChange={(e) => setShipId(e.target.value)}
             className="text-sm bg-transparent text-gray-900 dark:text-white focus:outline-none min-w-0 max-w-xs">
             {shipments.length === 0 && <option value="">No shipments</option>}
-            {shipments.map((s) => <option key={s.id} value={s.id}>{s.tracking_number} — {s.route.origin} → {s.route.destination}</option>)}
+            {shipments.map((s) => <option key={s.id} value={s.id}>{s.tracking_number} � {s.route.origin} ? {s.route.destination}</option>)}
           </select>
         </div>
 
         <div className="relative flex-1 min-w-40">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by filename or type…"
+            placeholder="Search by filename or type�"
             className="w-full pl-9 pr-3 py-2 rounded-xl text-sm bg-white dark:bg-[#1a2235] border border-gray-200 dark:border-white/8 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/25 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-card" />
         </div>
 
@@ -423,7 +423,7 @@ export default function Documents() {
             ))}
           </AnimatePresence>
           <div className="px-5 py-3 border-t border-gray-100 dark:border-white/6 text-xs text-gray-400 dark:text-white/30 bg-gray-50/30 dark:bg-white/1">
-            {filtered.length} document{filtered.length !== 1 ? 's' : ''} · {currentShipment?.tracking_number ?? '—'}
+            {filtered.length} document{filtered.length !== 1 ? 's' : ''} � {currentShipment?.tracking_number ?? '�'}
           </div>
         </div>
       )}
@@ -494,7 +494,7 @@ export default function Documents() {
               onChange={(e) => { setOcrFile(e.target.files?.[0] ?? null); setOcrResult(null); setOcrError(null) }} />
             <button onClick={runOCR} disabled={!ocrFile || ocrLoading}
               className="mt-3 w-full px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-60 transition-colors inline-flex items-center justify-center gap-1.5">
-              <ScanText className="w-3.5 h-3.5" /> {ocrLoading ? 'Extracting…' : 'Extract Text'}
+              <ScanText className="w-3.5 h-3.5" /> {ocrLoading ? 'Extracting�' : 'Extract Text'}
             </button>
             {ocrError && <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg mt-2">{ocrError}</p>}
           </div>

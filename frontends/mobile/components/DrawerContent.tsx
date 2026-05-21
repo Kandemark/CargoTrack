@@ -1,10 +1,12 @@
 import { View, Text, ScrollView, Alert } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { router } from 'expo-router'
+import { router, usePathname } from 'expo-router'
 import { DrawerContentScrollView } from '@react-navigation/drawer'
 import { DrawerActions } from '@react-navigation/native'
 import { useAuthStore, useAlertStore } from '@/lib/store'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useAppTheme } from '@/lib/useAppTheme'
+import { T } from '@/lib/theme'
 import AnimatedPressable from './animated/AnimatedPressable'
 
 type IconName = React.ComponentProps<typeof Ionicons>['name']
@@ -474,11 +476,19 @@ const EXISTING_ROUTES = new Set([
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+function routeMatch(current: string, navRoute: string): boolean {
+  // Normalise both: strip leading slash, strip (tabs) group prefix
+  const norm = (p: string) => p.replace(/^\//, '').replace(/^\(tabs\)\//, '')
+  return norm(current) === norm(navRoute)
+}
+
 export default function DrawerContent({ drawerNav }: { drawerNav?: any }) {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const unreadCount = useAlertStore((s) => s.unreadCount)
   const insets = useSafeAreaInsets()
+  const { colors } = useAppTheme()
+  const currentPath = usePathname()
 
   const initials = user
     ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase()
@@ -528,19 +538,19 @@ export default function DrawerContent({ drawerNav }: { drawerNav?: any }) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0a1929' }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Brand header */}
-      <View style={{ paddingTop: insets.top, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' }}>
+      <View style={{ paddingTop: insets.top, borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16, gap: 12 }}>
           <View style={{
             width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-            backgroundColor: '#f5801e', shadowColor: '#f5801e', shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
+            backgroundColor: T.color.brand.accent, shadowColor: T.color.brand.accent, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
           }}>
             <Ionicons name="cube" size={18} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 15, letterSpacing: -0.3 }}>CargoTrack</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' }}>
+            <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15, letterSpacing: -0.3 }}>CargoTrack</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' }}>
               Logistics Intelligence
             </Text>
           </View>
@@ -553,14 +563,16 @@ export default function DrawerContent({ drawerNav }: { drawerNav?: any }) {
           <View key={si} style={{ marginBottom: 4 }}>
             {section.title && (
               <Text style={{
-                fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.25)',
+                fontSize: 10, fontWeight: '800', color: colors.textFaint,
                 textTransform: 'uppercase', letterSpacing: 1.2,
                 paddingHorizontal: 20, marginTop: si > 0 ? 14 : 4, marginBottom: 6,
               }}>
                 {section.title}
               </Text>
             )}
-            {section.items.map((item) => (
+            {section.items.map((item) => {
+              const active = routeMatch(currentPath, item.route)
+              return (
               <AnimatedPressable
                 key={item.route}
                 onPress={() => handleNavigate(item.route)}
@@ -574,23 +586,24 @@ export default function DrawerContent({ drawerNav }: { drawerNav?: any }) {
                   paddingHorizontal: 12,
                   borderRadius: 10,
                   gap: 12,
+                  backgroundColor: active ? T.color.brand.accentSoft : 'transparent',
                 }}
               >
                 <View style={{ width: 22, alignItems: 'center' }}>
-                  <Ionicons name={item.icon} size={18} color="rgba(255,255,255,0.4)" />
+                  <Ionicons name={item.icon} size={18} color={active ? T.color.brand.accent : colors.textMuted} />
                 </View>
                 <Text style={{
                   flex: 1,
                   fontSize: 14,
-                  fontWeight: '600',
-                  color: 'rgba(255,255,255,0.7)',
+                  fontWeight: active ? '700' : '600',
+                  color: active ? T.color.brand.accent : colors.textSecondary,
                 }}>
                   {item.label}
                 </Text>
                 {item.alertBadge && unreadCount > 0 && (
                   <View style={{
                     minWidth: 20, height: 20, borderRadius: 10,
-                    backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: T.color.risk.high, alignItems: 'center', justifyContent: 'center',
                     paddingHorizontal: 5,
                   }}>
                     <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>
@@ -599,13 +612,13 @@ export default function DrawerContent({ drawerNav }: { drawerNav?: any }) {
                   </View>
                 )}
               </AnimatedPressable>
-            ))}
+            )})}
           </View>
         ))}
       </DrawerContentScrollView>
 
       {/* User footer */}
-      <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', paddingBottom: insets.bottom }}>
+      <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: insets.bottom }}>
         <AnimatedPressable
           onPress={handleLogout}
           scaleTo={0.97}
@@ -622,14 +635,14 @@ export default function DrawerContent({ drawerNav }: { drawerNav?: any }) {
             <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>{initials}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
               {user ? `${user.first_name} ${user.last_name}` : 'User'}
             </Text>
-            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '600' }}>
+            <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '600' }}>
               {roleLabel}
             </Text>
           </View>
-          <Ionicons name="log-out-outline" size={18} color="rgba(255,255,255,0.3)" />
+          <Ionicons name="log-out-outline" size={18} color={colors.textFaint} />
         </AnimatedPressable>
       </View>
     </View>

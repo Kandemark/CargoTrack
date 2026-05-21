@@ -1,0 +1,71 @@
+# CargoTrack Alertmanager — alert routing and notification channels
+# ===================================================================
+# Routes alerts from Prometheus rules to the appropriate channels.
+# Severity-based routing: critical → PagerDuty, warning → Slack, info → email digest.
+
+global:
+  resolve_timeout: 5m
+
+# ── Templates ──────────────────────────────────────────────────────────────
+templates:
+  - /etc/alertmanager/templates/*.tmpl
+
+# ── Routing tree ───────────────────────────────────────────────────────────
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 4h
+  receiver: 'slack-cargotrack-alerts'
+
+  routes:
+    - match:
+        severity: critical
+      receiver: 'pagerduty-cargotrack'
+      repeat_interval: 15m
+      continue: true
+
+    - match:
+        severity: warning
+      receiver: 'slack-cargotrack-alerts'
+
+    - match:
+        severity: info
+      receiver: 'email-digest'
+
+# ── Receivers ──────────────────────────────────────────────────────────────
+# Replace placeholder URLs/tokens with actual values in .env or K8s secrets.
+
+receivers:
+  - name: 'slack-cargotrack-alerts'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-cargotrack'
+        title: '{{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}'
+        send_resolved: true
+
+  - name: 'pagerduty-cargotrack'
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_ROUTING_KEY}'
+        severity: '{{ if eq .CommonLabels.severity "critical" }}critical{{ else }}error{{ end }}'
+        description: '{{ .CommonAnnotations.description }}'
+
+  - name: 'email-digest'
+    email_configs:
+      - to: 'ops@cargotrack.io'
+        from: 'alertmanager@cargotrack.io'
+        smarthost: '${SMTP_HOST}:587'
+        auth_username: '${SMTP_USER}'
+        auth_password: '${SMTP_PASSWORD}'
+        send_resolved: false
+
+# ── Inhibition rules ───────────────────────────────────────────────────────
+# Suppress lower-severity alerts when a higher-severity alert is already firing
+# for the same service.
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['service']

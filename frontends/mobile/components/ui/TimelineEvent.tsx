@@ -27,13 +27,6 @@ const dotBorder: Record<TimelineVariant, string> = {
   error:     T.color.ui.danger,
 }
 
-const lineColor: Record<TimelineVariant, string> = {
-  completed: T.color.ui.success,
-  active:    '#E5E7EB',
-  pending:   '#E5E7EB',
-  error:     '#E5E7EB',
-}
-
 export default function TimelineEvent({
   label,
   sublabel,
@@ -68,7 +61,7 @@ export default function TimelineEvent({
             width: 2,
             flex: 1,
             marginTop: 4,
-            backgroundColor: variant === 'pending' ? colors.border : lineColor[variant],
+            backgroundColor: variant === 'completed' ? T.color.ui.success : colors.border,
           }} />
         )}
       </View>
