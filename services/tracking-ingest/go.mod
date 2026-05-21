@@ -2,8 +2,6 @@ module github.com/cargotrack/tracking-ingest
 
 go 1.25.0
 
-toolchain go1.26.2
-
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.9.2

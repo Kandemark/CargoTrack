@@ -117,6 +117,7 @@ jobs:
       - name: Lint Rust (clippy)
         if: matrix.service == 'gps-ingest'
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libcurl4-openssl-dev libsasl2-dev
           cd services/gps-ingest
           cargo clippy --all-targets -- -D warnings
 
