@@ -322,12 +322,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if KUBECONFIG_STAGING is configured
+        id: check
+        run: |
+          if [ -n "${{ secrets.KUBECONFIG_STAGING }}" ]; then
+            echo "configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "KUBECONFIG_STAGING secret not set — skipping deploy"
+          fi
+
       - name: Configure kubectl
+        if: steps.check.outputs.configured == 'true'
         uses: azure/k8s-set-context@v4
         with:
           kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
 
       - name: Deploy to staging
+        if: steps.check.outputs.configured == 'true'
         env:
           BUILD_API: ${{ needs.changes.outputs.build-api }}
           BUILD_FRONTEND: ${{ needs.changes.outputs.build-frontend }}
