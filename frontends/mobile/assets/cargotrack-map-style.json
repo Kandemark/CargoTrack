@@ -1,0 +1,42 @@
+{
+  "version": 8,
+  "name": "CargoTrack",
+  "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+  "sources": {
+    "carto-light": {
+      "type": "raster",
+      "tiles": [
+        "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png"
+      ],
+      "tileSize": 256,
+      "attribution": "© <a href='https://carto.com/'>CARTO</a> | © <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a>"
+    },
+    "osm-raster": {
+      "type": "raster",
+      "tiles": [
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256,
+      "attribution": "© OpenStreetMap contributors"
+    }
+  },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "background",
+      "paint": { "background-color": "#F5F3EF" }
+    },
+    {
+      "id": "carto-base",
+      "type": "raster",
+      "source": "carto-light",
+      "paint": {
+        "raster-opacity": 0.95,
+        "raster-fade-duration": 200
+      }
+    }
+  ]
+}

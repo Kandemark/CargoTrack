@@ -1,0 +1,16 @@
+{
+  "name": "cargotrack-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontends/*",
+    "libs/*"
+  ],
+  "version": "1.0.0",
+  "scripts": {
+    "android": "cd frontends/mobile && expo run:android",
+    "ios": "cd frontends/mobile && expo run:ios"
+  },
+  "overrides": {
+    "@types/react": "^18.3.18"
+  }
+}

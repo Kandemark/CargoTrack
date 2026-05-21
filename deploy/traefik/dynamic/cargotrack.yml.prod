@@ -1,0 +1,184 @@
+﻿# CargoTrack dynamic Traefik configuration — middlewares, routers, services.
+# Loaded by the file provider defined in traefik.yml.
+
+# ── TLS Options ────────────────────────────────────────────────────────────
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+      sniStrict: true
+
+# ── Middlewares ─────────────────────────────────────────────────────────────
+http:
+  middlewares:
+    # Security headers on every response
+    security-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customFrameOptionsValue: "SAMEORIGIN"
+        contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.cargotrack.io wss://*.cargotrack.io;"
+        referrerPolicy: "strict-origin-when-cross-origin"
+
+    # Global rate limit: 200 req/s per IP
+    ratelimit-global:
+      rateLimit:
+        average: 200
+        burst: 50
+        period: 1s
+
+    # Stricter rate limit for auth endpoints
+    ratelimit-auth:
+      rateLimit:
+        average: 10
+        burst: 5
+        period: 1m
+
+    # CORS for API
+    cors-api:
+      headers:
+        accessControlAllowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+        accessControlAllowHeaders: ["Authorization", "Content-Type", "X-Request-ID", "X-Correlation-ID"]
+        accessControlExposeHeaders: ["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Reset"]
+        accessControlAllowOriginList: ["http://localhost:5173", "http://localhost:3000", "https://app.cargotrack.io", "https://staging.cargotrack.io"]
+        accessControlMaxAge: 600
+        addVaryHeader: true
+        accessControlAllowCredentials: true
+
+    # Strip /api prefix before forwarding to Django
+    strip-api-prefix:
+      stripPrefix:
+        prefixes: ["/api"]
+
+    # gRPC to backend route-optimizer
+    grpc-route-optimizer:
+      buffering:
+        maxRequestBodyBytes: 10485760
+
+  # ── Routers ───────────────────────────────────────────────────────────────
+  routers:
+    # -- REST API (Django) --
+    api:
+      rule: "Host(`api.cargotrack.io`) || Host(`localhost`)"
+      entryPoints: ["websecure"]
+      middlewares: ["cors-api@file", "security-headers@file", "ratelimit-global@file"]
+      service: api-backend
+      priority: 100
+      tls:
+        certResolver: letsencrypt
+
+    api-local:
+      rule: "Host(`localhost`) && PathPrefix(`/api/`)"
+      entryPoints: ["web"]
+      middlewares: ["cors-api@file", "ratelimit-global@file"]
+      service: api-backend
+      priority: 200
+
+    # Auth endpoints — stricter rate limiting
+    auth:
+      rule: "Host(`api.cargotrack.io`) && PathPrefix(`/api/auth/`)"
+      entryPoints: ["websecure"]
+      middlewares: ["cors-api@file", "security-headers@file", "ratelimit-auth@file"]
+      service: api-backend
+      priority: 300
+      tls:
+        certResolver: letsencrypt
+
+    # -- Keycloak --
+    keycloak:
+      rule: "Host(`auth.cargotrack.io`) || (Host(`localhost`) && PathPrefix(`/auth/`))"
+      entryPoints: ["websecure"]
+      middlewares: ["security-headers@file"]
+      service: keycloak
+      priority: 200
+      tls:
+        certResolver: letsencrypt
+
+    # -- WebSocket (Elixir Phoenix) --
+    ws:
+      rule: "Host(`ws.cargotrack.io`) || (Host(`localhost`) && PathPrefix(`/ws/`))"
+      entryPoints: ["websecure"]
+      middlewares: ["security-headers@file"]
+      service: elixir-ws
+      priority: 200
+      tls:
+        certResolver: letsencrypt
+
+    # -- gRPC (Route Optimizer) --
+    grpc-route-optimizer:
+      rule: "Host(`grpc.cargotrack.io`) || Host(`localhost`)"
+      entryPoints: ["grpc"]
+      middlewares: ["grpc-route-optimizer@file"]
+      service: route-optimizer-grpc
+
+    # -- Grafana --
+    grafana:
+      rule: "Host(`monitoring.cargotrack.io`) || (Host(`localhost`) && PathPrefix(`/grafana`))"
+      entryPoints: ["websecure"]
+      middlewares: ["security-headers@file"]
+      service: grafana
+      priority: 200
+      tls:
+        certResolver: letsencrypt
+
+    # -- Prometheus (internal only) --
+    prometheus:
+      rule: "Host(`localhost`) && PathPrefix(`/prometheus`)"
+      entryPoints: ["web"]
+      service: prometheus
+      priority: 100
+
+  # ── Services (backends) ───────────────────────────────────────────────────
+  services:
+    api-backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8000"
+        healthCheck:
+          path: "/api/health/"
+          interval: "15s"
+          timeout: "5s"
+
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:8080"
+        healthCheck:
+          path: "/health/ready"
+          interval: "15s"
+          timeout: "5s"
+
+    elixir-ws:
+      loadBalancer:
+        servers:
+          - url: "http://elixir-ws:4000"
+        sticky:
+          cookie:
+            name: "cargotrack_ws"
+            secure: true
+            httpOnly: true
+
+    route-optimizer-grpc:
+      loadBalancer:
+        servers:
+          - url: "h2c://route-optimizer:50052"
+
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
