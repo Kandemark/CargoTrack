@@ -96,13 +96,13 @@ func (s *Server) handleDeliveryReport(w http.ResponseWriter, r *http.Request) {
 	s.atClient.HandleDeliveryReport(report)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 // handleHealth returns the service status.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":       "healthy",
 		"service":      "ussd-gateway",
 		"sessions":     len(s.sessions.Sessions()),
