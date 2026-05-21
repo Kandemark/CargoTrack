@@ -8,7 +8,7 @@ global:
 
 # ── Templates ──────────────────────────────────────────────────────────────
 templates:
-  - /etc/alertmanager/templates/*.tmpl
+  - /etc/alertmanager/templates/cargotrack.tmpl
 
 # ── Routing tree ───────────────────────────────────────────────────────────
 route:
@@ -41,8 +41,8 @@ receivers:
     slack_configs:
       - api_url: '${SLACK_WEBHOOK_URL}'
         channel: '#alerts-cargotrack'
-        title: '{{ .GroupLabels.alertname }}'
-        text: '{{ range .Alerts }}{{ .Annotations.description }}\n{{ end }}'
+        title: '{{ template "slack.cargotrack.title" . }}'
+        text: '{{ template "slack.cargotrack.text" . }}'
         send_resolved: true
 
   - name: 'pagerduty-cargotrack'

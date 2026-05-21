@@ -5,16 +5,16 @@
 
 # ── OCR / Document Processing ──────────────────────────────────────────────────
 pytesseract>=0.3,<0.4           # Tesseract OCR Python wrapper
-Pillow>=11.0,<13.0              # Image processing (grayscale, threshold, deskew)
+Pillow==12.2.0                  # Image processing (grayscale, threshold, deskew)
 PyMuPDF>=1.25,<2.0              # PDF rasterization for OCR (fitz)
 
 # ── Core Django ───────────────────────────────────────────────────────────────
-Django==5.2.0                   # LTS release — supported until April 2028
+Django==5.2.14                  # LTS release — supported until April 2028
 asgiref==3.11.1                 # ASGI utilities required by Django
 sqlparse==0.5.5                 # SQL formatter used by Django debug output
 
 # ── Production WSGI / ASGI servers ─────────────────────────────────────────────
-gunicorn==21.2.0                # WSGI server for production (Dockerfile.backend CMD)
+gunicorn==26.0.0                # WSGI server for production (Dockerfile.backend CMD)
 daphne==4.1.2                   # ASGI server for WebSocket support
 
 # ── Real-time / WebSocket ────────────────────────────────────────────────────
@@ -24,7 +24,7 @@ redis==5.2.1                    # Redis client library
 
 # ── REST framework + JWT auth ─────────────────────────────────────────────────
 djangorestframework==3.17.1     # DRF — API framework (views, serializers, auth)
-djangorestframework-simplejwt==5.3.1  # JWT token generation and refresh rotation
+djangorestframework-simplejwt==5.5.1  # JWT token generation and refresh rotation
 drf-spectacular==0.28.0         # OpenAPI 3.1 schema generation from DRF views
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ django-filter==24.3             # DjangoFilterBackend for DRF querystring filter
 psycopg2-binary==2.9.10         # PostgreSQL 16 adapter (binary; no libpq needed)
 
 # ── HTTP client (used by payment providers: M-Pesa, Airtel, MTN, etc.) ───────
-requests==2.32.3                # HTTP library for payment provider API calls
+requests==2.34.2                # HTTP library for payment provider API calls
 
 # ── Configuration / environment ───────────────────────────────────────────────
 python-decouple==3.8            # Reads .env without exposing secrets in source
@@ -64,12 +64,12 @@ opentelemetry-instrumentation-requests==0.56b0
 protobuf>=5.29,<7.0               # OTLP gRPC dependency
 
 # ── Security / encryption ──────────────────────────────────────────────────────
-cryptography==45.0.7             # AES-256 field-level encryption for PII (Fernet)
+cryptography==48.0.0             # AES-256 field-level encryption for PII (Fernet)
 mozilla-django-oidc>=4.0,<5.0   # OpenID Connect authentication via Keycloak
 pyotp==2.9.0                     # TOTP generation and verification for 2FA
 
 # ── Image handling ──────────────────────────────────────────────────────────────
-Pillow==12.0.0                  # ImageField support (scale tickets, documents)
+# Pillow already listed under OCR section — shared dependency
 
 # ── Date / time utilities ─────────────────────────────────────────────────────
 python-dateutil==2.9.0.post0    # Flexible date parsing used by pandas
@@ -77,7 +77,7 @@ six==1.17.0                     # Python 2/3 compatibility (dateutil dependency)
 tzdata==2026.1                  # IANA timezone database for USE_TZ=True
 
 # ── Testing ───────────────────────────────────────────────────────────────────
-pytest==9.0.2                   # Test runner
+pytest==9.0.3                   # Test runner
 pytest-django==4.12.0           # Django integration for pytest (conftest.py)
 iniconfig==2.3.0                # pytest configuration file parser
 pluggy==1.6.0                   # pytest plugin system

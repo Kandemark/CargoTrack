@@ -69,6 +69,14 @@ jobs:
             if: ${{ needs.changes.outputs.api == 'true' }}
           - service: frontend
             if: ${{ needs.changes.outputs.frontend == 'true' }}
+          - service: go-tracking
+            if: ${{ needs.changes.outputs.go-tracking == 'true' }}
+          - service: gps-ingest
+            if: ${{ needs.changes.outputs.gps-ingest == 'true' }}
+          - service: notification
+            if: ${{ needs.changes.outputs.notification == 'true' }}
+          - service: webhook
+            if: ${{ needs.changes.outputs.webhook == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -84,6 +92,33 @@ jobs:
           cd frontends/web
           npm ci
           npx eslint .
+
+      - name: Lint Go (tracking-ingest)
+        if: matrix.service == 'go-tracking'
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: services/tracking-ingest
+          args: --timeout=3m
+
+      - name: Lint Go (notification)
+        if: matrix.service == 'notification'
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: services/notification
+          args: --timeout=3m
+
+      - name: Lint Go (webhook-dispatcher)
+        if: matrix.service == 'webhook'
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: services/webhook-dispatcher
+          args: --timeout=3m
+
+      - name: Lint Rust (clippy)
+        if: matrix.service == 'gps-ingest'
+        run: |
+          cd services/gps-ingest
+          cargo clippy --all-targets -- -D warnings
 
   # ── Test ────────────────────────────────────────────────────────────────
   test:

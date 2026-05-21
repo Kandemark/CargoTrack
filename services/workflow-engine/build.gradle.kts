@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "3.4.1"
+    id("org.springframework.boot") version "3.5.3"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -22,9 +22,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
     // Camunda Platform 7 embedded engine
-    implementation("org.camunda.bpm.springboot:camunda-bpm-spring-boot-starter-rest:7.21.0")
-    implementation("org.camunda.bpm.springboot:camunda-bpm-spring-boot-starter-webapp:7.21.0")
-    implementation("org.camunda.bpm:camunda-engine-plugin-spin:7.21.0")
+    implementation("org.camunda.bpm.springboot:camunda-bpm-spring-boot-starter-rest:7.23.0")
+    implementation("org.camunda.bpm.springboot:camunda-bpm-spring-boot-starter-webapp:7.23.0")
+    implementation("org.camunda.bpm:camunda-engine-plugin-spin:7.23.0")
     implementation("org.camunda.spin:camunda-spin-dataformat-json-jackson:1.23.0")
 
     // Kafka
