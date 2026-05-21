@@ -352,10 +352,12 @@ snyk.sarif
 *.bin  # ML model weights (be careful — exclude only model binaries)
 *.safetensors
 *.gguf
-ml_datasets/
-ml_datasets_*/
+# ML models — generated binary artifacts
 ml_models/
-ml_models_*/
+# ml_datasets intentionally NOT ignored — contains project schema/config files
+*.h5
+*.pb
+*.onnx
 checkpoints/
 runs/
 
@@ -530,7 +532,7 @@ cypress/downloads/
 *.ogv
 *.mts
 *.m2ts
-*.ts
+# *.ts intentionally NOT ignored — that's TypeScript source
 *.vob
 
 # Audio

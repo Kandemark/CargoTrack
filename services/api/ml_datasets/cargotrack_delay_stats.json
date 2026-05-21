@@ -1,0 +1,123 @@
+{
+  "n_rows": 15000,
+  "delay_rate": 0.2108,
+  "distance_km": {
+    "min": 41,
+    "max": 2484,
+    "mean": 683.015,
+    "std": 715.9247,
+    "p25": 148,
+    "median": 356,
+    "p75": 1277
+  },
+  "estimated_hours": {
+    "min": 0.9,
+    "max": 59.0,
+    "mean": 14.147,
+    "std": 15.7388,
+    "p25": 2.8,
+    "median": 6.5,
+    "p75": 25.2
+  },
+  "weight_kg": {
+    "min": 202.8,
+    "max": 27999.9,
+    "mean": 14114.0754,
+    "std": 8026.9555,
+    "p25": 7112.3,
+    "median": 14139.3,
+    "p75": 21121.3
+  },
+  "hour_of_departure": {
+    "min": 0,
+    "max": 23,
+    "mean": 11.4767,
+    "std": 6.9072,
+    "p25": 5,
+    "median": 11,
+    "p75": 18
+  },
+  "carrier_on_time_rate": {
+    "min": 0.35,
+    "max": 0.99,
+    "mean": 0.8255,
+    "std": 0.1245,
+    "p25": 0.7753,
+    "median": 0.8619,
+    "p75": 0.9121
+  },
+  "num_tracking_events": {
+    "min": 0,
+    "max": 16,
+    "mean": 3.4573,
+    "std": 3.6314,
+    "p25": 1,
+    "median": 2,
+    "p75": 4
+  },
+  "border_crossings": {
+    "min": 0,
+    "max": 3,
+    "mean": 0.6163,
+    "std": 0.8812,
+    "p25": 0,
+    "median": 0,
+    "p75": 1
+  },
+  "class_balance": {
+    "train": {
+      "delayed": 2505,
+      "not_delayed": 9495
+    },
+    "val": {
+      "delayed": 332,
+      "not_delayed": 1168
+    },
+    "test": {
+      "delayed": 325,
+      "not_delayed": 1175
+    }
+  },
+  "top_routes": [
+    [
+      "Nairobi \u2192 Thika",
+      510
+    ],
+    [
+      "Mombasa \u2192 Malindi",
+      501
+    ],
+    [
+      "Mombasa \u2192 Kampala",
+      497
+    ],
+    [
+      "Dar es Salaam \u2192 Nairobi",
+      491
+    ],
+    [
+      "Nairobi \u2192 Juba",
+      486
+    ],
+    [
+      "Kampala \u2192 Jinja",
+      485
+    ],
+    [
+      "Nairobi \u2192 Kisumu",
+      484
+    ],
+    [
+      "Mombasa \u2192 Voi",
+      484
+    ],
+    [
+      "Mombasa \u2192 Juba",
+      480
+    ],
+    [
+      "Nairobi \u2192 Machakos",
+      476
+    ]
+  ]
+}

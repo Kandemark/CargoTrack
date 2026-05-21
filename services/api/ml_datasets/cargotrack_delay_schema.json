@@ -1,0 +1,191 @@
+{
+  "dataset_name": "CargoTrack East Africa Freight Delay Dataset",
+  "version": "1.0.0",
+  "description": "Synthetic training dataset for freight delay prediction on East Africa trade routes. Generated from a probabilistic model calibrated to match World Bank LPI delay statistics for the East Africa Community (EAC) region.",
+  "license": "MIT",
+  "source": "CargoTrack Logistics Intelligence Platform — synthetic open dataset",
+  "generated": "2026-04-20T00:24:10.907791Z",
+  "target_column": "delayed",
+  "positive_class_description": "1 = shipment arrived after scheduled arrival time",
+  "features": {
+    "distance_km": {
+      "type": "numeric",
+      "range": [
+        40,
+        2500
+      ],
+      "description": "Great-circle road distance of the route in kilometres.",
+      "importance": "high"
+    },
+    "estimated_hours": {
+      "type": "numeric",
+      "range": [
+        1,
+        72
+      ],
+      "description": "Planned journey duration in hours at the time of dispatch.",
+      "importance": "high"
+    },
+    "weight_kg": {
+      "type": "numeric",
+      "range": [
+        50,
+        30000
+      ],
+      "description": "Total cargo weight in kilograms including packaging.",
+      "importance": "medium"
+    },
+    "hour_of_departure": {
+      "type": "integer",
+      "range": [
+        0,
+        23
+      ],
+      "description": "Hour of day (24-hour clock) at which the shipment departed.",
+      "importance": "medium",
+      "note": "Night departures (22–4) and peak-hour departures (7–9, 17–19) have higher risk."
+    },
+    "day_of_week": {
+      "type": "integer",
+      "range": [
+        0,
+        6
+      ],
+      "description": "Day of the week (Monday = 0, Sunday = 6).",
+      "importance": "low"
+    },
+    "month": {
+      "type": "integer",
+      "range": [
+        1,
+        12
+      ],
+      "description": "Calendar month of departure.",
+      "importance": "medium",
+      "note": "Kenya rainy seasons: March–May (long rains), October–November (short rains)."
+    },
+    "route_origin": {
+      "type": "categorical",
+      "values": "East Africa city names (see CITIES list in generator source)",
+      "description": "Departure city of the shipment.",
+      "importance": "high",
+      "encoding": "Label-encoded by FeatureEngineer (code 0 = unseen value)."
+    },
+    "route_destination": {
+      "type": "categorical",
+      "values": "East Africa city names",
+      "description": "Destination city of the shipment.",
+      "importance": "high",
+      "encoding": "Label-encoded by FeatureEngineer (code 0 = unseen value)."
+    },
+    "num_tracking_events": {
+      "type": "integer",
+      "range": [
+        0,
+        20
+      ],
+      "description": "Number of tracking events logged during the shipment.",
+      "importance": "medium",
+      "note": "Fewer events may indicate GPS/comms issues correlated with delays."
+    },
+    "has_customs_stop": {
+      "type": "binary",
+      "values": [
+        0,
+        1
+      ],
+      "description": "Whether the route crosses an international border requiring customs.",
+      "importance": "high"
+    },
+    "carrier_on_time_rate": {
+      "type": "numeric",
+      "range": [
+        0.35,
+        0.99
+      ],
+      "description": "Historical on-time delivery rate of the carrier [0–1].",
+      "importance": "very high"
+    },
+    "is_rainy_season": {
+      "type": "binary",
+      "values": [
+        0,
+        1
+      ],
+      "description": "Whether the departure month falls in East Africa's rainy season.",
+      "importance": "high",
+      "note": "Rainy months: 3, 4, 5, 10, 11. Road damage and flooding significantly increase delays."
+    },
+    "road_condition_score": {
+      "type": "integer",
+      "range": [
+        1,
+        5
+      ],
+      "description": "Composite road quality score for the primary route (1=poor, 5=excellent).",
+      "importance": "high"
+    },
+    "cargo_type_encoded": {
+      "type": "integer",
+      "range": [
+        0,
+        4
+      ],
+      "description": "Type of cargo: 0=General, 1=Perishable, 2=Fragile, 3=Hazmat, 4=Bulk.",
+      "importance": "medium"
+    },
+    "cargo_value_band": {
+      "type": "integer",
+      "range": [
+        0,
+        2
+      ],
+      "description": "Estimated cargo value band: 0=Low (<KES 500K), 1=Medium, 2=High (>KES 5M).",
+      "importance": "low"
+    },
+    "num_stops": {
+      "type": "integer",
+      "range": [
+        0,
+        5
+      ],
+      "description": "Number of planned intermediate stops (e.g. warehouse pick-ups, depots).",
+      "importance": "medium"
+    },
+    "is_weekend_departure": {
+      "type": "binary",
+      "values": [
+        0,
+        1
+      ],
+      "description": "Whether the departure was on a Saturday or Sunday.",
+      "importance": "low",
+      "note": "Weekend departures may face reduced port/border staffing."
+    },
+    "border_crossings": {
+      "type": "integer",
+      "range": [
+        0,
+        3
+      ],
+      "description": "Number of international border crossings on the route.",
+      "importance": "high"
+    },
+    "delayed": {
+      "type": "binary (label)",
+      "values": [
+        0,
+        1
+      ],
+      "description": "Target variable. 1 = shipment arrived after the scheduled arrival time."
+    }
+  },
+  "n_rows": 15000,
+  "seed": 42,
+  "splits": {
+    "train": 0.8,
+    "val": 0.1,
+    "test": 0.1
+  },
+  "delay_rate": 0.2108
+}
