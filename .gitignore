@@ -79,7 +79,11 @@ kubeconfig*
 # API key files that slip through
 api_key*
 apikey*
-*_apikey*
+# Scoped to credential-like extensions to avoid catching source files
+*_apikey.txt
+*_apikey.json
+*_apikey.pem
+*_apikey.key
 *_api_key*
 appsettings.*.json  # often contains connection strings
 
@@ -169,8 +173,8 @@ staticfiles/
 collected-static/
 schema.openapi.yml
 
-# Migrations — regenerated per-environment
-**/migrations/0*.py
+# Note: Django migrations (*/migrations/*.py) MUST be committed — they are NOT
+# regenerated per-environment and are required for CI/test/deploy.
 
 # ── Node / JavaScript / TypeScript ────────────────────────────────────────────
 node_modules/
