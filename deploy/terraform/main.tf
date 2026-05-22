@@ -20,11 +20,22 @@ terraform {
   }
 
   backend "s3" {
-    # Configure per-environment:
-    # bucket         = "cargotrack-terraform-state"
-    # key            = "production/terraform.tfstate"
-    # region         = "eu-west-1"   # or af-south-1 for African region
-    # dynamodb_table = "cargotrack-terraform-locks"
+    # Partial configuration — remaining values passed via -backend-config at init.
+    # See scripts/tf-init.sh or run:
+    #
+    #   terraform init \
+    #     -backend-config="bucket=cargotrack-terraform-state" \
+    #     -backend-config="key=production/terraform.tfstate" \
+    #     -backend-config="region=eu-west-1" \
+    #     -backend-config="dynamodb_table=cargotrack-terraform-locks"
+    #
+    # Bucket and DynamoDB table must be created before first init
+    # (see deploy/terraform/bootstrap/ for one-time setup).
+    bucket         = "cargotrack-terraform-state"
+    key            = "dev/terraform.tfstate"
+    region         = "eu-west-1"
+    dynamodb_table = "cargotrack-terraform-locks"
+    encrypt        = true
   }
 }
 

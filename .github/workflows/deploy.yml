@@ -69,6 +69,18 @@ jobs:
         with:
           kubeconfig: ${{ secrets.KUBECONFIG_PRODUCTION }}
 
+      - name: Run database migrations
+        if: matrix.step == 'canary-10'
+        run: |
+          export IMAGE_TAG=${{ inputs.version }}
+          kubectl delete job migrations -n cargotrack --ignore-not-found
+          envsubst < deploy/kubernetes/services/migrations.yaml | kubectl apply -f -
+          kubectl wait --for=condition=complete --timeout=120s job/migrations -n cargotrack || {
+            echo "Migration failed — checking logs:"
+            kubectl logs job/migrations -n cargotrack --tail=50
+            exit 1
+          }
+
       - name: Deploy canary (10%)
         if: matrix.step == 'canary-10'
         run: |
@@ -118,6 +130,17 @@ jobs:
         uses: azure/k8s-set-context@v4
         with:
           kubeconfig: ${{ secrets.KUBECONFIG_PRODUCTION }}
+
+      - name: Run database migrations
+        run: |
+          export IMAGE_TAG=${{ inputs.version }}
+          kubectl delete job migrations -n cargotrack --ignore-not-found
+          envsubst < deploy/kubernetes/services/migrations.yaml | kubectl apply -f -
+          kubectl wait --for=condition=complete --timeout=120s job/migrations -n cargotrack || {
+            echo "Migration failed — checking logs:"
+            kubectl logs job/migrations -n cargotrack --tail=50
+            exit 1
+          }
 
       - name: Deploy green environment
         run: |

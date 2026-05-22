@@ -258,6 +258,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write  # needed for Cosign keyless signing
     steps:
       - uses: actions/checkout@v4
 
@@ -282,6 +283,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
@@ -291,6 +293,16 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.4
+
+      - name: Sign image with Cosign
+        run: |
+          cosign sign --yes \
+            "${REGISTRY}/${REGISTRY_OWNER}/cargotrack-${{ matrix.name }}@${{ steps.build.outputs.digest }}"
 
   # ── Vulnerability Scanning (Trivy) ──────────────────────────────────────
   scan:
@@ -394,6 +406,17 @@ jobs:
               kubectl rollout status "deployment/${svc}" -n cargotrack --timeout=300s || true
             fi
           }
+          # Run migrations before backend deployments
+          if [ "$BUILD_API" = "true" ] && [ -f "deploy/kubernetes/services/migrations.yaml" ]; then
+            echo "Running database migrations..."
+            kubectl delete job migrations -n cargotrack --ignore-not-found
+            envsubst < deploy/kubernetes/services/migrations.yaml | kubectl apply -f -
+            kubectl wait --for=condition=complete --timeout=120s job/migrations -n cargotrack || {
+              echo "Migration failed — checking logs:"
+              kubectl logs job/migrations -n cargotrack --tail=50
+              exit 1
+            }
+          fi
           [ "$BUILD_API" = "true" ] && deploy backend
           [ "$BUILD_FRONTEND" = "true" ] && deploy frontend
           [ "$BUILD_GO_TRACKING" = "true" ] && deploy go-tracking

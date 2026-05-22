@@ -1,0 +1,205 @@
+# CargoTrack Kubernetes NetworkPolicy
+# Restricts pod-to-pod traffic to explicitly declared service paths.
+# Apply: kubectl apply -f deploy/kubernetes/network-policy.yaml
+#
+# Strategy:
+#   1. Default deny all ingress within the cargotrack namespace.
+#   2. Allow Traefik (ingress-controller label) to reach all HTTP/gRPC services.
+#   3. Allow Prometheus to scrape metrics from all annotated pods.
+#   4. Allow each service to reach its specific dependencies (DB, Redis, Kafka).
+#   5. Allow DNS resolution (kube-dns).
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: cargotrack
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# ── Allow Traefik ingress to all HTTP/gRPC services ─────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traefik-ingress
+  namespace: cargotrack
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: cargotrack
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cargotrack
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - port: 8000
+        - port: 4000
+        - port: 8080
+        - port: 8084
+        - port: 8085
+        - port: 8086
+        - port: 50051
+        - port: 3000
+        - port: 80
+---
+# ── Allow Prometheus to scrape all pods ─────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: cargotrack
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8000   # backend metrics
+        - port: 9090   # prometheus self
+        - port: 9187   # postgres-exporter
+        - port: 9121   # redis-exporter
+        - port: 3000   # grafana
+---
+# ── Allow backend → database, redis, kafka, route-optimizer ─────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-egress
+  namespace: cargotrack
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: db
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 29092
+    - to:
+        - podSelector:
+            matchLabels:
+              app: route-optimizer
+      ports:
+        - port: 50051
+    - to:  # DNS
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# ── Allow service-to-Kafka ──────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kafka-clients
+  namespace: cargotrack
+spec:
+  podSelector:
+    matchLabels:
+      app: kafka
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - backend
+                  - gps-ingest
+                  - notification
+                  - webhook-dispatcher
+                  - workflow-engine
+                  - edi-integration
+                  - schema-registry
+                  - kafka-ui
+      ports:
+        - port: 29092
+        - port: 9092
+---
+# ── Allow db clients ────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-db-clients
+  namespace: cargotrack
+spec:
+  podSelector:
+    matchLabels:
+      app: db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - backend
+                  - go-tracking
+                  - workflow-engine
+                  - keycloak
+                  - pgbouncer
+                  - postgres-exporter
+      ports:
+        - port: 5432
+---
+# ── Allow Redis clients ─────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-clients
+  namespace: cargotrack
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - backend
+                  - elixir-ws
+                  - notification
+                  - webhook-dispatcher
+                  - redis-exporter
+      ports:
+        - port: 6379

@@ -8,22 +8,9 @@ metadata:
   labels:
     app.kubernetes.io/part-of: cargotrack
 ---
-# Secret template — actual values injected via SealedSecrets or External Secrets Operator
-apiVersion: v1
-kind: Secret
-metadata:
-  name: cargotrack-secrets
-  namespace: cargotrack
-type: Opaque
-stringData:
-  # Placeholder values — replace with sealed secrets in production
-  DB_PASSWORD: "${DB_PASSWORD}"
-  SECRET_KEY: "${DJANGO_SECRET_KEY}"
-  ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
-  REDIS_URL: "redis://redis.cargotrack.svc.cluster.local:6379/0"
-  KAFKA_BROKERS: "kafka.cargotrack.svc.cluster.local:9092"
-  KEYCLOAK_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD}"
-  WEBHOOK_SECRET_KEY: "${WEBHOOK_SECRET_KEY}"
+# Secrets are managed via SealedSecrets.
+# See: deploy/kubernetes/sealed-secrets/cargotrack-secrets.yaml
+# Apply after the SealedSecrets controller is installed on the cluster.
 ---
 apiVersion: v1
 kind: ConfigMap
