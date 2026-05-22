@@ -304,8 +304,9 @@ jobs:
 
       - name: Sign image with Cosign
         run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           cosign sign --yes \
-            "${REGISTRY}/${REGISTRY_OWNER}/cargotrack-${{ matrix.name }}@${{ steps.build.outputs.digest }}"
+            "${REGISTRY}/${OWNER}/cargotrack-${{ matrix.name }}@${{ steps.build.outputs.digest }}"
 
   # ── Vulnerability Scanning (Trivy) ──────────────────────────────────────
   scan:
