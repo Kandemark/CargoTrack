@@ -297,8 +297,14 @@ class SocialFeedView(APIView):
 
     def get(self, request, **kwargs):
         from .models import SocialPost
+        from domains._authz import get_user_role
         posts = SocialPost.objects.select_related('author', 'author__organization')\
-            .prefetch_related('liked_by', 'comments')[:50]
+            .prefetch_related('liked_by', 'comments')
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                posts = posts.filter(author__organization_id=org_id)
+        posts = posts[:50]
         serializer = SocialPostSerializer(posts, many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -323,9 +329,15 @@ class SocialPostDetailView(APIView):
 
     def get(self, request, pk, **kwargs):
         from .models import SocialPost
+        from domains._authz import get_user_role
         try:
-            post = SocialPost.objects.select_related('author', 'author__organization')\
-                .prefetch_related('liked_by', 'comments', 'comments__author').get(pk=pk)
+            posts_qs = SocialPost.objects.select_related('author', 'author__organization')\
+                .prefetch_related('liked_by', 'comments', 'comments__author')
+            if get_user_role(request.user) != 'PLATFORM_OWNER':
+                org_id = getattr(request.user, 'organization_id', None)
+                if org_id:
+                    posts_qs = posts_qs.filter(author__organization_id=org_id)
+            post = posts_qs.get(pk=pk)
         except SocialPost.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=404)
         serializer = SocialPostSerializer(post, context={'request': request})
@@ -349,8 +361,14 @@ class SocialPostLikeView(APIView):
 
     def post(self, request, pk, **kwargs):
         from .models import SocialPost
+        from domains._authz import get_user_role
         try:
-            post = SocialPost.objects.get(pk=pk)
+            posts_qs = SocialPost.objects.all()
+            if get_user_role(request.user) != 'PLATFORM_OWNER':
+                org_id = getattr(request.user, 'organization_id', None)
+                if org_id:
+                    posts_qs = posts_qs.filter(author__organization_id=org_id)
+            post = posts_qs.get(pk=pk)
         except SocialPost.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=404)
         if post.liked_by.filter(id=request.user.id).exists():
@@ -371,8 +389,14 @@ class SocialCommentView(APIView):
 
     def post(self, request, pk, **kwargs):
         from .models import SocialPost, SocialComment
+        from domains._authz import get_user_role
         try:
-            post = SocialPost.objects.get(pk=pk)
+            posts_qs = SocialPost.objects.all()
+            if get_user_role(request.user) != 'PLATFORM_OWNER':
+                org_id = getattr(request.user, 'organization_id', None)
+                if org_id:
+                    posts_qs = posts_qs.filter(author__organization_id=org_id)
+            post = posts_qs.get(pk=pk)
         except SocialPost.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=404)
         content = request.data.get('content', '').strip()

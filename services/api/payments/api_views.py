@@ -23,6 +23,7 @@ from rest_framework.views import APIView
 
 from cargotrack.cache import invalidate_dashboard_caches
 from cargotrack.authz import CanViewFinance, CanManageFinance, OrgScopedQueryset
+from domains._authz import get_user_role
 from .models import Invoice, Payment
 from .providers import get_provider
 from .serializers import InvoiceCreateSerializer, InvoiceSerializer, PayInitiateSerializer
@@ -80,6 +81,10 @@ class InvoicePayAPIView(APIView):
 
     def post(self, request, pk=None, **kwargs):
         invoice = Invoice.objects.select_related('shipment').get(pk=pk)
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id and invoice.shipment.client.organization_id != org_id:
+                return Response({'error': 'Invoice not found.'}, status=status.HTTP_404_NOT_FOUND)
         if invoice.status == 'PAID':
             return Response({'error': 'Invoice already paid.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -128,6 +133,10 @@ class InvoicePDFAPIView(APIView):
 
     def get(self, request, pk=None, **kwargs):
         invoice = Invoice.objects.select_related('shipment', 'created_by').get(pk=pk)
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id and invoice.shipment.client.organization_id != org_id:
+                return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         payments = invoice.payments.all()
 
         payment_rows = ''

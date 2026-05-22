@@ -258,7 +258,7 @@ REST_FRAMEWORK = {
         'auth': '30/min',   # scoped — login/register endpoints (applied per-view)
     },
     # Standard cursor-less pagination returned as {count, next, previous, results}.
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'cargotrack.pagination.FlexiblePageNumberPagination',
     'PAGE_SIZE': 20,
     # URL-path versioning: /api/v1/ — version string extracted from URL.
     'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.URLPathVersioning',

@@ -200,10 +200,18 @@ class FleetStatsView(APIView):
     permission_classes = [IsAuthenticated, CanViewFleet]
 
     def get(self, request, **kwargs):
-        truck_total = Truck.objects.count()
-        truck_active = Truck.objects.filter(status='ACTIVE').count()
-        driver_total = Driver.objects.count()
-        driver_on_route = Driver.objects.filter(status='ON_ROUTE').count()
+        from domains._authz import get_user_role
+        trucks_qs = Truck.objects.all()
+        drivers_qs = Driver.objects.all()
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                trucks_qs = trucks_qs.filter(organization_id=org_id)
+                drivers_qs = drivers_qs.filter(organization_id=org_id)
+        truck_total = trucks_qs.count()
+        truck_active = trucks_qs.filter(status='ACTIVE').count()
+        driver_total = drivers_qs.count()
+        driver_on_route = drivers_qs.filter(status='ON_ROUTE').count()
         utilisation = round((truck_active / truck_total * 100), 1) if truck_total else 0
         return Response({
             'trucks':           truck_total,
@@ -550,10 +558,17 @@ class AssignTruckView(APIView):
     permission_classes = [IsAuthenticated, CanAssignFleet]
 
     def post(self, request, pk=None):
+        from domains._authz import get_user_role
         try:
             truck = Truck.objects.get(pk=pk)
         except Truck.DoesNotExist:
             return Response({'error': 'Truck not found'}, status=404)
+
+        # Verify truck belongs to user's org
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id and truck.organization_id != org_id:
+                return Response({'error': 'Truck not found'}, status=404)
 
         driver_id = request.data.get('driver_id')
 
@@ -572,6 +587,12 @@ class AssignTruckView(APIView):
             driver = Driver.objects.get(driver_id=driver_id)
         except Driver.DoesNotExist:
             return Response({'error': f'Driver {driver_id} not found'}, status=404)
+
+        # Verify driver belongs to same org
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id and driver.organization_id != org_id:
+                return Response({'error': f'Driver {driver_id} not found'}, status=404)
 
         # Unassign previous driver if any
         if truck.assigned_driver and truck.assigned_driver != driver:

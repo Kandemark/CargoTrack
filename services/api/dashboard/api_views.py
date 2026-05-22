@@ -11,7 +11,7 @@ from shipments.models import Shipment
 
 from cargotrack.authz import CanViewAnalytics
 from cargotrack.async_cache import AsyncCacheMixin
-from domains._authz import OrgScopedQueryset
+from domains._authz import OrgScopedQueryset, get_user_role
 
 from .dashboard import LogisticsDashboard
 
@@ -198,11 +198,14 @@ class PlatformRevenueView(APIView):
     """
     GET /api/v1/dashboard/platform/revenue/
     Returns revenue per organization and corridor shipment volume for
-    Platform Owner dashboard charts.
+    Platform Owner dashboard charts. Restricted to PLATFORM_OWNER role.
     """
     permission_classes = [IsAuthenticated, CanViewAnalytics]
 
     def get(self, request, **kwargs):
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            return Response({'detail': 'Not found.'}, status=404)
+
         from payments.models import Invoice
         from shipments.models import Shipment
 
@@ -263,13 +266,232 @@ class PlatformRevenueView(APIView):
 
         # ── Active conversations ──────────────────────────────────────
         from chats.models import Conversation
-        active_conversations = Conversation.objects.filter(is_active=True).count()
+        active_conversations = Conversation.objects.count()
 
         return Response({
             'revenue_by_org': revenue_by_org,
             'corridor_volume': corridor_volume,
             'clearance_rate': clearance_rate,
             'active_conversations': active_conversations,
+        })
+
+
+class PlatformAnalyticsView(APIView):
+    """
+    GET /api/v1/dashboard/platform/analytics/
+    Comprehensive platform-wide analytics for the PLATFORM_OWNER dashboard.
+    Restricted to PLATFORM_OWNER role.
+    """
+    permission_classes = [IsAuthenticated, CanViewAnalytics]
+
+    def get(self, request, **kwargs):
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            return Response({'detail': 'Not found.'}, status=404)
+
+        from datetime import timedelta
+        from django.db.models import Avg, Count, Sum, Q, F
+        from django.db.models.functions import TruncMonth, TruncDay
+        from django.utils import timezone
+        from accounts.models import CustomUser, Organization
+        from payments.models import Invoice
+        from fleet.models import Driver, Truck
+        from marketplace.models import FreightListing, Bid
+        from alerts.models import Alert
+        from chats.models import Conversation
+        from coldchain.models import ColdChainShipment, TemperatureExcursion
+
+        now = timezone.now()
+        days_30 = now - timedelta(days=30)
+        days_90 = now - timedelta(days=90)
+        year_ago = now - timedelta(days=365)
+
+        # ── Revenue trends (monthly, last 12 months) ──────────────────────
+        monthly_revenue = (
+            Invoice.objects
+            .filter(status='PAID', paid_at__gte=year_ago)
+            .annotate(month=TruncMonth('paid_at'))
+            .values('month')
+            .annotate(revenue=Sum('amount_kes'), count=Count('id'))
+            .order_by('month')
+        )
+
+        # ── Shipment status breakdown by org ──────────────────────────────
+        org_shipment_stats = (
+            Shipment.objects
+            .values('client__organization__name')
+            .annotate(
+                total=Count('id'),
+                in_transit=Count('id', filter=Q(status='IN_TRANSIT')),
+                delivered=Count('id', filter=Q(status='DELIVERED')),
+                delayed=Count('id', filter=Q(status='DELAYED')),
+                pending=Count('id', filter=Q(status='PENDING')),
+                customs=Count('id', filter=Q(status='CUSTOMS')),
+            )
+            .order_by('-total')
+        )
+
+        # ── Daily shipment volume (last 30 days) ──────────────────────────
+        daily_volume = (
+            Shipment.objects
+            .filter(created_at__gte=days_30)
+            .annotate(day=TruncDay('created_at'))
+            .values('day')
+            .annotate(count=Count('id'))
+            .order_by('day')
+        )
+
+        # ── Invoice aging ─────────────────────────────────────────────────
+        overdue_invoices = Invoice.objects.filter(
+            status__in=['PENDING', 'OVERDUE'],
+        ).aggregate(
+            total_overdue=Sum('amount_kes'),
+            count=Count('id'),
+        )
+        paid_last_30 = Invoice.objects.filter(
+            status='PAID', paid_at__gte=days_30,
+        ).aggregate(
+            total=Sum('amount_kes'), count=Count('id'),
+        )
+
+        # ── Fleet utilization ─────────────────────────────────────────────
+        fleet_stats = {
+            'total_trucks': Truck.objects.count(),
+            'active_trucks': Truck.objects.filter(status='ACTIVE').count(),
+            'total_drivers': Driver.objects.count(),
+            'on_route_drivers': Driver.objects.filter(status='ON_ROUTE').count(),
+            'avg_utilisation': round(
+                Truck.objects.filter(status='ACTIVE').aggregate(v=Avg('load_pct'))['v'] or 0, 1
+            ),
+        }
+
+        # ── Carrier performance ───────────────────────────────────────────
+        from carriers.models import Carrier as CarrierModel
+        top_carriers = list(
+            CarrierModel.objects
+            .filter(status='ACTIVE')
+            .values('name', 'on_time_rate', 'rating', 'total_shipments', 'active_shipments')
+            .order_by('-total_shipments')[:10]
+        )
+
+        # ── User distribution ─────────────────────────────────────────────
+        users_by_role = list(
+            CustomUser.objects
+            .filter(is_active=True)
+            .values('role')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        users_by_org = list(
+            CustomUser.objects
+            .filter(is_active=True, organization__isnull=False)
+            .values('organization__name')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        new_users_30d = CustomUser.objects.filter(date_joined__gte=days_30).count()
+
+        # ── Alert summary ─────────────────────────────────────────────────
+        alert_summary = list(
+            Alert.objects
+            .filter(sent_at__gte=days_90)
+            .values('severity')
+            .annotate(count=Count('id'))
+            .order_by('severity')
+        )
+        unacked_alerts = Alert.objects.filter(
+            acknowledged=False, sent_at__gte=days_30,
+        ).count()
+
+        # ── Marketplace activity ──────────────────────────────────────────
+        active_listings = FreightListing.objects.filter(
+            status__in=['OPEN', 'IN_PROGRESS'],
+        ).count()
+        bids_last_30 = Bid.objects.filter(created_at__gte=days_30).count()
+        awarded_last_30 = FreightListing.objects.filter(
+            status='AWARDED', updated_at__gte=days_30,
+        ).count()
+
+        # ── Cold chain compliance ─────────────────────────────────────────
+        coldchain_active = ColdChainShipment.objects.filter(
+            shipment__status__in=['PENDING', 'IN_TRANSIT', 'CUSTOMS', 'DELAYED'],
+        ).count()
+        coldchain_excursions = TemperatureExcursion.objects.filter(
+            resolved_at__isnull=True,
+        ).count()
+
+        # ── Cross-border corridors ────────────────────────────────────────
+        corridor_volume = list(
+            Shipment.objects
+            .filter(route__isnull=False)
+            .values('route__origin', 'route__destination')
+            .annotate(
+                total=Count('id'),
+                delivered=Count('id', filter=Q(status='DELIVERED')),
+            )
+            .order_by('-total')[:8]
+        )
+
+        # ── Organisation health ───────────────────────────────────────────
+        org_health = []
+        for org in Organization.objects.filter(is_verified=True):
+            members = CustomUser.objects.filter(organization=org, is_active=True).count()
+            org_shipments = Shipment.objects.filter(client__organization=org)
+            total_s = org_shipments.count()
+            delivered_s = org_shipments.filter(status='DELIVERED').count()
+            org_invoices = Invoice.objects.filter(
+                shipment__client__organization=org, status='PAID',
+            ).aggregate(v=Sum('amount_kes'))['v'] or 0
+            org_health.append({
+                'name': org.name.replace('Seed: ', ''),
+                'members': members,
+                'shipments': total_s,
+                'delivered': delivered_s,
+                'on_time_pct': round(delivered_s / total_s * 100, 1) if total_s else 0,
+                'revenue_kes': float(org_invoices),
+            })
+        org_health.sort(key=lambda x: x['revenue_kes'], reverse=True)
+
+        return Response({
+            'monthly_revenue': [
+                {'month': m['month'].strftime('%Y-%m'), 'revenue': float(m['revenue'] or 0), 'count': m['count']}
+                for m in monthly_revenue
+            ],
+            'org_shipment_stats': list(org_shipment_stats),
+            'daily_volume': [
+                {'day': d['day'].strftime('%Y-%m-%d'), 'count': d['count']}
+                for d in daily_volume
+            ],
+            'invoice_aging': {
+                'overdue_count': overdue_invoices['count'],
+                'overdue_total': float(overdue_invoices['total_overdue'] or 0),
+                'paid_30d_count': paid_last_30['count'],
+                'paid_30d_total': float(paid_last_30['total'] or 0),
+            },
+            'fleet': fleet_stats,
+            'top_carriers': top_carriers,
+            'users_by_role': list(users_by_role),
+            'users_by_org': list(users_by_org),
+            'new_users_30d': new_users_30d,
+            'alert_summary': list(alert_summary),
+            'unacked_alerts': unacked_alerts,
+            'marketplace': {
+                'active_listings': active_listings,
+                'bids_last_30d': bids_last_30,
+                'awarded_last_30d': awarded_last_30,
+            },
+            'coldchain': {
+                'active_shipments': coldchain_active,
+                'active_excursions': coldchain_excursions,
+            },
+            'corridor_volume': [
+                {
+                    'corridor': f"{c['route__origin']} → {c['route__destination']}",
+                    'total': c['total'],
+                    'delivered': c['delivered'],
+                }
+                for c in corridor_volume
+            ],
+            'org_health': org_health,
         })
 
 

@@ -125,7 +125,7 @@ export default function PortPortal() {
     setLoading(true)
     try {
       const [cRes, tRes] = await Promise.all([
-        shipmentsApi.getShipments({ status: 'AT_CUSTOMS', page_size: 30 }),
+        shipmentsApi.getShipments({ status: 'CUSTOMS', page_size: 30 }),
         shipmentsApi.getShipments({ status: 'IN_TRANSIT', page_size: 30 }),
       ])
       setAtCustoms(cRes.data.results ?? [])

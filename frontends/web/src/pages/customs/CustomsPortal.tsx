@@ -9,7 +9,7 @@
  *  - Duty & tariff estimator (simplified percentage-based)
  *
  * Data sources:
- *  - GET /api/v1/shipments/?status=AT_CUSTOMS  — clearance queue
+ *  - GET /api/v1/shipments/?status=CUSTOMS  — clearance queue
  *  - GET /api/v1/shipments/?status=PENDING     — pre-clearance pipeline
  *  - GET /api/v1/alerts/?severity=HIGH         — compliance alerts
  *  - GET /api/v1/documents/                    — document checklist
@@ -254,7 +254,7 @@ export default function CustomsPortal() {
     setLoading(true)
     try {
       const [cRes, pRes, aRes] = await Promise.all([
-        shipmentsApi.getShipments({ status: 'AT_CUSTOMS', page_size: 50 }),
+        shipmentsApi.getShipments({ status: 'CUSTOMS', page_size: 50 }),
         shipmentsApi.getShipments({ status: 'PENDING',    page_size: 20 }),
         alertsApi.getAlerts({ page_size: 10, severity: 'HIGH' }),
       ])

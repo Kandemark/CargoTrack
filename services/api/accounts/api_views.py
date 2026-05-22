@@ -31,6 +31,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from cargotrack.authz import CanAdminUsers, CanAdminSystem, CanViewAudit, OrgScopedQueryset
+from domains._authz import get_user_role
 from .models import APIKey, AuditEntry, CustomUser, Integration, Notification, Organization
 from .serializers import (
     APIKeyCreateSerializer,
@@ -105,6 +106,9 @@ class SecureTokenObtainPairView(TokenObtainPairView):
     throttle_scope = 'auth'
 
     def post(self, request, *args, **kwargs):
+        import logging as _logging
+        _l = _logging.getLogger('cargotrack')
+        _l.warning('SECURE-TOKEN body=%r data=%s', request._request.body, dict(request.data) if request.data else 'EMPTY')
         username = request.data.get('username', '')
         totp_code = request.data.get('totp_code', '').strip()
         ip = request.META.get('REMOTE_ADDR', '')
@@ -420,6 +424,10 @@ class AuditEntryListView(generics.ListAPIView):
 
     def get_queryset(self):
         qs = AuditEntry.objects.select_related('user').all()
+        if get_user_role(self.request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(self.request.user, 'organization_id', None)
+            if org_id:
+                qs = qs.filter(user__organization_id=org_id)
         action = self.request.query_params.get('action')
         result = self.request.query_params.get('result')
         q = self.request.query_params.get('q')
@@ -771,17 +779,30 @@ class OrganizationDetailView(APIView):
     """GET/PATCH /api/v1/accounts/organizations/<pk>/"""
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, pk, **kwargs):
+    def _get_org(self, pk):
         try:
-            org = Organization.objects.get(pk=pk)
+            return Organization.objects.get(pk=pk)
         except Organization.DoesNotExist:
+            return None
+
+    def _check_access(self, request, org):
+        if get_user_role(request.user) == 'PLATFORM_OWNER':
+            return True
+        return request.user.organization_id == org.pk
+
+    def get(self, request, pk, **kwargs):
+        org = self._get_org(pk)
+        if org is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not self._check_access(request, org):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(OrganizationSerializer(org).data)
 
     def patch(self, request, pk, **kwargs):
-        try:
-            org = Organization.objects.get(pk=pk)
-        except Organization.DoesNotExist:
+        org = self._get_org(pk)
+        if org is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not self._check_access(request, org):
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = OrganizationSerializer(org, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

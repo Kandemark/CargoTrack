@@ -28,7 +28,7 @@ import DriverInfoCard from '@/components/map/DriverInfoCard'
 import RoadRoute from '@/components/map/RoadRoute'
 import AnimatedTruck from '@/components/map/AnimatedTruck'
 import ClusterMarker from '@/components/map/ClusterMarker'
-import { preloadRoutes, type RouteGeometry } from '@/lib/routing'
+import { preloadRoutes, getCachedRoute, type RouteGeometry } from '@/lib/routing'
 import {
   lookupCoords, EAST_AFRICA_CENTER, MAP_DEFAULT_ZOOM,
   CORRIDORS, STATUS_COLORS,
@@ -128,7 +128,7 @@ function FitAllButton({ entities }: { entities: MapEntity[] }) {
   }
   return (
     <button onClick={fitAll}
-      className="p-2 rounded-xl bg-[#0a1929]/90 border border-white/10 text-white/60 hover:text-white shadow-lg backdrop-blur-md transition-colors"
+      className="p-2 rounded-xl bg-white/95 border border-black/5 text-slate-500 hover:text-slate-700 shadow-lg backdrop-blur-md transition-colors"
       title="Fit all shipments">
       <Maximize2 className="w-4 h-4" />
     </button>
@@ -171,7 +171,7 @@ function MapContent({
   return (
     <>
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         subdomains="abcd"
         maxZoom={19}
@@ -207,7 +207,7 @@ function MapContent({
       ))}
 
       {/* Cluster markers for zoomed-out view */}
-      <ClusterMarker shipments={visible as any} zoom={clusterZoom} />
+      <ClusterMarker items={visible} zoom={clusterZoom} />
 
       {/* Animated truck markers (hide when clustered) */}
       {clusterZoom >= 8 && visible.map(e => (
@@ -280,7 +280,9 @@ export default function LiveMap() {
       }
 
       // Enrich shipments with real GPS or interpolated position
-      const enriched: MapEntity[] = allShipments.map(s => {
+      const enriched: MapEntity[] = allShipments
+        .filter(s => s.route != null)
+        .map(s => {
         const originPos = lookupCoords(s.route.origin)
         const destPos   = lookupCoords(s.route.destination)
 
@@ -339,11 +341,17 @@ export default function LiveMap() {
 
       setEntities(enriched)
 
-      // Preload road routes in background
+      // Preload road routes, then attach cached geometry to entities
       const pairs = enriched
         .filter(e => e.originPos && e.destPos)
         .map(e => ({ from: e.originPos!, to: e.destPos! }))
-      preloadRoutes(pairs)
+      preloadRoutes(pairs).then(() => {
+        setEntities(prev => prev.map(e => {
+          if (!e.originPos || !e.destPos) return e
+          const route = getCachedRoute(e.originPos, e.destPos)
+          return route ? { ...e, route } : e
+        }))
+      })
     } catch {
       setError('Failed to load tracking data.')
     } finally {
@@ -396,10 +404,10 @@ export default function LiveMap() {
 
   return (
     <div className={cn(
-      'relative overflow-hidden rounded-2xl shadow-2xl border border-white/5',
-      fullscreen ? 'fixed inset-3 z-50' : 'h-[calc(100vh-7rem)]',
+      fullscreen ? 'fixed inset-3 z-50 rounded-2xl shadow-2xl border border-slate-200' : 'absolute inset-0',
     )}>
       {/* ── Full-area Leaflet map ──────────────────────────────────────────── */}
+      <div className={cn('absolute inset-0', fullscreen ? 'rounded-2xl overflow-hidden' : '')}>
       <MapContainer
         center={MAP_CENTER}
         zoom={MAP_ZOOM}
@@ -417,6 +425,7 @@ export default function LiveMap() {
           clusterZoom={clusterZoom}
         />
       </MapContainer>
+      </div>
 
       {/* ── DriverInfoCard ────────────────────────────────────────────────── */}
       <AnimatePresence>
@@ -435,16 +444,16 @@ export default function LiveMap() {
       <div className="absolute top-3 right-3 z-[500] flex items-center gap-2">
         <button onClick={() => setShowCorridors(v => !v)}
           className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shadow-lg backdrop-blur-md border',
-            showCorridors ? 'bg-[#0a1929]/95 border-orange-500/40 text-orange-400' : 'bg-[#0a1929]/80 border-white/10 text-white/50 hover:text-white/80')}>
+            showCorridors ? 'bg-white/95 border-orange-500/40 text-orange-500' : 'bg-white/95 border-black/5 text-slate-500 hover:text-slate-700')}>
           <Layers className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Corridors</span>
         </button>
         <button onClick={() => void load()} title="Refresh"
-          className="p-2 rounded-xl bg-[#0a1929]/90 border border-white/10 text-white/60 hover:text-white shadow-lg backdrop-blur-md transition-colors">
+          className="p-2 rounded-xl bg-white/95 border border-black/5 text-slate-500 hover:text-slate-700 shadow-lg backdrop-blur-md transition-colors">
           <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
         </button>
         <button onClick={() => setFullscreen(v => !v)} title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-          className="p-2 rounded-xl bg-[#0a1929]/90 border border-white/10 text-white/60 hover:text-white shadow-lg backdrop-blur-md transition-colors">
+          className="p-2 rounded-xl bg-white/95 border border-black/5 text-slate-500 hover:text-slate-700 shadow-lg backdrop-blur-md transition-colors">
           {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
       </div>
@@ -452,7 +461,7 @@ export default function LiveMap() {
       {/* ── Toggle panel ──────────────────────────────────────────────────── */}
       <button
         onClick={() => setPanelOpen(v => !v)}
-        className="absolute top-3 left-3 z-[500] p-2 rounded-xl bg-[#0a1929]/90 border border-white/10 text-white/60 hover:text-white shadow-lg backdrop-blur-md transition-colors"
+        className="absolute top-3 left-3 z-[500] p-2 rounded-xl bg-white/95 border border-black/5 text-slate-500 hover:text-slate-700 shadow-lg backdrop-blur-md transition-colors"
         title={panelOpen ? 'Hide panel' : 'Show panel'}>
         {panelOpen ? <X className="w-4 h-4" /> : <Navigation className="w-4 h-4" />}
       </button>
@@ -460,9 +469,9 @@ export default function LiveMap() {
       {/* ── High-risk badge ────────────────────────────────────────────────── */}
       {counts.high_risk > 0 && (
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="absolute z-[500] flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-600/90 backdrop-blur-sm border border-red-500/40 shadow-lg top-3 left-14">
-          <AlertTriangle className="w-3.5 h-3.5 text-white" />
-          <span className="text-xs font-bold text-white">{counts.high_risk} high-risk</span>
+          className="absolute z-[500] flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-50 backdrop-blur-sm border border-red-200 shadow-lg top-3 left-14">
+          <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+          <span className="text-xs font-bold text-red-700">{counts.high_risk} high-risk</span>
         </motion.div>
       )}
 
@@ -475,18 +484,18 @@ export default function LiveMap() {
             exit={{ opacity: 0, x: -20 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             className="absolute top-14 left-3 bottom-3 z-[450] w-[300px] flex flex-col rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: 'rgba(10,25,41,0.93)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(20px)', border: '1px solid rgba(0,0,0,0.06)' }}
           >
             {/* Panel header */}
-            <div className="px-4 pt-4 pb-3 border-b border-white/8">
+            <div className="px-4 pt-4 pb-3 border-b border-slate-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <LiveDot />
-                  <p className="text-white font-bold text-sm tracking-tight">Live Tracking</p>
+                  <p className="text-slate-800 font-bold text-sm tracking-tight">Live Tracking</p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {loading && <div className="w-3.5 h-3.5 border-2 border-orange-400/60 border-t-orange-400 rounded-full animate-spin" />}
-                  <span className="text-white/30 text-[10px]">{visible.length}/{counts.total}</span>
+                  {loading && <div className="w-3.5 h-3.5 border-2 border-orange-400/60 border-t-orange-500 rounded-full animate-spin" />}
+                  <span className="text-slate-400 text-[10px]">{visible.length}/{counts.total}</span>
                 </div>
               </div>
 
@@ -499,22 +508,22 @@ export default function LiveMap() {
                 ].map(({ label, value, color }) => (
                   <button key={label}
                     onClick={() => setFilter(label === 'Transit' ? 'IN_TRANSIT' : label === 'Delayed' ? 'DELAYED' : 'CUSTOMS')}
-                    className="rounded-xl px-2 py-2 text-center transition-opacity hover:opacity-80 active:scale-95"
-                    style={{ background: `${color}1a` }}>
+                    className="rounded-xl px-2 py-2 text-center transition-opacity hover:opacity-80 active:scale-95 border"
+                    style={{ background: `${color}12`, borderColor: `${color}20` }}>
                     <p className="text-sm font-bold tabular-nums" style={{ color }}>{value}</p>
-                    <p className="text-[9px] text-white/35 uppercase tracking-wide mt-0.5">{label}</p>
+                    <p className="text-[9px] text-slate-400 uppercase tracking-wide mt-0.5">{label}</p>
                   </button>
                 ))}
               </div>
 
               {/* Search */}
               <div className="relative mb-2">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Tracking #, carrier, city..."
-                  className="w-full pl-8 pr-8 py-2 rounded-xl bg-white/6 border border-white/8 text-xs text-white/80 placeholder:text-white/25 focus:outline-none focus:ring-1 focus:ring-orange-500/40 focus:border-orange-500/30 transition-colors" />
+                  className="w-full pl-8 pr-8 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500/40 focus:border-orange-500/30 transition-colors" />
                 {search && (
-                  <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70">
+                  <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                     <X className="w-3 h-3" />
                   </button>
                 )}
@@ -526,9 +535,9 @@ export default function LiveMap() {
                   const color = STATUS_CFG[key]?.color
                   return (
                     <button key={key} onClick={() => setFilter(key)}
-                      className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all',
-                        filter === key ? 'text-white shadow-sm' : 'bg-white/6 text-white/40 hover:bg-white/10 hover:text-white/70')}
-                      style={filter === key ? { background: color ?? 'var(--ct-navy)' } : {}}>
+                      className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all border',
+                        filter === key ? 'text-white shadow-sm border-transparent' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 border-slate-200')}
+                      style={filter === key ? { background: color ?? '#f5801e' } : {}}>
                       {label}
                     </button>
                   )
@@ -539,9 +548,9 @@ export default function LiveMap() {
               {carriers.length > 2 && (
                 <div className="relative mt-2">
                   <select value={carrierFilter} onChange={e => setCarrierFilter(e.target.value)}
-                    className="w-full pl-3 pr-3 py-1.5 rounded-xl bg-white/6 border border-white/8 text-[11px] text-white/70 focus:outline-none focus:ring-1 focus:ring-orange-500/40">
+                    className="w-full pl-3 pr-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-[11px] text-slate-600 focus:outline-none focus:ring-1 focus:ring-orange-500/40">
                     {carriers.map(c => (
-                      <option key={c} value={c} className="bg-[#0a1929]">
+                      <option key={c} value={c} className="bg-white">
                         {c === 'ALL' ? 'All Carriers' : c}
                       </option>
                     ))}
@@ -564,37 +573,37 @@ export default function LiveMap() {
                       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                       transition={{ delay: i * 0.02 }} layout
                       onClick={() => handleSelect(e)}
-                      className={cn('w-full px-4 py-3 text-left transition-all border-b border-white/4',
-                        isSel ? 'bg-white/10 border-l-2' : 'hover:bg-white/5')}
+                      className={cn('w-full px-4 py-3 text-left transition-all border-b border-slate-100',
+                        isSel ? 'bg-slate-50 border-l-2' : 'hover:bg-slate-50')}
                       style={isSel ? { borderLeftColor: color } : {}}>
                       <div className="flex items-start gap-2.5">
-                        <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${color}20` }}>
+                        <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${color}18` }}>
                           <Truck className="w-3.5 h-3.5" style={{ color }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-bold text-white/90 font-mono truncate">{e.trackingNumber}</p>
+                            <p className="text-xs font-bold text-slate-800 font-mono truncate">{e.trackingNumber}</p>
                             <span className="text-[10px] font-bold tabular-nums ml-2 shrink-0" style={{ color: rc }}>
                               {Math.round(e.risk * 100)}%
                             </span>
                           </div>
-                          <div className="flex items-center gap-1 mt-0.5 text-[11px] text-white/40">
+                          <div className="flex items-center gap-1 mt-0.5 text-[11px] text-slate-400">
                             <MapPin className="w-2.5 h-2.5 shrink-0" />
                             <span className="truncate">{e.origin}</span>
-                            <ArrowRight className="w-2.5 h-2.5 shrink-0 text-white/20" />
+                            <ArrowRight className="w-2.5 h-2.5 shrink-0 text-slate-300" />
                             <span className="truncate">{e.destination}</span>
                           </div>
                           {/* Progress bar */}
-                          <div className="mt-1.5 h-1 bg-white/8 rounded-full overflow-hidden">
+                          <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
                             <div className="h-full rounded-full transition-all duration-700"
                               style={{ width: `${e.progress}%`, background: color }} />
                           </div>
                           <div className="flex items-center justify-between mt-1">
                             <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-bold"
-                              style={{ background: `${color}20`, color }}>
+                              style={{ background: `${color}16`, color }}>
                               {cfg?.label ?? e.status}
                             </span>
-                            <div className="flex items-center gap-1 text-[10px] text-white/30">
+                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
                               <Clock className="w-2.5 h-2.5" />
                               <span>{eta}</span>
                             </div>
@@ -607,8 +616,8 @@ export default function LiveMap() {
               </AnimatePresence>
               {!loading && visible.length === 0 && (
                 <div className="px-4 py-12 text-center">
-                  <Package className="w-8 h-8 text-white/15 mx-auto mb-2" />
-                  <p className="text-xs text-white/25">No shipments match your filters.</p>
+                  <Package className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400">No shipments match your filters.</p>
                 </div>
               )}
             </div>
@@ -618,22 +627,22 @@ export default function LiveMap() {
 
       {/* ── Legend ──────────────────────────────────────────────────────────── */}
       <div className="absolute bottom-3 right-3 z-[400] rounded-2xl px-3 py-3 shadow-xl"
-        style={{ background: 'rgba(10,25,41,0.90)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-2">Status</p>
+        style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(16px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Status</p>
         <div className="space-y-1.5">
           {Object.entries(STATUS_CFG).filter(([k]) => k !== 'DELIVERED').map(([, cfg]) => (
             <div key={cfg.label} className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
-              <span className="text-[10px] text-white/55">{cfg.label}</span>
+              <span className="text-[10px] text-slate-600">{cfg.label}</span>
             </div>
           ))}
         </div>
         {showCorridors && (
-          <div className="border-t border-white/8 mt-2 pt-2">
+          <div className="border-t border-slate-200 mt-2 pt-2">
             {CORRIDORS.map(c => (
               <div key={c.name} className="flex items-center gap-2 mb-1">
                 <div className="w-4 h-0.5 rounded" style={{ background: c.color }} />
-                <span className="text-[10px] text-white/40">{c.name}</span>
+                <span className="text-[10px] text-slate-500">{c.name}</span>
               </div>
             ))}
           </div>
@@ -643,11 +652,10 @@ export default function LiveMap() {
       {/* Error overlay */}
       {error && (
         <div className="absolute inset-0 flex items-center justify-center z-[600]"
-          style={{ background: 'rgba(10,25,41,0.8)', backdropFilter: 'blur(8px)' }}>
-          <div className="text-center space-y-3 p-6 rounded-2xl border border-white/10"
-            style={{ background: 'rgba(10,25,41,0.95)' }}>
-            <AlertTriangle className="w-8 h-8 text-red-400 mx-auto" />
-            <p className="text-sm text-white/70">{error}</p>
+          style={{ background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)' }}>
+          <div className="text-center space-y-3 p-6 rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <AlertTriangle className="w-8 h-8 text-red-500 mx-auto" />
+            <p className="text-sm text-slate-600">{error}</p>
             <button onClick={() => void load()}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 transition-colors">
               Retry

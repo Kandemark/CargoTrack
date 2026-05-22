@@ -63,7 +63,7 @@ export default function PageWrapper({ children }: { children?: ReactNode }) {
         <OfflineIndicator />
         <Navbar onCmdK={() => setCmdOpen(true)} />
         <ImpersonationBanner />
-        <main className="flex-1 min-h-0">
+        <main className="flex-1 min-h-0 relative">
           <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 sm:py-6 overflow-y-auto">
             <ErrorBoundary section="This page">
               <RealTimeProvider>

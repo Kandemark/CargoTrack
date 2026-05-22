@@ -10,6 +10,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, '../../libs/shared-types'),
     },
+    dedupe: ['react', 'react-dom'],
   },
   server: {
     host: '0.0.0.0',

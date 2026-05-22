@@ -34,6 +34,28 @@ const apiClient: AxiosInstance = axios.create({
   withCredentials: true,  // Send httpOnly cookies cross-origin
 })
 
+// ── Org-scoping request interceptor ────────────────────────────────────────────
+// Uses a lazy getter to avoid circular imports at module-init time.
+// The getter is set by the auth store once it initialises.
+
+let _getOrgId: (() => number | null | undefined) | null = null
+
+export function setOrgIdProvider(fn: () => number | null | undefined) {
+  _getOrgId = fn
+}
+
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  try {
+    const orgId = _getOrgId?.()
+    if (orgId != null) {
+      config.headers.set('X-Organization-ID', String(orgId))
+    }
+  } catch {
+    // Non-critical — backend scoping is the primary enforcement layer.
+  }
+  return config
+})
+
 // ── 401 → refresh → retry ────────────────────────────────────────────────────
 
 let isRefreshing = false
@@ -54,7 +76,13 @@ apiClient.interceptors.response.use(
   async (error) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-    if (error.response?.status !== 401 || original._retry) {
+    // Never intercept auth endpoints — login/logout/refresh/verify.
+    // Intercepting login would swallow "Invalid username or password" errors,
+    // and intercepting refresh would cause infinite loops.
+    const url = original.url ?? ''
+    const isAuthEndpoint = url.includes('/api/auth/')
+
+    if (error.response?.status !== 401 || original._retry || isAuthEndpoint) {
       return Promise.reject(error)
     }
 

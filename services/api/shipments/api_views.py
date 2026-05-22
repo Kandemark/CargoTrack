@@ -31,6 +31,7 @@ from cargotrack.authz import (              # Granular AuthZ shortcuts
     CanViewAnalytics, CanExportAnalytics,
     OrgScopedQueryset,
 )
+from domains._authz import get_user_role
 from .models import ComplianceDoc, Document, Route, Shipment
 from .serializers import (
     ComplianceDocSerializer,
@@ -105,7 +106,9 @@ class ShipmentListCreateAPIView(OrgScopedQueryset, generics.ListCreateAPIView):
         qs = self.scope_by_org(qs)
         status_filter = self.request.query_params.get("status")
         if status_filter:
-            qs = qs.filter(status=status_filter.upper())
+            statuses = [s.strip().upper() for s in status_filter.split(",") if s.strip()]
+            if statuses:
+                qs = qs.filter(status__in=statuses)
         return qs
 
     def get_serializer_class(self):
@@ -213,9 +216,12 @@ class PredictDelayAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        shipment = get_object_or_404(
-            Shipment.objects.select_related("route"), pk=shipment_id
-        )
+        shipment_qs = Shipment.objects.select_related("route")
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                shipment_qs = shipment_qs.filter(client__organization_id=org_id)
+        shipment = get_object_or_404(shipment_qs, pk=shipment_id)
 
         # ── Offload ML inference to dedicated thread pool ──────────────────
         # This prevents XGBoost.predict() from occupying an ASGI worker thread
@@ -263,10 +269,20 @@ class ShipmentDocumentListCreateAPIView(generics.ListCreateAPIView):
     parser_classes: list  # accept multipart uploads
 
     def get_queryset(self):
-        return Document.objects.filter(shipment_id=self.kwargs['pk'])
+        qs = Document.objects.filter(shipment_id=self.kwargs['pk'])
+        if get_user_role(self.request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(self.request.user, 'organization_id', None)
+            if org_id:
+                qs = qs.filter(shipment__client__organization_id=org_id)
+        return qs
 
     def perform_create(self, serializer):
-        shipment = get_object_or_404(Shipment, pk=self.kwargs['pk'])
+        shipment_qs = Shipment.objects.all()
+        if get_user_role(self.request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(self.request.user, 'organization_id', None)
+            if org_id:
+                shipment_qs = shipment_qs.filter(client__organization_id=org_id)
+        shipment = get_object_or_404(shipment_qs, pk=self.kwargs['pk'])
         serializer.save(shipment=shipment, uploaded_by=self.request.user)
 
 
@@ -1118,7 +1134,7 @@ class AnalyticsExportView(APIView, DateRangeFilterMixin):
         return rows, headers
 
     def _export_carriers(self):
-        qs = Shipment.objects.values('carrier_name').annotate(
+        qs = _scope_shipments(self.request).values('carrier_name').annotate(
             total=Count('id'), delivered=Count('id', filter=Q(status='DELIVERED')),
             delayed=Count('id', filter=Q(status='DELAYED')), avg_risk=Avg('delay_risk_score'),
         ).order_by('carrier_name')
@@ -1133,6 +1149,9 @@ class AnalyticsExportView(APIView, DateRangeFilterMixin):
     def _export_financial(self):
         from payments.models import Invoice
         qs = Invoice.objects.select_related('shipment').filter(status='PAID')
+        client_ids = _get_org_client_ids(self.request)
+        if client_ids is not None:
+            qs = qs.filter(shipment__client_id__in=client_ids) if client_ids else qs.none()
         qs = self.filter_date_range(qs, 'created_at')
         headers = ['Invoice #', 'Tracking #', 'Amount (KES)', 'Currency', 'Status', 'Created', 'Paid']
         rows = []
@@ -1147,6 +1166,10 @@ class AnalyticsExportView(APIView, DateRangeFilterMixin):
     def _export_drivers(self):
         from fleet.models import Driver
         qs = Driver.objects.all()
+        if get_user_role(self.request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(self.request.user, 'organization_id', None)
+            if org_id:
+                qs = qs.filter(organization_id=org_id)
         headers = ['Driver ID', 'Name', 'Phone', 'Status', 'Rating', 'On-Time %',
                    'Total Jobs', 'Total KM', 'Earnings MTD', 'License Expiry']
         rows = []
@@ -1173,7 +1196,12 @@ class DispatchShipmentView(APIView):
     permission_classes = [permissions.IsAuthenticated, CanDispatchShipments]
 
     def post(self, request, pk, **kwargs):
-        shipment = get_object_or_404(Shipment, pk=pk)
+        shipment_qs = Shipment.objects.all()
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                shipment_qs = shipment_qs.filter(client__organization_id=org_id)
+        shipment = get_object_or_404(shipment_qs, pk=pk)
         serializer = DispatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -1240,8 +1268,15 @@ class PerformanceAnalyticsView(APIView):
 
         # Bid analytics
         from marketplace.models import Bid
-        total_bids = Bid.objects.filter(created_at__gte=since).count()
-        accepted_bids = Bid.objects.filter(created_at__gte=since, status='ACCEPTED').count()
+        bids_qs = Bid.objects.filter(created_at__gte=since)
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                from accounts.models import CustomUser
+                org_client_ids = list(CustomUser.objects.filter(organization_id=org_id).values_list('id', flat=True))
+                bids_qs = bids_qs.filter(listing__posted_by_id__in=org_client_ids)
+        total_bids = bids_qs.count()
+        accepted_bids = bids_qs.filter(status='ACCEPTED').count()
         bid_success_rate = round(accepted_bids / total_bids * 100, 1) if total_bids else 0
 
         # Avg miles per route
@@ -1391,7 +1426,12 @@ class DocumentExtractionView(APIView):
         if shipment_id:
             try:
                 from .models import Document, DocumentExtraction
-                shipment = get_object_or_404(Shipment, pk=shipment_id)
+                shipment_qs = Shipment.objects.all()
+                if get_user_role(request.user) != 'PLATFORM_OWNER':
+                    org_id = getattr(request.user, 'organization_id', None)
+                    if org_id:
+                        shipment_qs = shipment_qs.filter(client__organization_id=org_id)
+                shipment = get_object_or_404(shipment_qs, pk=shipment_id)
                 doc = Document.objects.create(
                     shipment=shipment,
                     file=uploaded_file,
@@ -1450,7 +1490,12 @@ class DocumentExtractionDetailView(APIView):
 
     def get(self, request, pk, **kwargs):
         from .models import DocumentExtraction
-        extraction = get_object_or_404(DocumentExtraction, document_id=pk)
+        qs = DocumentExtraction.objects.all()
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                qs = qs.filter(document__shipment__client__organization_id=org_id)
+        extraction = get_object_or_404(qs, document_id=pk)
         return Response({
             "id": extraction.pk,
             "document_id": extraction.document_id,
@@ -1469,7 +1514,12 @@ class DocumentExtractionDetailView(APIView):
 
     def delete(self, request, pk, **kwargs):
         from .models import DocumentExtraction
-        extraction = get_object_or_404(DocumentExtraction, document_id=pk)
+        qs = DocumentExtraction.objects.all()
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                qs = qs.filter(document__shipment__client__organization_id=org_id)
+        extraction = get_object_or_404(qs, document_id=pk)
         extraction.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -1553,7 +1603,12 @@ class CustomsDeclarationView(APIView):
         country_code = request.data.get('country_code', '')
 
         try:
-            shipment = Shipment.objects.select_related('assigned_truck', 'carrier', 'client').get(pk=shipment_id)
+            shipment_qs = Shipment.objects.select_related('assigned_truck', 'carrier', 'client')
+            if get_user_role(request.user) != 'PLATFORM_OWNER':
+                org_id = getattr(request.user, 'organization_id', None)
+                if org_id:
+                    shipment_qs = shipment_qs.filter(client__organization_id=org_id)
+            shipment = shipment_qs.get(pk=shipment_id)
         except Shipment.DoesNotExist:
             return Response({'error': 'Shipment not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1721,7 +1776,12 @@ class RealTimeETAView(APIView):
 
         if tracking:
             try:
-                shipment = Shipment.objects.select_related('route').get(tracking_number=tracking)
+                shipment_qs = Shipment.objects.select_related('route')
+                if get_user_role(request.user) != 'PLATFORM_OWNER':
+                    org_id = getattr(request.user, 'organization_id', None)
+                    if org_id:
+                        shipment_qs = shipment_qs.filter(client__organization_id=org_id)
+                shipment = shipment_qs.get(tracking_number=tracking)
                 total_distance = shipment.route.distance_km
                 origin = shipment.route.origin
                 destination = shipment.route.destination

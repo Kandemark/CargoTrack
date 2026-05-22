@@ -34,6 +34,7 @@ class TenantMiddleware:
     Resolution order:
     1. JWT claim ``org_id`` (set by Keycloak or custom claims)
     2. ``request.user.organization_id`` (fallback for SimpleJWT dev mode)
+    3. ``X-Organization-ID`` header (defence-in-depth from frontend)
 
     Attributes attached to ``request``:
     - ``request.tenant_id``          — int or None
@@ -68,6 +69,15 @@ class TenantMiddleware:
         # 2. Fall back to user.organization
         if not org_id and hasattr(request, 'user') and hasattr(request.user, 'is_authenticated') and request.user.is_authenticated:
             org_id = getattr(request.user, 'organization_id', None)
+
+        # 3. Fall back to X-Organization-ID header (defence-in-depth from frontend)
+        if not org_id:
+            header_org_id = request.headers.get('X-Organization-ID')
+            if header_org_id:
+                try:
+                    org_id = int(header_org_id)
+                except (TypeError, ValueError):
+                    pass
 
         if not org_id:
             return

@@ -41,7 +41,7 @@ export default function PerformanceMetrics() {
         analyticsApi.bidAnalytics({ days: 30 }),
       ])
       setPerf(p.data)
-      setLeaderboard(l.data)
+      setLeaderboard(l.data.leaderboard || [])
       setBidData(b.data)
     } catch {
       setError('Failed to load performance data.')

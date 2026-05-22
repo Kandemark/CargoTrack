@@ -120,7 +120,9 @@ services:
     environment:
       DEBUG: "true"
       SECRET_KEY: sandbox-insecure-key-do-not-use-in-production
+      DB_ENGINE: django.db.backends.postgresql
       DB_HOST: db
+      DB_PORT: "5432"
       DB_USER: cargotrack
       DB_PASSWORD: sandbox
       DB_NAME: cargotrack_sandbox
@@ -135,25 +137,26 @@ services:
       - "8000:8000"
     command: >
       sh -c "python manage.py migrate &&
-             daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application"
+             python manage.py runserver 0.0.0.0:8000"
 
   # ── Frontend ──────────────────────────────────────────────────────────────
   frontend:
     build:
-      context: ./frontends/web
-      dockerfile: Dockerfile
-      additional_contexts:
-        shared-types: ./libs/shared-types
+      context: .
+      dockerfile: frontends/web/Dockerfile
     depends_on:
       - backend
     environment:
       API_PROXY_TARGET: http://backend:8000
     volumes:
-      - ./frontends/web:/app
+      - .:/app
       - /app/node_modules
-      - ./libs/shared-types:/app/shared
+      - /app/frontends/web/node_modules
+      - /app/frontends/mobile/node_modules
     expose:
       - "5173"
+    ports:
+      - "5173:5173"
 
   # ── Observability ─────────────────────────────────────────────────────────
   prometheus:

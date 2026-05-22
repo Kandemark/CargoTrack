@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir --target=/install -r requirements.txt
 
 # ── Runtime stage ───────────────────────────────────────────────────────────
 FROM python:3.13-slim
@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1000 app \
-    && adduser --system --uid 1000 --gid 1000 app
+    && adduser --system --uid 1000 --gid 1000 --home /home/app app
 
 WORKDIR /app
 
-COPY --from=builder /root/.local /home/app/.local
-ENV PATH=/home/app/.local/bin:$PATH
+COPY --from=builder /install /usr/local/lib/python3.13/site-packages/
+ENV PATH=/usr/local/lib/python3.13/site-packages/bin:$PATH
 
 COPY . .
 RUN chown -R app:app /app

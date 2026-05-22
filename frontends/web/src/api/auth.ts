@@ -51,8 +51,13 @@ export const authApi = {
   logout: () =>
     apiClient.post('/api/auth/token/logout/'),
 
-  /** GET /api/v1/accounts/me/ — return the authenticated user's profile. */
-  getMe: () => apiClient.get<User>('/api/v1/accounts/me/'),
+  /** GET /api/v1/accounts/me/ — return the authenticated user's profile.
+   *  Optionally pass an access token to use as Bearer auth (bypasses cookie checks). */
+  getMe: (accessToken?: string) => {
+    const headers: Record<string, string> = {}
+    if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`
+    return apiClient.get<User>('/api/v1/accounts/me/', { headers })
+  },
 
   /** PATCH /api/v1/accounts/me/ — update editable profile fields. */
   updateMe: (data: Partial<Pick<User, 'first_name' | 'last_name' | 'phone'>>) =>
