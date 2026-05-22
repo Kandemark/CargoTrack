@@ -3,19 +3,24 @@
  *
  * Groups nearby markers into cells when zoom < 8, showing a count badge.
  * Clicking a cluster zooms to fit its children.
+ *
+ * Accepts objects with a ``gpsPos: [lat, lng]`` property (matching MapEntity).
  */
 import { useMemo } from 'react'
 import { Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import type { ShipmentListItem } from '@/types'
 
-interface ClusteredPoint {
-  pos: [number, number]
-  shipments: (ShipmentListItem & { pos: [number, number] })[]
+interface Clusterable {
+  gpsPos: [number, number]
 }
 
-interface Props {
-  shipments: (ShipmentListItem & { pos: [number, number] })[]
+interface ClusteredPoint<T extends Clusterable> {
+  pos: [number, number]
+  items: T[]
+}
+
+interface Props<T extends Clusterable> {
+  items: T[]
   zoom: number
   clusterThreshold?: number
 }
@@ -29,47 +34,45 @@ function buildClusterIcon(count: number): L.DivIcon {
     popupAnchor: [0, -size / 2],
     html: `<div style="
       width:${size}px;height:${size}px;border-radius:50%;
-      background:linear-gradient(135deg,#0f2d5e,#1e3a5f);
-      border:2px solid rgba(249,115,22,0.6);
+      background:#ffffff;
+      border:2px solid #f5801e;
       display:flex;align-items:center;justify-content:center;
-      box-shadow:0 2px 12px rgba(0,0,0,0.5);
-      color:white;font-size:${Math.min(11 + count * 0.1, 14)}px;
+      box-shadow:0 2px 12px rgba(0,0,0,0.15);
+      color:#1e293b;font-size:${Math.min(11 + count * 0.1, 14)}px;
       font-weight:700;font-family:monospace;
-      backdrop-filter:blur(8px);
     ">${count}</div>`,
   })
 }
 
-export default function ClusterMarker({ shipments, zoom, clusterThreshold = 8 }: Props) {
+export default function ClusterMarker<T extends Clusterable>({ items, zoom, clusterThreshold = 8 }: Props<T>) {
   const map = useMap()
 
-  const clusters = useMemo((): ClusteredPoint[] => {
-    if (zoom >= clusterThreshold || shipments.length < 4) return []
+  const clusters = useMemo((): ClusteredPoint<T>[] => {
+    if (zoom >= clusterThreshold || items.length < 4) return []
 
-    // Grid size in degrees — larger at lower zoom
     const cellSize = 3.0 / Math.pow(2, zoom - 4)
 
-    const grid: Record<string, (typeof shipments)[0][]> = {}
-    for (const s of shipments) {
-      const row = Math.floor(s.pos[0] / cellSize)
-      const col = Math.floor(s.pos[1] / cellSize)
+    const grid: Record<string, T[]> = {}
+    for (const item of items) {
+      const row = Math.floor(item.gpsPos[0] / cellSize)
+      const col = Math.floor(item.gpsPos[1] / cellSize)
       const key = `${row},${col}`
       grid[key] = grid[key] || []
-      grid[key].push(s)
+      grid[key].push(item)
     }
 
     return Object.entries(grid)
       .filter(([, group]) => group.length >= 2)
       .map(([, group]) => {
-        const avgLat = group.reduce((s, x) => s + x.pos[0], 0) / group.length
-        const avgLng = group.reduce((s, x) => s + x.pos[1], 0) / group.length
-        return { pos: [avgLat, avgLng] as [number, number], shipments: group }
+        const avgLat = group.reduce((s, x) => s + x.gpsPos[0], 0) / group.length
+        const avgLng = group.reduce((s, x) => s + x.gpsPos[1], 0) / group.length
+        return { pos: [avgLat, avgLng] as [number, number], items: group }
       })
-  }, [shipments, zoom, clusterThreshold])
+  }, [items, zoom, clusterThreshold])
 
-  function fitCluster(cluster: ClusteredPoint) {
-    const lats = cluster.shipments.map(s => s.pos[0])
-    const lngs = cluster.shipments.map(s => s.pos[1])
+  function fitCluster(cluster: ClusteredPoint<T>) {
+    const lats = cluster.items.map(s => s.gpsPos[0])
+    const lngs = cluster.items.map(s => s.gpsPos[1])
     map.fitBounds([
       [Math.min(...lats), Math.min(...lngs)],
       [Math.max(...lats), Math.max(...lngs)],
@@ -80,7 +83,7 @@ export default function ClusterMarker({ shipments, zoom, clusterThreshold = 8 }:
     <>
       {clusters.map((c, i) => (
         <Marker key={`cluster-${i}`} position={c.pos}
-          icon={buildClusterIcon(c.shipments.length)}
+          icon={buildClusterIcon(c.items.length)}
           eventHandlers={{ click: () => fitCluster(c) }}
         />
       ))}

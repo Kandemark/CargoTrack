@@ -12,7 +12,11 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { authApi, type RegisterPayload } from '@/api/auth'
 import { accountApi } from '@/api/account'
+import { setOrgIdProvider } from '@/api/client'
 import type { User } from '@/types'
+
+// Wire org-scoping interceptor so every API request carries X-Organization-ID.
+setOrgIdProvider(() => useAuthStore.getState().user?.org_id)
 
 export { type RegisterPayload } from '@/api/auth'
 
@@ -52,7 +56,7 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (credentials) => {
         const { data: tokens } = await authApi.login(credentials)
-        const { data: user } = await authApi.getMe()
+        const { data: user } = await authApi.getMe(tokens.access)
         set({ user, isAuthenticated: true, accessToken: tokens.access, isImpersonating: false, originalUser: null })
       },
 

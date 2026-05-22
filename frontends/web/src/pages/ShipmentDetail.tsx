@@ -16,11 +16,12 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, MapPin, Clock, Truck, AlertTriangle, RefreshCw, CheckCircle, PlusCircle } from 'lucide-react'
+import { ArrowLeft, MapPin, Clock, Truck, AlertTriangle, RefreshCw, CheckCircle, PlusCircle, Route } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { shipmentsApi } from '@/api/shipments'
 import { usePermission } from '@/hooks/usePermission'
 import { Permission } from '@/lib/roleUtils'
+import ShipmentRouteMap from '@/components/map/ShipmentRouteMap'
 import type { Shipment, TrackingEvent, DelayPrediction, ShipmentStatus } from '@/types'
 
 const STATUS_CONFIG: Record<ShipmentStatus, { label: string; bg: string; text: string; border: string }> = {
@@ -240,6 +241,24 @@ export default function ShipmentDetail() {
           >
             {predicting ? 'Running model…' : prediction ? 'Re-run prediction' : 'Run ML prediction'}
           </button>
+        </div>
+      </div>
+
+      {/* Route map */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+          <Route className="w-4 h-4 text-slate-400" />
+          <h2 className="text-sm font-semibold text-slate-700">Route Map</h2>
+          <span className="ml-auto text-xs text-slate-400">
+            {shipment.route.origin} → {shipment.route.destination}
+          </span>
+        </div>
+        <div className="h-[320px]">
+          <ShipmentRouteMap
+            origin={shipment.route.origin}
+            destination={shipment.route.destination}
+            status={shipment.status}
+          />
         </div>
       </div>
 

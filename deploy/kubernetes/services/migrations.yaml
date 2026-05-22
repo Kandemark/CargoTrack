@@ -1,0 +1,47 @@
+# CargoTrack Database Migrations — one-shot Job
+# Runs before backend deployments to apply pending Django migrations.
+# This prevents race conditions when multiple backend replicas start simultaneously.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrations
+  namespace: cargotrack
+  labels:
+    app: migrations
+    app.kubernetes.io/part-of: cargotrack
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: migrations
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/kandemark/cargotrack-backend:${IMAGE_TAG}
+          command:
+            - python
+            - manage.py
+            - migrate
+            - --noinput
+          envFrom:
+            - configMapRef:
+                name: cargotrack-config
+            - secretRef:
+                name: cargotrack-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false

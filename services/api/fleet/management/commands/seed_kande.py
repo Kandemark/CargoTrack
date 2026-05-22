@@ -124,11 +124,11 @@ SHIPMENT_DEFS = [
     ("CT-20260503-008", 6,  "IN_TRANSIT", 9100,  0, 0.28),   # Nairobi → Nakuru
     ("CT-20260504-009", 14, "IN_TRANSIT", 22000, 2, 0.42),   # Nairobi → Kigali
     ("CT-20260504-010", 10, "IN_TRANSIT", 4800,  3, 0.10),   # Nairobi → Arusha
-    # AT_CUSTOMS
-    ("CT-20260428-011", 1,  "AT_CUSTOMS", 5600,  1, 0.32),   # Mombasa → Nairobi
-    ("CT-20260429-012", 3,  "AT_CUSTOMS", 3400,  5, 0.25),   # Kisumu → Nairobi
-    ("CT-20260429-013", 13, "AT_CUSTOMS", 18000, 3, 0.45),   # Dar → Mombasa
-    ("CT-20260430-014", 0,  "AT_CUSTOMS", 7800,  0, 0.20),   # Nairobi → Mombasa
+    # CUSTOMS
+    ("CT-20260428-011", 1,  "CUSTOMS", 5600,  1, 0.32),   # Mombasa → Nairobi
+    ("CT-20260429-012", 3,  "CUSTOMS", 3400,  5, 0.25),   # Kisumu → Nairobi
+    ("CT-20260429-013", 13, "CUSTOMS", 18000, 3, 0.45),   # Dar → Mombasa
+    ("CT-20260430-014", 0,  "CUSTOMS", 7800,  0, 0.20),   # Nairobi → Mombasa
     # DELIVERED
     ("CT-20260420-015", 1,  "DELIVERED",  5200,  1, 0.0),
     ("CT-20260421-016", 7,  "DELIVERED",  3800,  4, 0.0),
@@ -204,7 +204,7 @@ def gen_tracking_events(shipment, route, status):
         "timestamp": base,
     })
 
-    if status in ("IN_TRANSIT", "AT_CUSTOMS", "DELAYED", "DELIVERED"):
+    if status in ("IN_TRANSIT", "CUSTOMS", "DELAYED", "DELIVERED"):
         events.append({
             "event_type": "CHECKPOINT",
             "location": "Nakuru Weighbridge" if "Nakuru" in f"{route.origin}{route.destination}" else "Athi River Checkpoint",
@@ -212,7 +212,7 @@ def gen_tracking_events(shipment, route, status):
             "timestamp": base + timedelta(hours=random.randint(2, 5)),
         })
 
-    if status in ("AT_CUSTOMS",):
+    if status in ("CUSTOMS",):
         events.append({
             "event_type": "CUSTOMS_ENTRY",
             "location": f"{route.destination} Customs Terminal",

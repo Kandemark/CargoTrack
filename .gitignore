@@ -168,6 +168,7 @@ settings_local_*.py
 db.sqlite3
 db.sqlite3-journal
 *.sqlite3
+cargotrack_sandbox
 media/
 staticfiles/
 collected-static/

@@ -5,6 +5,9 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from cargotrack.authz import OrgScopedQueryset
+from domains._authz import get_user_role
+
 from .models import ProofOfDelivery, PODDispute
 from .serializers import (
     ProofOfDeliverySerializer,
@@ -13,11 +16,14 @@ from .serializers import (
 )
 
 
-class ProofOfDeliveryViewSet(viewsets.ModelViewSet):
+class ProofOfDeliveryViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
     queryset = ProofOfDelivery.objects.select_related(
         'shipment', 'captured_by', 'verified_by',
     ).prefetch_related('photos').all()
     serializer_class = ProofOfDeliverySerializer
+
+    def get_queryset(self):
+        return self.scope_by_org(super().get_queryset())
 
     def create(self, request, *args, **kwargs):
         """Create POD — must be a driver, dispatcher, or warehouse manager."""
@@ -104,6 +110,10 @@ class PODDisputeViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        if get_user_role(self.request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(self.request.user, 'organization_id', None)
+            if org_id:
+                qs = qs.filter(pod__shipment__client__organization_id=org_id)
         status_filter = self.request.query_params.get('resolution_status')
         if status_filter:
             qs = qs.filter(resolution_status=status_filter)

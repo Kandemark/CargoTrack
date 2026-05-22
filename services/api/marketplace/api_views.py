@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from cargotrack.authz import CanViewMarketplace, CanBidMarketplace, CanManageMarketplace
+from domains._authz import get_user_role
 
 from carriers.models import Carrier
 from .models import FreightListing, Bid
@@ -30,6 +31,10 @@ class FreightListingListCreateView(APIView):
         listings = FreightListing.objects.select_related('posted_by').prefetch_related(
             'bids', 'bids__carrier',
         ).order_by('-created_at')
+        if get_user_role(request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(request.user, 'organization_id', None)
+            if org_id:
+                listings = listings.filter(posted_by__organization_id=org_id)
 
         status_filter = request.query_params.get('status')
         if status_filter:
@@ -89,9 +94,14 @@ class FreightListingDetailView(APIView):
 
     def get(self, request, pk, **kwargs):
         try:
-            listing = FreightListing.objects.select_related('posted_by').prefetch_related(
+            qs = FreightListing.objects.select_related('posted_by').prefetch_related(
                 'bids', 'bids__carrier', 'bids__truck', 'bids__driver',
-            ).get(pk=pk)
+            )
+            if get_user_role(request.user) != 'PLATFORM_OWNER':
+                org_id = getattr(request.user, 'organization_id', None)
+                if org_id:
+                    qs = qs.filter(posted_by__organization_id=org_id)
+            listing = qs.get(pk=pk)
         except FreightListing.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=404)
 

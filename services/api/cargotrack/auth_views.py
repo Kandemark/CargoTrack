@@ -82,8 +82,12 @@ class CookieTokenObtainPairView(APIView):
         # Pass the underlying Django HttpRequest so the inner DRF view
         # can wrap it into a fresh rest_framework Request.
         from accounts.api_views import SecureTokenObtainPairView
+        import logging as _logging
+        _l = _logging.getLogger('cargotrack')
+        _l.warning('TOKEN-DEBUG raw_body=%r', request._request.body)
         inner_view = SecureTokenObtainPairView.as_view()
         response = inner_view(request._request)
+        _l.warning('TOKEN-DEBUG status=%s', response.status_code)
 
         if response.status_code != 200:
             return response

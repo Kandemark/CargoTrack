@@ -5,10 +5,9 @@
  * instead of straight lines. Falls back to great-circle lines when OSRM is
  * unavailable.
  *
- * OSRM public demo server: https://router.project-osrm.org
- * Rate limits apply — we cache routes indefinitely.
+ * Uses a request queue (max 3 concurrent) to avoid rate-limiting the
+ * public OSRM demo server.
  */
-
 const OSRM_BASE = 'https://router.project-osrm.org'
 
 interface OSRMResponse {
@@ -38,8 +37,25 @@ function cacheKey(from: [number, number], to: [number, number]): string {
   return `${from[0].toFixed(4)},${from[1].toFixed(4)}_${to[0].toFixed(4)},${to[1].toFixed(4)}`
 }
 
+// ── Concurrency limiter ────────────────────────────────────────────────────
+
+let inFlight = 0
+const MAX_CONCURRENT = 3
+const pending: Array<() => void> = []
+
+function acquireSlot(): Promise<void> {
+  if (inFlight < MAX_CONCURRENT) { inFlight++; return Promise.resolve() }
+  return new Promise((resolve) => { pending.push(resolve) })
+}
+
+function releaseSlot() {
+  inFlight--
+  const next = pending.shift()
+  if (next) { inFlight++; next() }
+}
+
 /**
- * Fetch road-following route from OSRM.
+ * Fetch road-following route from OSRM.  Retries once on failure.
  * Coordinates are [lat, lng] — OSRM expects [lng, lat].
  */
 export async function fetchRoadRoute(
@@ -50,35 +66,43 @@ export async function fetchRoadRoute(
   const cached = routeCache.get(key)
   if (cached) return cached
 
-  try {
-    // OSRM expects lng,lat
-    const url = `${OSRM_BASE}/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`
-    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) })
-    if (!resp.ok) return null
-    const data: OSRMResponse = await resp.json()
-    if (data.code !== 'Ok' || !data.routes.length) return null
+  async function attempt(): Promise<RouteGeometry | null> {
+    await acquireSlot()
+    try {
+      const url = `${OSRM_BASE}/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+      if (!resp.ok) return null
+      const data: OSRMResponse = await resp.json()
+      if (data.code !== 'Ok' || !data.routes.length) return null
 
-    const route = data.routes[0]
-    // Convert [lng, lat] → [lat, lng]
-    const coordinates: [number, number][] = route.geometry.coordinates.map(
-      ([lng, lat]) => [lat, lng],
-    )
+      const route = data.routes[0]
+      const coordinates: [number, number][] = route.geometry.coordinates.map(
+        ([lng, lat]) => [lat, lng],
+      )
 
-    const result: RouteGeometry = {
-      coordinates,
-      distanceKm: Math.round(route.distance / 100) / 10,
-      durationMin: Math.round(route.duration / 6) / 10,
+      const result: RouteGeometry = {
+        coordinates,
+        distanceKm: Math.round(route.distance / 100) / 10,
+        durationMin: Math.round(route.duration / 6) / 10,
+      }
+      routeCache.set(key, result)
+      return result
+    } catch {
+      return null
+    } finally {
+      releaseSlot()
     }
-    routeCache.set(key, result)
-    return result
-  } catch {
-    return null
   }
+
+  // Try once, then retry after a short delay if it failed
+  const first = await attempt()
+  if (first) return first
+  await new Promise((r) => setTimeout(r, 2000))
+  return attempt()
 }
 
 /**
  * Returns a position along a route geometry at a given fraction (0–1).
- * Uses linear interpolation between waypoints.
  */
 export function interpolateAlongRoute(
   coords: [number, number][],
@@ -88,7 +112,6 @@ export function interpolateAlongRoute(
   if (coords.length === 1 || fraction <= 0) return coords[0]
   if (fraction >= 1) return coords[coords.length - 1]
 
-  // Compute cumulative distances
   const segments: number[] = []
   let total = 0
   for (let i = 1; i < coords.length; i++) {
@@ -124,9 +147,18 @@ function haversineKm(a: [number, number], b: [number, number]): number {
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }
 
-/** Preload routes for a batch of origin-destination pairs. */
+/** Preload routes for a batch of origin-destination pairs (queued, max 3 concurrent). */
 export async function preloadRoutes(
   pairs: Array<{ from: [number, number]; to: [number, number] }>,
 ): Promise<void> {
-  await Promise.allSettled(pairs.map(({ from, to }) => fetchRoadRoute(from, to)))
+  const uncached = pairs.filter(({ from, to }) => !routeCache.has(cacheKey(from, to)))
+  await Promise.allSettled(uncached.map(({ from, to }) => fetchRoadRoute(from, to)))
+}
+
+/** Look up a previously cached route (synchronous, returns null on miss). */
+export function getCachedRoute(
+  from: [number, number],
+  to: [number, number],
+): RouteGeometry | null {
+  return routeCache.get(cacheKey(from, to)) ?? null
 }

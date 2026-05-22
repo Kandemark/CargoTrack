@@ -27,10 +27,13 @@ class CarrierListCreateView(OrgScopedQueryset, generics.ListCreateAPIView):
         return qs
 
 
-class CarrierDetailView(generics.RetrieveUpdateDestroyAPIView):
+class CarrierDetailView(OrgScopedQueryset, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CarrierSerializer
     permission_classes = [IsAuthenticated, CanManageRates]
     queryset = Carrier.objects.prefetch_related('rate_cards').all()
+
+    def get_queryset(self):
+        return self.scope_by_org(super().get_queryset())
 
 
 class RateCardListCreateView(CarrierScopedQueryset, generics.ListCreateAPIView):
@@ -51,7 +54,10 @@ class RateCardListCreateView(CarrierScopedQueryset, generics.ListCreateAPIView):
         return qs
 
 
-class RateCardDetailView(generics.RetrieveUpdateDestroyAPIView):
+class RateCardDetailView(CarrierScopedQueryset, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = RateCardSerializer
     permission_classes = [IsAuthenticated, CanManageRates]
     queryset = RateCard.objects.select_related('carrier').all()
+
+    def get_queryset(self):
+        return self.scope_by_carrier(super().get_queryset())

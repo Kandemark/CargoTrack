@@ -6,6 +6,7 @@ cookie instead of the Authorization header.  Falls back to Bearer header auth
 so mobile clients (which cannot use httpOnly cookies) continue to work.
 """
 from rest_framework.authentication import BaseAuthentication
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 
@@ -32,8 +33,8 @@ class CookieJWTAuthentication(BaseAuthentication):
                 validated = JWTAuthentication().get_validated_token(raw_token)
                 user = JWTAuthentication().get_user(validated)
                 return (user, validated)
-            except InvalidToken:
-                pass  # Fall through to header auth
+            except (InvalidToken, AuthenticationFailed):
+                pass  # Fall through to header auth (stale cookie, deleted user, etc.)
 
         # 2. Fall back to Authorization header (mobile / API clients)
         header_auth = JWTAuthentication()

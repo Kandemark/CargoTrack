@@ -1,11 +1,13 @@
 /**
  * RoadRoute.tsx — Road-following route polyline using OSRM geometry.
  *
- * Renders the actual road path between origin and destination as a
- * smooth polyline on the map. Splits into completed (solid) and
- * remaining (dashed) portions based on shipment progress.
+ * Renders the actual road path between origin and destination with a
+ * prominent glow effect. Splits into completed (solid) and remaining
+ * (dashed) portions based on shipment progress.
+ *
+ * Falls back to a styled straight line if OSRM is unavailable.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Polyline, Tooltip } from 'react-leaflet'
 import { fetchRoadRoute, type RouteGeometry } from '@/lib/routing'
 import { lookupCoords } from '@/lib/coords'
@@ -26,85 +28,97 @@ interface Props {
 
 export default function RoadRoute({ origin, destination, risk, progress, selected }: Props) {
   const [geometry, setGeometry] = useState<RouteGeometry | null>(null)
-  const [loaded, setLoaded] = useState(false)
+  const mountedRef = useRef(true)
 
   const originPos = lookupCoords(origin)
   const destPos = lookupCoords(destination)
 
   useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  useEffect(() => {
     if (!originPos || !destPos) return
     let cancelled = false
+    setGeometry(null)
+
     fetchRoadRoute(originPos, destPos).then((geo) => {
-      if (!cancelled) { setGeometry(geo); setLoaded(true) }
+      if (!cancelled && mountedRef.current) setGeometry(geo)
+    }).catch(() => {
+      if (!cancelled && mountedRef.current) setGeometry(null)
     })
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, destination])
+  }, [origin, destination]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!originPos || !destPos) return null
 
-  // While loading, show a faint straight line
-  if (!loaded) {
-    return (
-      <Polyline positions={[originPos, destPos]}
-        pathOptions={{
-          color: statusColor(risk),
-          weight: 1.5,
-          opacity: 0.2,
-          dashArray: '4 8',
-        }}
-      />
-    )
-  }
-
-  // If OSRM failed, render straight line with curved style
+  const color = statusColor(risk)
   const coords = geometry?.coordinates ?? [originPos, destPos]
   const distKm = geometry?.distanceKm
+  const isRoadRoute = geometry && geometry.coordinates.length > 2
 
-  // Split at progress point
+  // Split at progress point for road routes
   const totalPoints = coords.length
   const splitIdx = Math.floor(totalPoints * (progress / 100))
-
   const completed = coords.slice(0, Math.max(splitIdx + 1, 2))
   const remaining = coords.slice(splitIdx)
 
-  const color = statusColor(risk)
+  const baseWeight = selected ? 5 : 3.5
+  const glowWeight = baseWeight + 6
 
   return (
     <>
-      {/* Completed — solid, bright */}
+      {/* ── Glow layer (wider translucent stroke) ──────────────────── */}
+      <Polyline positions={completed}
+        pathOptions={{
+          color, weight: glowWeight, opacity: 0.18,
+        }}
+      />
+      {remaining.length > 1 && (
+        <Polyline positions={remaining}
+          pathOptions={{
+            color: isRoadRoute ? '#94a3b8' : color,
+            weight: glowWeight, opacity: 0.1,
+          }}
+        />
+      )}
+
+      {/* ── Completed portion — solid, bright ─────────────────────── */}
       <Polyline positions={completed}
         pathOptions={{
           color,
-          weight: selected ? 4 : 2.5,
-          opacity: selected ? 0.9 : 0.6,
+          weight: baseWeight,
+          opacity: selected ? 0.95 : 0.75,
         }}
       >
         {distKm && (
           <Tooltip sticky direction="top">
-            <span className="text-[10px] font-semibold text-gray-700">{distKm} km via road</span>
+            <span className="text-[10px] font-semibold text-gray-700">
+              {isRoadRoute ? `${distKm} km via road` : '~ route preview'}
+            </span>
           </Tooltip>
         )}
       </Polyline>
 
-      {/* Remaining — dashed, dimmed */}
+      {/* ── Remaining portion — dashed ────────────────────────────── */}
       {remaining.length > 1 && (
         <Polyline positions={remaining}
           pathOptions={{
-            color: selected ? color : '#94a3b8',
-            weight: selected ? 3 : 2,
-            dashArray: '8 6',
-            opacity: selected ? 0.5 : 0.3,
+            color: isRoadRoute ? '#94a3b8' : color,
+            weight: selected ? 3.5 : 2.5,
+            dashArray: isRoadRoute ? '10 6' : '6 6',
+            opacity: selected ? 0.5 : 0.35,
           }}
         />
       )}
 
       {/* Origin & Destination dots */}
       <Polyline positions={[originPos, originPos]}
-        pathOptions={{ color: '#22c55e', weight: 6, opacity: 0.9 }}
+        pathOptions={{ color: '#22c55e', weight: 7, opacity: 0.9 }}
       />
       <Polyline positions={[destPos, destPos]}
-        pathOptions={{ color: '#f5801e', weight: 6, opacity: 0.9 }}
+        pathOptions={{ color: '#f5801e', weight: 7, opacity: 0.9 }}
       />
     </>
   )

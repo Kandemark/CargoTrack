@@ -35,6 +35,7 @@ export const CITY_COORDS: Record<string, [number, number]> = {
 }
 
 export function lookupCoords(city: string): [number, number] | null {
+  if (!city) return null
   const key = Object.keys(CITY_COORDS).find(
     (k) => city.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(city.toLowerCase()),
   )

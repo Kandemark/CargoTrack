@@ -7,6 +7,9 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from cargotrack.authz import OrgScopedQueryset
+from domains._authz import get_user_role
+
 from .models import (
     ColdChainShipment, TemperatureReading,
     TemperatureExcursion, ColdChainCertificate, ColdChainSLA,
@@ -17,11 +20,14 @@ from .serializers import (
 )
 
 
-class ColdChainShipmentViewSet(viewsets.ModelViewSet):
+class ColdChainShipmentViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
     queryset = ColdChainShipment.objects.select_related(
         'shipment', 'certificate',
     ).prefetch_related('readings', 'excursions').all()
     serializer_class = ColdChainShipmentSerializer
+
+    def get_queryset(self):
+        return self.scope_by_org(super().get_queryset())
 
     @action(detail=True, methods=['get'])
     def readings(self, request, pk=None):
@@ -141,6 +147,14 @@ class ColdChainShipmentViewSet(viewsets.ModelViewSet):
 class TemperatureReadingViewSet(viewsets.ModelViewSet):
     queryset = TemperatureReading.objects.all()
     serializer_class = TemperatureReadingSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if get_user_role(self.request.user) != 'PLATFORM_OWNER':
+            org_id = getattr(self.request.user, 'organization_id', None)
+            if org_id:
+                qs = qs.filter(coldchain_shipment__shipment__client__organization_id=org_id)
+        return qs
 
     def create(self, request, *args, **kwargs):
         """Handle single or bulk IoT ingestion. Bulk uses bulk_create for performance."""
@@ -312,6 +326,10 @@ def compliance_dashboard(request):
     active_cc = ColdChainShipment.objects.filter(
         shipment__status__in=['PENDING', 'IN_TRANSIT', 'CUSTOMS', 'DELAYED'],
     ).select_related('shipment').prefetch_related('excursions')
+    if get_user_role(request.user) != 'PLATFORM_OWNER':
+        org_id = getattr(request.user, 'organization_id', None)
+        if org_id:
+            active_cc = active_cc.filter(shipment__client__organization_id=org_id)
 
     total = active_cc.count()
     active_excursions = TemperatureExcursion.objects.filter(

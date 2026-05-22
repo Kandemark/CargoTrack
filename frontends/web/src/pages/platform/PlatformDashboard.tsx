@@ -1,22 +1,27 @@
 /**
  * PlatformDashboard.tsx — CargoTrack system administration dashboard.
  *
- * Shows all organizations, all users, and platform-wide shipment/revenue KPIs.
- * PLATFORM_OWNER role bypasses tenant scoping — sees everything.
+ * Comprehensive platform analytics: revenue trends, shipment volumes, fleet
+ * utilisation, carrier performance, user distribution, alerts, cold chain,
+ * marketplace activity, invoice aging, and org health.
  *
  * @route /platform/dashboard
  * @auth CargoTrack (system admin) only
  */
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, LineChart, Line, Legend, AreaChart, Area,
+} from 'recharts'
 import {
   Building2, Users, Package, TrendingUp, Globe2, ShieldCheck,
   Activity, RefreshCw, Search, Layers,
-  AlertTriangle, MessageCircle, CheckCheck,
+  AlertTriangle, MessageCircle, CheckCheck, DollarSign,
+  Truck, Thermometer, Gavel, Clock, UserPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { dashboardApi, type PlatformRevenueResponse } from '@/api/dashboard'
+import { dashboardApi, type PlatformAnalyticsResponse, type PlatformRevenueResponse } from '@/api/dashboard'
 import { adminApi, type AdminUser } from '@/api/admin'
 import type { DashboardSummary } from '@/types'
 
@@ -68,6 +73,7 @@ export default function PlatformDashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [platformData, setPlatformData] = useState<PlatformRevenueResponse | null>(null)
+  const [analytics, setAnalytics] = useState<PlatformAnalyticsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -75,20 +81,41 @@ export default function PlatformDashboard() {
   async function load() {
     setLoading(true)
     setError(null)
+    const errors: string[] = []
+
     try {
-      const [statsRes, usersRes, platformRes] = await Promise.all([
-        dashboardApi.getStats(),
-        adminApi.listUsers({ page_size: 500 }),
-        dashboardApi.getPlatformRevenue(),
-      ])
-      setSummary(statsRes.data.summary)
-      setUsers(usersRes.data.results)
-      setPlatformData(platformRes.data)
+      const r = await dashboardApi.getStats()
+      setSummary(r.data.summary)
     } catch {
-      setError('Unable to load platform data.')
-    } finally {
-      setLoading(false)
+      errors.push('stats')
     }
+
+    try {
+      const r = await adminApi.listUsers({ page_size: 500 })
+      setUsers(r.data.results)
+    } catch {
+      errors.push('users')
+    }
+
+    try {
+      const r = await dashboardApi.getPlatformRevenue()
+      setPlatformData(r.data)
+    } catch {
+      errors.push('platform revenue')
+    }
+
+    try {
+      const r = await dashboardApi.getPlatformAnalytics()
+      setAnalytics(r.data)
+    } catch {
+      errors.push('analytics')
+    }
+
+    if (errors.length) {
+      setError(`Unable to load: ${errors.join(', ')}.`)
+    }
+
+    setLoading(false)
   }
 
   useEffect(() => { load() }, [])
@@ -178,6 +205,34 @@ export default function PlatformDashboard() {
     const q = search.toLowerCase()
     return orgs.filter(o => o.name.toLowerCase().includes(q))
   }, [orgs, search])
+
+  // ── Analytics computed ──────────────────────────────────────────────────────────
+  const monthlyRevenueTrend = useMemo(() => {
+    if (!analytics?.monthly_revenue) return []
+    return analytics.monthly_revenue.map(r => ({
+      month: r.month,
+      revenue: Math.round(r.revenue / 1000),
+      shipments: r.count,
+    }))
+  }, [analytics])
+
+  const dailyVolumeTrend = useMemo(() => {
+    if (!analytics?.daily_volume) return []
+    return analytics.daily_volume.slice(-30)
+  }, [analytics])
+
+  const topCarriers = analytics?.top_carriers ?? []
+  const alertSummary = analytics?.alert_summary ?? []
+  const unackedAlerts = analytics?.unacked_alerts ?? 0
+  const newUsers30d = analytics?.new_users_30d ?? 0
+  const fleet = analytics?.fleet
+  const marketplace = analytics?.marketplace
+  const coldchain = analytics?.coldchain
+  const invoiceAging = analytics?.invoice_aging
+  const orgHealthMap = useMemo(() => {
+    if (!analytics?.org_health) return new Map()
+    return new Map(analytics.org_health.map(o => [o.name, o]))
+  }, [analytics])
 
   if (error) {
     return (
@@ -385,8 +440,278 @@ export default function PlatformDashboard() {
         )}
       </motion.div>
 
-      {/* Organization table */}
+      {/* Monthly Revenue Trend */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+        className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-5">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h2 className="text-sm font-bold text-gray-800 dark:text-white font-heading">Monthly Revenue Trend</h2>
+            <p className="text-xs text-gray-400 dark:text-white/30">Revenue (KES k) and shipment count by month</p>
+          </div>
+          <DollarSign className="w-5 h-5 text-gray-300 dark:text-white/15" />
+        </div>
+        {monthlyRevenueTrend.length === 0 ? (
+          <div className="flex items-center justify-center h-56 text-sm text-gray-400">No revenue trend data yet</div>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={monthlyRevenueTrend}>
+              <defs>
+                <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+              <YAxis yAxisId="left" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} unit="k" />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Area yAxisId="left" type="monotone" dataKey="revenue" name="Revenue (KES k)" stroke="#22c55e" strokeWidth={2} fill="url(#revGradient)" />
+              <Line yAxisId="right" type="monotone" dataKey="shipments" name="Shipments" stroke="#0f2d5e" strokeWidth={2} dot={{ r: 3, fill: '#0f2d5e' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </motion.div>
+
+      {/* Daily Shipment Volume + Fleet cards */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
+          className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-5">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <h2 className="text-sm font-bold text-gray-800 dark:text-white font-heading">Daily Shipment Volume</h2>
+              <p className="text-xs text-gray-400 dark:text-white/30">Last 30 days</p>
+            </div>
+            <Package className="w-5 h-5 text-gray-300 dark:text-white/15" />
+          </div>
+          {dailyVolumeTrend.length === 0 ? (
+            <div className="flex items-center justify-center h-56 text-sm text-gray-400">No daily volume data yet</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={dailyVolumeTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} angle={-35} textAnchor="end" height={50} />
+                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count" name="Shipments" radius={[3, 3, 0, 0]} fill="#3b82f6" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </motion.div>
+
+        {/* Fleet + Alerts + Marketplace + Cold Chain cards */}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+          className="grid grid-cols-2 gap-3">
+          {/* Fleet */}
+          <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-4 col-span-2">
+            <div className="flex items-center gap-2 mb-3">
+              <Truck className="w-4 h-4 text-[#f5801e]" />
+              <span className="text-xs font-bold text-gray-700 dark:text-white/80 uppercase tracking-wide">Fleet Utilisation</span>
+            </div>
+            {fleet ? (
+              <div className="grid grid-cols-2 gap-3">
+                <MiniStat label="Total Trucks" value={fleet.total_trucks} />
+                <MiniStat label="Active Trucks" value={fleet.active_trucks} sub={`${fleet.avg_utilisation}% util.`} />
+                <MiniStat label="Total Drivers" value={fleet.total_drivers} />
+                <MiniStat label="On Route" value={fleet.on_route_drivers} />
+              </div>
+            ) : (
+              <div className="h-16 flex items-center justify-center text-xs text-gray-400">No fleet data</div>
+            )}
+          </div>
+
+          {/* Active conversations */}
+          <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <MessageCircle className="w-4 h-4 text-[#8b5cf6]" />
+              <span className="text-xs font-bold text-gray-700 dark:text-white/80 uppercase tracking-wide">Chats</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white font-heading tabular-nums">{platformData?.active_conversations ?? '—'}</p>
+            <p className="text-xs text-gray-400 dark:text-white/30">active conversations</p>
+          </div>
+
+          {/* Marketplace */}
+          <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Gavel className="w-4 h-4 text-[#ec4899]" />
+              <span className="text-xs font-bold text-gray-700 dark:text-white/80 uppercase tracking-wide">Marketplace</span>
+            </div>
+            {marketplace ? (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">Listings</span>
+                  <span className="font-semibold text-gray-700 dark:text-white/70 tabular-nums">{marketplace.active_listings}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">Bids (30d)</span>
+                  <span className="font-semibold text-gray-700 dark:text-white/70 tabular-nums">{marketplace.bids_last_30d}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">Awarded</span>
+                  <span className="font-semibold text-gray-700 dark:text-white/70 tabular-nums">{marketplace.awarded_last_30d}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="h-12 flex items-center justify-center text-xs text-gray-400">No data</div>
+            )}
+          </div>
+
+          {/* Cold Chain */}
+          <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Thermometer className="w-4 h-4 text-[#0891b2]" />
+              <span className="text-xs font-bold text-gray-700 dark:text-white/80 uppercase tracking-wide">Cold Chain</span>
+            </div>
+            {coldchain ? (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">Active</span>
+                  <span className="font-semibold text-gray-700 dark:text-white/70 tabular-nums">{coldchain.active_shipments}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">Excursions</span>
+                  <span className={cn('font-semibold tabular-nums', coldchain.active_excursions > 0 ? 'text-red-500' : 'text-gray-700 dark:text-white/70')}>
+                    {coldchain.active_excursions}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="h-12 flex items-center justify-center text-xs text-gray-400">No data</div>
+            )}
+          </div>
+
+          {/* Invoice Aging */}
+          <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="w-4 h-4 text-[#f59e0b]" />
+              <span className="text-xs font-bold text-gray-700 dark:text-white/80 uppercase tracking-wide">Invoices</span>
+            </div>
+            {invoiceAging ? (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-red-500">Overdue</span>
+                  <span className="font-semibold text-red-500 tabular-nums">{invoiceAging.overdue_count} ({invoiceAging.overdue_total.toLocaleString()} KES)</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-green-500">Paid (30d)</span>
+                  <span className="font-semibold text-green-500 tabular-nums">{invoiceAging.paid_30d_count} ({invoiceAging.paid_30d_total.toLocaleString()} KES)</span>
+                </div>
+              </div>
+            ) : (
+              <div className="h-12 flex items-center justify-center text-xs text-gray-400">No data</div>
+            )}
+          </div>
+
+          {/* Alerts */}
+          <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle className="w-4 h-4 text-[#ef4444]" />
+              <span className="text-xs font-bold text-gray-700 dark:text-white/80 uppercase tracking-wide">Alerts</span>
+            </div>
+            {alertSummary.length > 0 ? (
+              <div className="space-y-1">
+                {alertSummary.map(a => (
+                  <div key={a.severity} className="flex justify-between text-xs">
+                    <span className={cn(
+                      a.severity === 'critical' ? 'text-red-600 font-semibold' :
+                      a.severity === 'warning' ? 'text-amber-500' : 'text-blue-500'
+                    )}>{a.severity}</span>
+                    <span className="font-semibold text-gray-700 dark:text-white/70 tabular-nums">{a.count}</span>
+                  </div>
+                ))}
+                {unackedAlerts > 0 && (
+                  <div className="flex justify-between text-xs mt-1 pt-1 border-t border-gray-100 dark:border-white/5">
+                    <span className="text-red-500 font-semibold">Unacked</span>
+                    <span className="font-semibold text-red-500 tabular-nums">{unackedAlerts}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="h-12 flex items-center justify-center text-xs text-gray-400">No alerts</div>
+            )}
+          </div>
+
+          {/* New Users */}
+          <div className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <UserPlus className="w-4 h-4 text-[#22c55e]" />
+              <span className="text-xs font-bold text-gray-700 dark:text-white/80 uppercase tracking-wide">New Users</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white font-heading tabular-nums">{newUsers30d}</p>
+            <p className="text-xs text-gray-400 dark:text-white/30">last 30 days</p>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Carrier Performance Table */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }}
+        className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-white/6">
+          <div className="flex items-center gap-2">
+            <Truck className="w-4 h-4 text-gray-400" />
+            <div>
+              <h2 className="text-sm font-bold text-gray-800 dark:text-white font-heading">Carrier Performance</h2>
+              <p className="text-xs text-gray-400 dark:text-white/30">Top carriers by on-time rate and rating</p>
+            </div>
+          </div>
+        </div>
+        {topCarriers.length === 0 ? (
+          <div className="flex items-center justify-center h-32 text-sm text-gray-400">No carrier data yet</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[650px]">
+              <thead>
+                <tr className="text-left bg-gray-50/50 dark:bg-white/[0.02]">
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Carrier</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">On-Time</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Rating</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Total</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Active</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-white/5">
+                {topCarriers.map((c, i) => (
+                  <tr key={c.name} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
+                          style={{ background: ORG_COLORS[i % ORG_COLORS.length] }}>
+                          <Truck className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="font-semibold text-gray-800 dark:text-white/90 text-sm">{c.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-white/5 max-w-[80px]">
+                          <div className="h-full rounded-full bg-green-500" style={{ width: `${c.on_time_rate}%` }} />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 dark:text-white/70 tabular-nums">{c.on_time_rate}%</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="text-sm text-gray-600 dark:text-white/60 tabular-nums">{c.rating.toFixed(1)} / 5</span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="text-sm text-gray-600 dark:text-white/60 tabular-nums">{c.total_shipments}</span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="text-sm text-gray-600 dark:text-white/60 tabular-nums">{c.active_shipments}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="px-5 py-3 border-t border-gray-100 dark:border-white/6 text-xs text-gray-400 dark:text-white/30">
+          {topCarriers.length} carriers shown
+        </div>
+      </motion.div>
+
+      {/* Organization Health Table (upgraded) */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
         className="bg-white dark:bg-[#1a2235] rounded-2xl border border-gray-200 dark:border-white/8 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-white/6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -396,7 +721,7 @@ export default function PlatformDashboard() {
                 Tenant Organizations
               </h2>
               <p className="text-xs text-gray-400 dark:text-white/30 mt-0.5">
-                {orgs.length} organizations · {users.length} total users
+                {orgs.length} organizations · {users.length} total users · {newUsers30d} new in 30d
               </p>
             </div>
             <div className="relative">
@@ -428,17 +753,23 @@ export default function PlatformDashboard() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[600px]">
+            <table className="w-full text-sm min-w-[750px]">
               <thead>
                 <tr className="text-left bg-gray-50/50 dark:bg-white/[0.02]">
                   <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Organization</th>
                   <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Members</th>
                   <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Admins</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Shipments</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Delivered</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">On-Time</th>
+                  <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Revenue</th>
                   <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-white/35">Share</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-white/5">
-                {filteredOrgs.map((org, i) => (
+                {filteredOrgs.map((org, i) => {
+                  const health = orgHealthMap.get(org.name)
+                  return (
                   <tr key={org.name} className="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
@@ -459,6 +790,29 @@ export default function PlatformDashboard() {
                       <span className="text-sm text-gray-600 dark:text-white/60 tabular-nums">{org.admins}</span>
                     </td>
                     <td className="px-5 py-3">
+                      <span className="text-sm text-gray-600 dark:text-white/60 tabular-nums">{health?.shipments ?? '—'}</span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="text-sm text-gray-600 dark:text-white/60 tabular-nums">{health?.delivered ?? '—'}</span>
+                    </td>
+                    <td className="px-5 py-3">
+                      {health ? (
+                        <span className={cn(
+                          'text-sm font-semibold tabular-nums',
+                          health.on_time_pct >= 80 ? 'text-green-600' : health.on_time_pct >= 60 ? 'text-amber-500' : 'text-red-500'
+                        )}>{health.on_time_pct}%</span>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {health ? (
+                        <span className="text-sm text-gray-600 dark:text-white/60 tabular-nums">{health.revenue_kes.toLocaleString()} KES</span>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-white/5 max-w-[100px]">
                           <div className="h-full rounded-full" style={{
@@ -472,10 +826,11 @@ export default function PlatformDashboard() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
                 {filteredOrgs.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-5 py-12 text-center">
+                    <td colSpan={8} className="px-5 py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <Building2 className="w-8 h-8 text-gray-300 dark:text-white/15" />
                         <p className="text-sm text-gray-400 dark:text-white/30">
@@ -504,6 +859,18 @@ export default function PlatformDashboard() {
           </span>
         </div>
       </motion.div>
+    </div>
+  )
+}
+
+// ─── Mini Stat ──────────────────────────────────────────────────────────────────
+
+function MiniStat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 dark:text-white/40">{label}</p>
+      <p className="text-lg font-bold text-gray-900 dark:text-white font-heading tabular-nums">{value}</p>
+      {sub && <p className="text-xs text-gray-400 dark:text-white/25">{sub}</p>}
     </div>
   )
 }
