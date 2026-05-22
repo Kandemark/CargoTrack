@@ -18,8 +18,7 @@ import {
   Building2, Users, Package, TrendingUp, Globe2, ShieldCheck,
   Activity, RefreshCw, Search, Layers,
   AlertTriangle, MessageCircle, CheckCheck, DollarSign,
-  Truck, Thermometer, Gavel, Clock, TrendingDown, UserPlus,
-  Radio, Zap, ArrowUpRight, ArrowDownRight,
+  Truck, Thermometer, Gavel, Clock, UserPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dashboardApi, type PlatformAnalyticsResponse, type PlatformRevenueResponse } from '@/api/dashboard'
@@ -234,10 +233,6 @@ export default function PlatformDashboard() {
     if (!analytics?.org_health) return new Map()
     return new Map(analytics.org_health.map(o => [o.name, o]))
   }, [analytics])
-
-  const orgShipmentStats = analytics?.org_shipment_stats ?? []
-  const usersByRole = analytics?.users_by_role ?? []
-  const usersByOrg = analytics?.users_by_org ?? []
 
   if (error) {
     return (

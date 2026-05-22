@@ -289,7 +289,7 @@ class PlatformAnalyticsView(APIView):
             return Response({'detail': 'Not found.'}, status=404)
 
         from datetime import timedelta
-        from django.db.models import Avg, Count, Sum, Q, F
+        from django.db.models import Avg, Count, Sum, Q
         from django.db.models.functions import TruncMonth, TruncDay
         from django.utils import timezone
         from accounts.models import CustomUser, Organization
@@ -297,7 +297,6 @@ class PlatformAnalyticsView(APIView):
         from fleet.models import Driver, Truck
         from marketplace.models import FreightListing, Bid
         from alerts.models import Alert
-        from chats.models import Conversation
         from coldchain.models import ColdChainShipment, TemperatureExcursion
 
         now = timezone.now()

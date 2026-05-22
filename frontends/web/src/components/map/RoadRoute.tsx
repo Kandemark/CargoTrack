@@ -28,7 +28,6 @@ interface Props {
 
 export default function RoadRoute({ origin, destination, risk, progress, selected }: Props) {
   const [geometry, setGeometry] = useState<RouteGeometry | null>(null)
-  const [loaded, setLoaded] = useState(false)
   const mountedRef = useRef(true)
 
   const originPos = lookupCoords(origin)
@@ -42,13 +41,12 @@ export default function RoadRoute({ origin, destination, risk, progress, selecte
   useEffect(() => {
     if (!originPos || !destPos) return
     let cancelled = false
-    setLoaded(false)
     setGeometry(null)
 
     fetchRoadRoute(originPos, destPos).then((geo) => {
-      if (!cancelled && mountedRef.current) { setGeometry(geo); setLoaded(true) }
+      if (!cancelled && mountedRef.current) setGeometry(geo)
     }).catch(() => {
-      if (!cancelled && mountedRef.current) setLoaded(true) // signal fallback
+      if (!cancelled && mountedRef.current) setGeometry(null)
     })
     return () => { cancelled = true }
   }, [origin, destination]) // eslint-disable-line react-hooks/exhaustive-deps
