@@ -2,7 +2,8 @@
   "name": "cargotrack-monorepo",
   "private": true,
   "workspaces": [
-    "frontends/*",
+    "frontends/mobile",
+    "frontends/web",
     "libs/*"
   ],
   "version": "1.0.0",

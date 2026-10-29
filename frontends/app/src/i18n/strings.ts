@@ -1,0 +1,102 @@
+/**
+ * Every user-facing string, in English and Swahili. `sw` must have every
+ * key `en` has, so a missing translation is a type error, not a blank
+ * label on someone's phone.
+ */
+export const en = {
+  appName: 'CargoTrack',
+  tagline: 'Freight tracking and logistics for East Africa',
+  signIn: 'Sign in',
+  signInHint: 'Use the account your company set up for you.',
+  signInFailed: 'Sign-in did not complete. Try again.',
+  signOut: 'Sign out',
+  notConfiguredTitle: 'This build is not set up',
+  notConfiguredBody: 'It is missing the address of the CargoTrack servers, so it cannot work. Install the latest version.',
+
+  wallet: 'Wallet',
+  account: 'Account',
+  balance: 'Balance',
+  lowBalance: 'Your balance is low. Top up so bookings are not refused.',
+  topUp: 'Top up',
+  prices: 'Prices',
+  each: 'each',
+  history: 'History',
+  noHistory: 'No payments or charges yet.',
+  couldNotLoad: 'Could not load this. Check your connection.',
+  retry: 'Retry',
+  more: 'Show more',
+
+  topUpTitle: 'Top up with M-Pesa',
+  topUpNeeded: 'This needs {price}. Your balance is {balance}.',
+  amount: 'Amount (KES)',
+  amountHint: 'Whole shillings, at least KES {min}.',
+  phone: 'M-Pesa number',
+  phoneHint: 'For example 0712 345 678',
+  sendPrompt: 'Send M-Pesa prompt',
+  checkPhone: 'Check your phone and enter your M-Pesa PIN.',
+  waiting: 'Waiting for M-Pesa',
+  topUpSucceeded: '{amount} added to your wallet.',
+  topUpFailed: 'The payment did not go through: {reason}',
+  done: 'Done',
+  tryAgain: 'Try again',
+
+  kind_topup: 'Top-up',
+  kind_charge: 'Charge',
+  kind_adjustment: 'Adjustment',
+
+  organisation: 'Organisation',
+  roles: 'Roles',
+  language: 'Language',
+  english: 'English',
+  swahili: 'Kiswahili',
+} as const;
+
+export type StringKey = keyof typeof en;
+
+export const sw: Record<StringKey, string> = {
+  appName: 'CargoTrack',
+  tagline: 'Ufuatiliaji wa mizigo na usafirishaji kwa Afrika Mashariki',
+  signIn: 'Ingia',
+  signInHint: 'Tumia akaunti uliyowekewa na kampuni yako.',
+  signInFailed: 'Kuingia hakukukamilika. Jaribu tena.',
+  signOut: 'Toka',
+  notConfiguredTitle: 'Toleo hili halijawekwa tayari',
+  notConfiguredBody: 'Halina anwani ya seva za CargoTrack, kwa hiyo haliwezi kufanya kazi. Sakinisha toleo jipya.',
+
+  wallet: 'Pochi',
+  account: 'Akaunti',
+  balance: 'Salio',
+  lowBalance: 'Salio lako ni dogo. Ongeza salio ili usafirishaji usikataliwe.',
+  topUp: 'Ongeza salio',
+  prices: 'Bei',
+  each: 'kila moja',
+  history: 'Historia',
+  noHistory: 'Bado hakuna malipo wala makato.',
+  couldNotLoad: 'Imeshindwa kupakia. Angalia mtandao wako.',
+  retry: 'Jaribu tena',
+  more: 'Onyesha zaidi',
+
+  topUpTitle: 'Ongeza salio kwa M-Pesa',
+  topUpNeeded: 'Hii inahitaji {price}. Salio lako ni {balance}.',
+  amount: 'Kiasi (KES)',
+  amountHint: 'Shilingi kamili, angalau KES {min}.',
+  phone: 'Nambari ya M-Pesa',
+  phoneHint: 'Kwa mfano 0712 345 678',
+  sendPrompt: 'Tuma ombi la M-Pesa',
+  checkPhone: 'Angalia simu yako na uweke PIN yako ya M-Pesa.',
+  waiting: 'Inasubiri M-Pesa',
+  topUpSucceeded: '{amount} imeongezwa kwenye pochi yako.',
+  topUpFailed: 'Malipo hayakufanikiwa: {reason}',
+  done: 'Sawa',
+  tryAgain: 'Jaribu tena',
+
+  kind_topup: 'Kuongeza salio',
+  kind_charge: 'Makato',
+  kind_adjustment: 'Marekebisho',
+
+  organisation: 'Kampuni',
+  roles: 'Majukumu',
+  language: 'Lugha',
+  english: 'English',
+  swahili: 'Kiswahili',
+};
