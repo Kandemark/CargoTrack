@@ -121,7 +121,7 @@ export default function ShipmentDetailScreen() {
                   value: `${Math.round(score * 100)}%`,
                   tone: score >= 0.7 ? 'danger' : score >= 0.4 ? 'warning' : undefined,
                 },
-            { label: 'Distance', value: `${shipment.route.distance_km.toLocaleString()} km` },
+            { label: 'Kilometres', value: shipment.route.distance_km.toLocaleString() },
           ]}
         />
       }>
