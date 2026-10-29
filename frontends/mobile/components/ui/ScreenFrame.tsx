@@ -19,6 +19,7 @@ export default function ScreenFrame({
   children,
   refreshing,
   onRefresh,
+  onEndReached,
 }: {
   eyebrow?: string
   title: string
@@ -28,6 +29,8 @@ export default function ScreenFrame({
   children: ReactNode
   refreshing?: boolean
   onRefresh?: () => void
+  /** Called when the user scrolls near the bottom, for loading more rows. */
+  onEndReached?: () => void
 }) {
   const { colors, brand, radius } = useAppTheme()
   return (
@@ -37,6 +40,14 @@ export default function ScreenFrame({
           style={{ flex: 1 }}
           contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={200}
+          onScroll={
+            onEndReached
+              ? ({ nativeEvent: { layoutMeasurement, contentOffset, contentSize } }) => {
+                  if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 400) onEndReached()
+                }
+              : undefined
+          }
           refreshControl={
             onRefresh ? (
               <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" colors={[brand.accent]} />
