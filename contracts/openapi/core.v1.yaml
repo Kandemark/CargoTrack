@@ -3,7 +3,7 @@ info:
   title: CargoTrack Core API
   version: 1.0.0
   description: |
-    Organisations, prepaid billing, and payments.
+    Organisations, prepaid billing, payments, and shipments.
 
     Authentication: every endpoint except provider callbacks and health
     checks takes a Zitadel access token (JWT) as `Authorization: Bearer`.
@@ -238,6 +238,191 @@ paths:
         "409": { description: Reference already used (`duplicate_reference`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
         "422": { description: Would take the balance below zero (`below_zero`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
+  /v1/shipments:
+    post:
+      summary: Book a shipment (paid)
+      description: |
+        Requires `shipments.manage` (org_admin, operations). Charged once
+        (meter `shipment.create`); the charge covers every status change and
+        checkpoint afterwards. Without credit: 402 and nothing is booked.
+
+        `Idempotency-Key` is required. Retrying with the same key and the
+        same body returns the original shipment with 200 and
+        `Idempotent-Replayed: true`, and is not charged again. The same key
+        with a different body is refused with 422 `idempotency_key_reused`.
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 100 }, description: A new UUID per booking }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ShipmentInput" } } }
+      responses:
+        "201": { description: Booked and charged, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "200": { description: Replay of an earlier request with this key; not charged, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/PaymentRequired" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { description: Idempotency key reused for a different booking, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: Shipments, newest first
+      description: Requires `shipments.view`.
+      parameters:
+        - { name: status, in: query, description: Comma-separated statuses, schema: { type: string, examples: ["in_transit,customs"] } }
+        - { name: q, in: query, description: Exact tracking number or part of the client reference, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, description: next_cursor from the previous page, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [shipments, next_cursor]
+                properties:
+                  shipments: { type: array, items: { $ref: "#/components/schemas/Shipment" } }
+                  next_cursor: { type: [string, "null"] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /v1/shipments/{id}:
+    get:
+      summary: One shipment
+      description: Requires `shipments.view`. Another organisation's shipment is reported as not found.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      summary: Edit a shipment before pickup (free)
+      description: Requires `shipments.manage`. Only while `booked`; afterwards 409 `not_editable`. Send only the fields that change.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ShipmentPatch" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Already picked up (`not_editable`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/shipments/{id}/status:
+    post:
+      summary: Move a shipment to its next status
+      description: |
+        Requires `shipments.track` (drivers included); `cancelled` also
+        requires `shipments.manage`. Allowed moves:
+
+        - booked → picked_up, cancelled
+        - picked_up → in_transit, customs, delivered, exception
+        - in_transit → customs, delivered, exception
+        - customs → in_transit, delivered, exception
+        - exception → in_transit, customs, delivered, cancelled
+
+        Anything else is 409 `invalid_transition` with `details.allowed`.
+        Cancelling does not refund the booking; edit before pickup instead.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  required: [status]
+                  properties:
+                    status: { $ref: "#/components/schemas/ShipmentStatus" }
+                - $ref: "#/components/schemas/EventFields"
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shipment: { $ref: "#/components/schemas/Shipment" }
+                  event: { $ref: "#/components/schemas/ShipmentEvent" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Move not allowed (`invalid_transition`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/shipments/{id}/events:
+    get:
+      summary: Full history, oldest first, including internal events
+      description: Requires `shipments.view`.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events: { type: array, items: { $ref: "#/components/schemas/ShipmentEvent" } }
+    post:
+      summary: Record a checkpoint, delay or note
+      description: |
+        Requires `shipments.track`. A checkpoint needs a location or
+        coordinates; a delay or note needs a note. Delivered and cancelled
+        shipments accept notes only (409 `shipment_closed`). Free.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  required: [kind]
+                  properties:
+                    kind: { type: string, enum: [checkpoint, delay, note] }
+                - $ref: "#/components/schemas/EventFields"
+      responses:
+        "201": { description: Recorded, content: { application/json: { schema: { $ref: "#/components/schemas/ShipmentEvent" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Shipment closed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/track/{tracking_number}:
+    get:
+      summary: Public tracking for consignees
+      description: |
+        No login. Case, spaces and dashes in the number are ignored. Shows
+        route, status, dates, and status and checkpoint events; never the
+        client reference, cargo, weight, notes, internal events, or who
+        recorded anything. Cached for 30 seconds.
+      security: []
+      parameters:
+        - { name: tracking_number, in: path, required: true, schema: { type: string, examples: [CT7KQ2M9XHRP] } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tracking_number: { type: string }
+                  status: { $ref: "#/components/schemas/ShipmentStatus" }
+                  origin_name: { type: string }
+                  origin_country: { type: string }
+                  destination_name: { type: string }
+                  destination_country: { type: string }
+                  deliver_by: { type: string, format: date-time }
+                  picked_up_at: { type: [string, "null"], format: date-time }
+                  delivered_at: { type: [string, "null"], format: date-time }
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind: { type: string, enum: [status, checkpoint, delay] }
+                        status: { $ref: "#/components/schemas/ShipmentStatus" }
+                        location: { type: string }
+                        occurred_at: { type: string, format: date-time }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /healthz:
     get:
       summary: Process is up
@@ -255,6 +440,7 @@ components:
 
   parameters:
     TopUpID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    ShipmentID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
 
   responses:
     BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -272,6 +458,89 @@ components:
       type: string
       enum: [platform_owner, org_admin, finance, operations, driver]
 
+    ShipmentStatus:
+      type: string
+      enum: [booked, picked_up, in_transit, customs, exception, delivered, cancelled]
+
+    ShipmentInput:
+      type: object
+      additionalProperties: false
+      required: [origin_name, origin_country, destination_name, destination_country, weight_kg, pickup_at, deliver_by]
+      properties:
+        reference: { type: string, maxLength: 100, description: "The client's own PO, booking or job number" }
+        origin_name: { type: string, maxLength: 200, examples: [Mombasa Port] }
+        origin_country: { type: string, description: ISO 3166-1 alpha-2, case-insensitive, examples: [KE] }
+        destination_name: { type: string, maxLength: 200, examples: [Kampala ICD] }
+        destination_country: { type: string, examples: [UG] }
+        cargo_description: { type: string, maxLength: 1000 }
+        weight_kg: { type: number, exclusiveMinimum: 0, maximum: 200000 }
+        pieces: { type: integer, minimum: 1, default: 1 }
+        pickup_at: { type: string, format: date-time }
+        deliver_by: { type: string, format: date-time, description: Must be after pickup_at }
+
+    ShipmentPatch:
+      type: object
+      additionalProperties: false
+      description: Any subset of ShipmentInput fields.
+      properties:
+        reference: { type: string }
+        origin_name: { type: string }
+        origin_country: { type: string }
+        destination_name: { type: string }
+        destination_country: { type: string }
+        cargo_description: { type: string }
+        weight_kg: { type: number }
+        pieces: { type: integer }
+        pickup_at: { type: string, format: date-time }
+        deliver_by: { type: string, format: date-time }
+
+    Shipment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tracking_number: { type: string, description: CT plus 10 characters, without 0/O/1/I/L, examples: [CT7KQ2M9XHRP] }
+        reference: { type: string }
+        status: { $ref: "#/components/schemas/ShipmentStatus" }
+        origin_name: { type: string }
+        origin_country: { type: string }
+        destination_name: { type: string }
+        destination_country: { type: string }
+        cargo_description: { type: string }
+        weight_kg: { type: number }
+        pieces: { type: integer }
+        pickup_at: { type: string, format: date-time }
+        deliver_by: { type: string, format: date-time }
+        picked_up_at: { type: [string, "null"], format: date-time }
+        delivered_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    EventFields:
+      type: object
+      properties:
+        location: { type: string, maxLength: 200, examples: [Malaba border] }
+        latitude: { type: number, minimum: -90, maximum: 90, description: Send with longitude }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        note: { type: string, maxLength: 2000 }
+        internal: { type: boolean, default: false, description: Hidden from public tracking }
+        occurred_at: { type: string, format: date-time, description: Defaults to now; not in the future }
+
+    ShipmentEvent:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [status, checkpoint, delay, note] }
+        from_status: { oneOf: [{ $ref: "#/components/schemas/ShipmentStatus" }, { type: "null" }] }
+        to_status: { oneOf: [{ $ref: "#/components/schemas/ShipmentStatus" }, { type: "null" }] }
+        location: { type: string }
+        latitude: { type: [number, "null"] }
+        longitude: { type: [number, "null"] }
+        note: { type: string }
+        internal: { type: boolean }
+        occurred_at: { type: string, format: date-time }
+        recorded_by: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+
     Error:
       type: object
       required: [error, message]
@@ -279,7 +548,7 @@ components:
         error:
           type: string
           description: Stable machine-readable code. Switch on this, never on `message`.
-          examples: [invalid_request, unauthorized, forbidden, not_found, insufficient_credit, invalid_phone, payment_rejected, provider_unavailable, duplicate_reference, below_zero, internal]
+          examples: [invalid_request, unauthorized, forbidden, not_found, insufficient_credit, invalid_phone, payment_rejected, provider_unavailable, duplicate_reference, below_zero, idempotency_key_required, idempotency_key_reused, not_editable, invalid_transition, shipment_closed, internal]
         message: { type: string, description: Human-readable; may change. }
         details: { type: object, additionalProperties: true }
 

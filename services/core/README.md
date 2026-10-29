@@ -1,6 +1,6 @@
 # core
 
-CargoTrack's business API in Go. Today: organisations, prepaid billing, and M-Pesa top-ups. Shipments, fleet, marketplace and customs follow as modules of this same service. See [ADR 002](../../docs/adr/002-target-architecture.md) for why.
+CargoTrack's business API in Go. Today: organisations, prepaid billing, M-Pesa top-ups, and shipments. Fleet, marketplace and customs follow as modules of this same service. See [ADR 002](../../docs/adr/002-target-architecture.md) for why.
 
 The API contract is [`contracts/openapi/core.v1.yaml`](../../contracts/openapi/core.v1.yaml).
 
@@ -20,6 +20,7 @@ internal/
   billing/           wallets, ledger, meters, top-ups, reconciler
   payments/          the Provider interface
     mpesa/           Safaricom Daraja (STK Push + Query)
+  shipments/         booking (paid), statuses, history, public tracking
 ```
 
 ## Rules
@@ -27,6 +28,7 @@ internal/
 - **Never query tenant data outside `db.InOrg`.** Row-level security does the scoping; a query in `db.AsSystem` sees every organisation and is only for provider callbacks, first-login provisioning and platform administration.
 - **Money is `int64` cents.** Names end in `_cents`.
 - **Bill a paid action with `billing.Service.Charge(ctx, tx, principal, meter, qty, desc)`** in the action's own transaction, after its writes. Return its error: a 402 rolls the action back.
+- **Paid `POST` endpoints require an `Idempotency-Key` header** so a retry on a bad connection cannot charge twice.
 - **New meters are added by migration** (`INSERT INTO meters ...`), never by changing an existing migration.
 
 ## Running locally
@@ -60,12 +62,15 @@ Each test gets its own schema, dropped afterwards.
 3. Create the web and mobile applications with **Auth Token Type: JWT**. Opaque tokens are rejected.
 4. Each client company is a Zitadel organisation; grant the project to it and assign roles to its users. `platform_owner` is granted only in your own organisation.
 
-| Role | Can |
-|---|---|
-| `platform_owner` | everything, set prices, adjust any wallet; never billed |
-| `org_admin`, `finance` | see the wallet and ledger, top up |
-| `operations` | see the wallet and ledger |
-| `driver` | no billing access |
+| Role | Billing | Shipments |
+|---|---|---|
+| `platform_owner` | everything, set prices, adjust any wallet; never billed | everything |
+| `org_admin` | see wallet and ledger, top up | book, edit, cancel, track |
+| `finance` | see wallet and ledger, top up | view |
+| `operations` | see wallet and ledger | book, edit, cancel, track |
+| `driver` | none | view, move along, checkpoints and notes; not book or cancel |
+
+Drivers currently see all of their organisation's shipments; the fleet module will narrow that to shipments assigned to them.
 
 ## M-Pesa (Daraja)
 

@@ -49,6 +49,10 @@ const (
 	BillingView   Permission = "billing.view"   // see wallet, ledger, top-ups
 	BillingManage Permission = "billing.manage" // start top-ups
 	PlatformAdmin Permission = "platform.admin" // set prices, adjust any wallet
+
+	ShipmentsView   Permission = "shipments.view"   // list and read shipments and their history
+	ShipmentsManage Permission = "shipments.manage" // book (paid), edit, cancel
+	ShipmentsTrack  Permission = "shipments.track"  // move a shipment along, record checkpoints, delays, notes
 )
 
 // Role keys as configured on the Zitadel project.
@@ -60,12 +64,15 @@ const (
 	RoleDriver        = "driver"
 )
 
+// Booking a shipment costs money, so drivers can move shipments along but
+// not book or cancel them. Drivers currently see every shipment of their
+// own organisation; the fleet module will narrow that to assigned ones.
 var rolePermissions = map[string][]Permission{
-	RolePlatformOwner: {BillingView, BillingManage, PlatformAdmin},
-	RoleOrgAdmin:      {BillingView, BillingManage},
-	RoleFinance:       {BillingView, BillingManage},
-	RoleOperations:    {BillingView},
-	RoleDriver:        {},
+	RolePlatformOwner: {BillingView, BillingManage, PlatformAdmin, ShipmentsView, ShipmentsManage, ShipmentsTrack},
+	RoleOrgAdmin:      {BillingView, BillingManage, ShipmentsView, ShipmentsManage, ShipmentsTrack},
+	RoleFinance:       {BillingView, BillingManage, ShipmentsView},
+	RoleOperations:    {BillingView, ShipmentsView, ShipmentsManage, ShipmentsTrack},
+	RoleDriver:        {ShipmentsView, ShipmentsTrack},
 }
 
 func (p Principal) Can(perm Permission) bool {

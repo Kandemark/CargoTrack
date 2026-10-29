@@ -1,5 +1,5 @@
 // Command core is CargoTrack's business API: organisations, prepaid
-// billing, and payments, with shipments, fleet, marketplace, and customs
+// billing, payments, and shipments, with fleet, marketplace, and customs
 // to follow as further modules of the same service.
 package main
 
@@ -21,6 +21,7 @@ import (
 	"github.com/cargotrack/core/internal/platform/config"
 	"github.com/cargotrack/core/internal/platform/database"
 	"github.com/cargotrack/core/internal/platform/httpx"
+	"github.com/cargotrack/core/internal/shipments"
 	"github.com/cargotrack/core/migrations"
 )
 
@@ -91,6 +92,7 @@ func run() error {
 	}))
 	orgService.Routes(mux, authn)
 	billingService.Routes(mux, authn)
+	shipments.NewService(db, billingService).Routes(mux, authn)
 
 	go billingService.Reconcile(ctx, time.Minute)
 
