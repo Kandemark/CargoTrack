@@ -21,8 +21,7 @@ Split deployables by **runtime profile**, not by domain, and give each profile t
 | `services/realtime` | Elixir / Phoenix | Live positions, chat, presence | The BEAM holds very many lightweight connections cheaply |
 | `services/edi` | Java + Apache Camel | EDIFACT, X12, AS2 | The only mature EDI ecosystem; deployed only once an EDI contract exists |
 | `services/intelligence` | Python | OCR and ML, when there is data to train on | Where Python is the best tool |
-| `frontends/web` | TypeScript + React | Client dashboard, operations, wallet | Web-first: the people who pay work at desks |
-| `frontends/driver` | React Native + native Kotlin location module | Trip sheet, proof of delivery, offline sync, background GPS | Over-the-air fixes and code shared with web; native Kotlin where budget Android phones kill background apps |
+| `frontends/app` | TypeScript, Expo Router (React Native + React Native Web), plus a native Kotlin location module | Every feature, on web, Android and iOS from one codebase | Web and mobile must have the same features; one set of screens makes that true by construction and halves front-end work. Native Kotlin only where budget Android phones kill background GPS |
 
 Bought, not built: Zitadel (identity, B2B organisations), Temporal (durable workflows, replacing Camunda 7), NATS JetStream (events, replacing Kafka), LiveKit (video), Postgres with PostGIS and TimescaleDB, Valkey (cache).
 
@@ -33,6 +32,16 @@ Bought, not built: Zitadel (identity, B2B organisations), Temporal (durable work
 3. **Paid actions call `billing.Service.Charge` inside the action's own transaction**, just before commit. No credit means a 402 and the action rolls back.
 4. **Credit is released only on a provider's answer to an authenticated status query**, never on what a callback says.
 5. **Migrations only move forward** and are embedded in the binary.
+
+### Frontend: one app for web and mobile (amended 2026-10-29)
+
+Every feature on the web is on mobile too: nothing may be possible only on the web because the app lacks it. The platforms may look and work differently. Data, API calls, permissions and business rules are shared, which is what keeps features equal. A screen gets a separate web version (`screen.web.tsx` next to `screen.tsx`) wherever that serves desktop users better, for example a dense table on the web and a thumb-friendly list on the phone.
+
+- **Phone:** four or five bottom tabs chosen by role (a driver sees Jobs; a manager sees Shipments, Fleet, Marketplace, Wallet), with the rest reachable through search and a More screen.
+- **Wide screens:** a sidebar and denser tables.
+- **Design:** typography and space first, one accent colour plus status colours, no borders, shadows or glass on every element, high contrast for sunlight, English and Swahili.
+
+The previous mobile app (32 drawer screens, about 109 hard-coded colours) failed on information architecture, not on how many features it had.
 
 ## Consequences
 
