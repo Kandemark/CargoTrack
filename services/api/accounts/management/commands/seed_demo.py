@@ -16,6 +16,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from accounts.models import CustomUser, Organization
+from alerts.models import Alert
 from shipments.models import Route, Shipment
 from tracking.models import TrackingEvent
 
@@ -49,6 +50,18 @@ SHIPMENTS = [
     (2, 'PENDING', 'Kampala Haulage', 12500, 2, []),
     (3, 'DELIVERED', 'Mombasa Freight Ltd', 9000, -6, [('DEPARTURE', 'Dar es Salaam'), ('CHECKPOINT', 'Namanga border'), ('ARRIVAL', 'Nairobi ICD')]),
     (0, 'DELAYED', 'Mombasa Freight Ltd', 21000, -2, [('DEPARTURE', 'Mombasa Port'), ('DELAY', 'Voi: traffic jam on A109')]),
+]
+
+ALERTS = [
+    # tracking number, severity, risk, hours ago, acknowledged, message
+    ('CT-DEMO-0005', 'HIGH', 0.78, 20, False,
+     'Stuck in traffic on the A109 near Voi. Arrival in Nairobi is likely one to two days late.'),
+    ('CT-DEMO-0002', 'HIGH', 0.66, 30, False,
+     'Held at Malaba for customs inspection for more than 24 hours.'),
+    ('CT-DEMO-0003', 'MEDIUM', 0.6, 5, False,
+     'Delay risk is rising for the Nairobi to Kigali run: the queue at Gatuna border is long.'),
+    ('CT-DEMO-0001', 'LOW', 0.33, 26, True,
+     'Stopped at Mariakani weighbridge longer than planned.'),
 ]
 
 
@@ -105,6 +118,18 @@ class Command(BaseCommand):
                         shipment=shipment, event_type=event_type, location=location,
                         timestamp=departure + timedelta(hours=j * 6), recorded_by=users['amina'],
                     )
+
+        now = timezone.now()
+        for tracking, severity, risk, hours_ago, acknowledged, message in ALERTS:
+            shipment = Shipment.objects.filter(tracking_number=tracking).first()
+            if shipment is None or Alert.objects.filter(shipment=shipment, message=message).exists():
+                continue
+            alert = Alert.objects.create(
+                shipment=shipment, message=message, risk_score=risk, severity=severity,
+                acknowledged=acknowledged, acknowledged_by=users['amina'] if acknowledged else None,
+            )
+            # sent_at is set on create; move it back so the list shows a spread of times.
+            Alert.objects.filter(pk=alert.pk).update(sent_at=now - timedelta(hours=hours_ago))
 
         self.stdout.write(self.style.SUCCESS(
             f'Demo data ready. Sign in as {", ".join(u for u, *_ in USERS)} with password "{DEMO_PASSWORD}".'

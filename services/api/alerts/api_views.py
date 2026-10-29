@@ -29,7 +29,7 @@ class AlertListAPIView(OrgScopedQueryset, generics.ListAPIView):
     """
     GET /api/v1/alerts/
     Returns all unacknowledged alerts, newest first.
-    Managers also see acknowledged alerts via ?all=1.
+    Managers also see acknowledged alerts via ?all=1 (or ?all=true).
     """
     serializer_class = AlertSerializer
     permission_classes = [IsAuthenticated, CanViewAnalytics]
@@ -37,7 +37,7 @@ class AlertListAPIView(OrgScopedQueryset, generics.ListAPIView):
     def get_queryset(self):
         qs = Alert.objects.select_related('shipment').order_by('-sent_at')
         qs = self.scope_by_org(qs)
-        show_all = self.request.query_params.get('all') == '1'
+        show_all = self.request.query_params.get('all', '').lower() in ('1', 'true')
         user = self.request.user
         if not show_all or not (user.is_admin or user.is_logistics_manager):
             qs = qs.filter(acknowledged=False)
