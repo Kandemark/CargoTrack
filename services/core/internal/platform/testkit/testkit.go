@@ -135,6 +135,7 @@ func (iss *Issuer) Rotate(t testing.TB) {
 // User describes the caller a token is minted for.
 type User struct {
 	ID, OrgID, OrgName, Email string
+	EmailUnverified           bool
 	Roles                     []string
 }
 
@@ -152,6 +153,7 @@ func (iss *Issuer) Token(t testing.TB, u User, extra jwt.MapClaims) string {
 		"exp":                                   time.Now().Add(time.Hour).Unix(),
 		"iat":                                   time.Now().Unix(),
 		"email":                                 u.Email,
+		"email_verified":                        !u.EmailUnverified,
 		"urn:zitadel:iam:user:resourceowner:id": u.OrgID,
 		"urn:zitadel:iam:user:resourceowner:name": u.OrgName,
 		"urn:zitadel:iam:org:project:roles":       roles,
@@ -177,9 +179,10 @@ func (iss *Issuer) Token(t testing.TB, u User, extra jwt.MapClaims) string {
 // NewUser returns a user in a fresh organisation with the given roles.
 func NewUser(roles ...string) User {
 	org := "org-" + randHex(6)
+	id := "user-" + randHex(6)
 	return User{
-		ID: "user-" + randHex(6), OrgID: org, OrgName: "Org " + strings.ToUpper(org[4:]),
-		Email: "someone@example.com", Roles: roles,
+		ID: id, OrgID: org, OrgName: "Org " + strings.ToUpper(org[4:]),
+		Email: id + "@example.com", Roles: roles,
 	}
 }
 
@@ -187,6 +190,7 @@ func NewUser(roles ...string) User {
 func Colleague(u User, roles ...string) User {
 	c := u
 	c.ID = "user-" + randHex(6)
+	c.Email = c.ID + "@example.com"
 	c.Roles = roles
 	return c
 }

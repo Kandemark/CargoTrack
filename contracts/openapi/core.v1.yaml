@@ -3,7 +3,7 @@ info:
   title: CargoTrack Core API
   version: 1.0.0
   description: |
-    Organisations, prepaid billing, payments, and shipments.
+    Organisations, prepaid billing, payments, shipments, and fleet.
 
     Authentication: every endpoint except provider callbacks and health
     checks takes a Zitadel access token (JWT) as `Authorization: Bearer`.
@@ -264,7 +264,7 @@ paths:
         "422": { description: Idempotency key reused for a different booking, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
     get:
       summary: Shipments, newest first
-      description: Requires `shipments.view`.
+      description: Requires `shipments.view`, or `shipments.view_assigned` (drivers), which lists only shipments assigned to the caller.
       parameters:
         - { name: status, in: query, description: Comma-separated statuses, schema: { type: string, examples: ["in_transit,customs"] } }
         - { name: q, in: query, description: Exact tracking number or part of the client reference, schema: { type: string } }
@@ -286,7 +286,7 @@ paths:
   /v1/shipments/{id}:
     get:
       summary: One shipment
-      description: Requires `shipments.view`. Another organisation's shipment is reported as not found.
+      description: Requires `shipments.view` or `shipments.view_assigned`. Another organisation's shipment, or for a driver one not assigned to them, is reported as not found.
       parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
       responses:
         "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
@@ -383,6 +383,134 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { description: Shipment closed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/shipments/{id}/assignment:
+    put:
+      summary: Set the vehicle and driver of a shipment
+      description: |
+        Requires `shipments.manage`. Send both fields; `null` unassigns.
+        Swapping mid-route is allowed; delivered and cancelled shipments
+        cannot be reassigned. Refused when the vehicle is inactive or its
+        insurance or inspection has lapsed (`vehicle_inactive`,
+        `vehicle_not_compliant`), or the driver is inactive or their licence
+        has expired (`driver_inactive`, `driver_not_compliant`). Another
+        organisation's vehicle or driver is `unknown_vehicle` /
+        `unknown_driver`. Recorded as an internal `assignment` event. Free.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                vehicle_id: { type: [string, "null"], format: uuid }
+                driver_id: { type: [string, "null"], format: uuid }
+      responses:
+        "200": { description: Assigned, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Not compliant, inactive, or shipment closed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: No such vehicle or driver in your fleet, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/fleet/vehicles:
+    post:
+      summary: Add a vehicle
+      description: Requires `fleet.manage`. The registration is matched ignoring case, spaces and dashes; a duplicate is 409 `duplicate_registration`.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/VehicleInput" } } }
+      responses:
+        "201": { description: Added, content: { application/json: { schema: { $ref: "#/components/schemas/Vehicle" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { description: Duplicate registration, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: Vehicles
+      description: Requires `fleet.view`. Inactive vehicles are left out unless `include_inactive=true`.
+      parameters:
+        - { name: include_inactive, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicles: { type: array, items: { $ref: "#/components/schemas/Vehicle" } }
+
+  /v1/fleet/vehicles/{id}:
+    get:
+      summary: One vehicle
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Vehicle" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      summary: Edit a vehicle
+      description: Requires `fleet.manage`. Send only the fields that change; dates cannot be cleared.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/VehicleInput" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Vehicle" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/fleet/drivers:
+    post:
+      summary: Add a driver
+      description: |
+        Requires `fleet.manage`. When a user with the `driver` role signs in
+        with a verified email equal to `email`, their login is linked to this
+        record and they see shipments assigned to it.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DriverInput" } } }
+      responses:
+        "201": { description: Added, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { description: Email used by another driver (`duplicate_email`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: Drivers
+      description: Requires `fleet.view`.
+      parameters:
+        - { name: include_inactive, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drivers: { type: array, items: { $ref: "#/components/schemas/Driver" } }
+
+  /v1/fleet/drivers/{id}:
+    get:
+      summary: One driver
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      summary: Edit a driver
+      description: Requires `fleet.manage`. Changing the email unlinks the current login.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DriverInput" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/fleet/me:
+    get:
+      summary: The caller's own driver profile
+      description: Any signed-in user. Links the login on first call if a driver record has the caller's verified email; otherwise 404 `not_a_driver`.
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
+        "404": { description: No matching driver record, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
   /v1/track/{tracking_number}:
     get:
@@ -512,6 +640,63 @@ components:
         deliver_by: { type: string, format: date-time }
         picked_up_at: { type: [string, "null"], format: date-time }
         delivered_at: { type: [string, "null"], format: date-time }
+        vehicle_id: { type: [string, "null"], format: uuid }
+        driver_id: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Date: { type: string, format: date, examples: ["2027-03-31"], description: "YYYY-MM-DD; valid through the end of that day in Kenya" }
+
+    VehicleInput:
+      type: object
+      additionalProperties: false
+      description: registration and kind are required when adding.
+      properties:
+        registration: { type: string, examples: [KDA 123A] }
+        kind: { type: string, enum: [prime_mover, rigid_truck, trailer, van, pickup, motorbike] }
+        capacity_kg: { type: number, exclusiveMinimum: 0, maximum: 200000 }
+        insurance_expires_on: { $ref: "#/components/schemas/Date" }
+        inspection_expires_on: { $ref: "#/components/schemas/Date" }
+        active: { type: boolean }
+
+    Vehicle:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        registration: { type: string }
+        kind: { type: string }
+        capacity_kg: { type: [number, "null"] }
+        insurance_expires_on: { oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }] }
+        inspection_expires_on: { oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }] }
+        active: { type: boolean }
+        lapsed: { type: array, items: { type: string, enum: [insurance, inspection] }, description: Empty when compliant }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DriverInput:
+      type: object
+      additionalProperties: false
+      description: name, licence_number and licence_expires_on are required when adding.
+      properties:
+        name: { type: string, maxLength: 200 }
+        email: { type: string, description: Used to link the driver's login; case-insensitive }
+        phone: { type: string, maxLength: 20 }
+        licence_number: { type: string, maxLength: 50 }
+        licence_expires_on: { $ref: "#/components/schemas/Date" }
+        active: { type: boolean }
+
+    Driver:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        licence_number: { type: string }
+        licence_expires_on: { $ref: "#/components/schemas/Date" }
+        active: { type: boolean }
+        signed_in: { type: boolean, description: Linked to a CargoTrack login }
+        licence_lapsed: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -529,7 +714,7 @@ components:
       type: object
       properties:
         id: { type: integer, format: int64 }
-        kind: { type: string, enum: [status, checkpoint, delay, note] }
+        kind: { type: string, enum: [status, checkpoint, delay, note, assignment] }
         from_status: { oneOf: [{ $ref: "#/components/schemas/ShipmentStatus" }, { type: "null" }] }
         to_status: { oneOf: [{ $ref: "#/components/schemas/ShipmentStatus" }, { type: "null" }] }
         location: { type: string }
@@ -548,7 +733,7 @@ components:
         error:
           type: string
           description: Stable machine-readable code. Switch on this, never on `message`.
-          examples: [invalid_request, unauthorized, forbidden, not_found, insufficient_credit, invalid_phone, payment_rejected, provider_unavailable, duplicate_reference, below_zero, idempotency_key_required, idempotency_key_reused, not_editable, invalid_transition, shipment_closed, internal]
+          examples: [invalid_request, unauthorized, forbidden, not_found, insufficient_credit, invalid_phone, payment_rejected, provider_unavailable, duplicate_reference, below_zero, idempotency_key_required, idempotency_key_reused, not_editable, invalid_transition, shipment_closed, duplicate_registration, duplicate_email, not_a_driver, unknown_vehicle, unknown_driver, vehicle_inactive, vehicle_not_compliant, driver_inactive, driver_not_compliant, internal]
         message: { type: string, description: Human-readable; may change. }
         details: { type: object, additionalProperties: true }
 

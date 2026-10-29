@@ -11,14 +11,14 @@ import (
 const shipmentColumns = `id, seq, tracking_number, reference, status,
 	origin_name, origin_country, destination_name, destination_country,
 	cargo_description, weight_kg::float8, pieces, pickup_at, deliver_by,
-	picked_up_at, delivered_at, created_at, updated_at`
+	picked_up_at, delivered_at, vehicle_id, driver_id, created_at, updated_at`
 
 func scanShipment(row pgx.Row) (Shipment, error) {
 	var s Shipment
 	err := row.Scan(&s.ID, &s.seq, &s.TrackingNumber, &s.Reference, &s.Status,
 		&s.OriginName, &s.OriginCountry, &s.DestinationName, &s.DestinationCountry,
 		&s.CargoDescription, &s.WeightKg, &s.Pieces, &s.PickupAt, &s.DeliverBy,
-		&s.PickedUpAt, &s.DeliveredAt, &s.CreatedAt, &s.UpdatedAt)
+		&s.PickedUpAt, &s.DeliveredAt, &s.VehicleID, &s.DriverID, &s.CreatedAt, &s.UpdatedAt)
 	return s, err
 }
 
@@ -44,7 +44,7 @@ func findByIdempotencyKey(ctx context.Context, tx pgx.Tx, orgID, key string) (Sh
 	err := row.Scan(&fingerprint, &s.ID, &s.seq, &s.TrackingNumber, &s.Reference, &s.Status,
 		&s.OriginName, &s.OriginCountry, &s.DestinationName, &s.DestinationCountry,
 		&s.CargoDescription, &s.WeightKg, &s.Pieces, &s.PickupAt, &s.DeliverBy,
-		&s.PickedUpAt, &s.DeliveredAt, &s.CreatedAt, &s.UpdatedAt)
+		&s.PickedUpAt, &s.DeliveredAt, &s.VehicleID, &s.DriverID, &s.CreatedAt, &s.UpdatedAt)
 	return s, fingerprint, err
 }
 

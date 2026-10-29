@@ -43,7 +43,7 @@ func (s *Service) Resolve(ctx context.Context, id auth.Identity) (auth.Principal
 	c, ok := s.cache[id.IdPUserID]
 	s.mu.Unlock()
 	if ok && time.Now().Before(c.expires) {
-		return auth.Principal{UserID: c.userID, OrgID: c.orgID, Roles: id.Roles}, nil
+		return principal(c.userID, c.orgID, id), nil
 	}
 
 	var userID, orgID string
@@ -78,7 +78,14 @@ func (s *Service) Resolve(ctx context.Context, id auth.Identity) (auth.Principal
 	s.mu.Lock()
 	s.cache[id.IdPUserID] = cached{userID: userID, orgID: orgID, expires: time.Now().Add(cacheTTL)}
 	s.mu.Unlock()
-	return auth.Principal{UserID: userID, OrgID: orgID, Roles: id.Roles}, nil
+	return principal(userID, orgID, id), nil
+}
+
+func principal(userID, orgID string, id auth.Identity) auth.Principal {
+	return auth.Principal{
+		UserID: userID, OrgID: orgID, Roles: id.Roles,
+		Email: id.Email, EmailVerified: id.EmailVerified,
+	}
 }
 
 // Organization is the public view of the caller's organisation.

@@ -12,15 +12,18 @@ import (
 	"time"
 
 	"github.com/cargotrack/core/internal/billing"
+	"github.com/cargotrack/core/internal/fleet"
 	"github.com/cargotrack/core/internal/orgs"
 	"github.com/cargotrack/core/internal/payments"
 	"github.com/cargotrack/core/internal/platform/auth"
+	"github.com/cargotrack/core/internal/platform/database"
 	"github.com/cargotrack/core/internal/platform/testkit"
 	"github.com/cargotrack/core/internal/shipments"
 )
 
 type env struct {
 	t     *testing.T
+	db    *database.DB
 	iss   *testkit.Issuer
 	srv   *httptest.Server
 	owner testkit.User // platform owner, funds wallets through the admin API
@@ -29,14 +32,16 @@ type env struct {
 func setup(t *testing.T) *env {
 	t.Helper()
 	db := testkit.DB(t)
-	e := &env{t: t, iss: testkit.NewIssuer(t), owner: testkit.NewUser(auth.RolePlatformOwner)}
+	e := &env{t: t, db: db, iss: testkit.NewIssuer(t), owner: testkit.NewUser(auth.RolePlatformOwner)}
 	orgService := orgs.NewService(db)
 	billingService := billing.NewService(db, payments.NewRegistry(), billing.Options{MinTopUpCents: 10000})
 	mux := http.NewServeMux()
 	authn := auth.Middleware(auth.NewOIDCVerifier(e.iss.URL, testkit.Audience), orgService)
 	orgService.Routes(mux, authn)
 	billingService.Routes(mux, authn)
-	shipments.NewService(db, billingService).Routes(mux, authn)
+	fleetService := fleet.NewService(db)
+	fleetService.Routes(mux, authn)
+	shipments.NewService(db, billingService, fleetService).Routes(mux, authn)
 	e.srv = httptest.NewServer(mux)
 	t.Cleanup(e.srv.Close)
 	return e
@@ -92,8 +97,12 @@ func (e *env) balance(u testkit.User) float64 {
 	return e.do("GET", "/v1/billing/wallet", &admin, nil).body["balance_cents"].(float64)
 }
 
+// pickupTime is fixed for the whole run: bookings built at different
+// moments must still be identical, or retries would look like new requests.
+var pickupTime = time.Now().Add(48 * time.Hour).UTC().Truncate(time.Hour)
+
 func booking(ref string) map[string]any {
-	pickup := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
+	pickup := pickupTime
 	return map[string]any{
 		"reference": ref, "origin_name": "Mombasa Port", "origin_country": "ke",
 		"destination_name": "Kampala ICD", "destination_country": "UG",
@@ -279,6 +288,7 @@ func TestRolePermissions(t *testing.T) {
 	finance := testkit.Colleague(ops, auth.RoleFinance)
 	e.fund(ops, 20000)
 	id := e.book(ops, "R1")["id"].(string)
+	e.assignTo(ops, id, nil, e.addDriver(ops, driver.Email))
 
 	if r := e.do("POST", "/v1/shipments", &driver, booking("R2"), "Idempotency-Key", "d1"); r.code != 403 {
 		t.Fatalf("driver booking (costs money): %d", r.code)
@@ -291,6 +301,9 @@ func TestRolePermissions(t *testing.T) {
 	}
 	if r := e.do("POST", "/v1/shipments/"+id+"/events", &driver, map[string]any{"kind": "checkpoint", "location": "Mariakani weighbridge"}); r.code != 201 {
 		t.Fatalf("driver checkpoint: %d %v", r.code, r.body)
+	}
+	if r := e.do("PUT", "/v1/shipments/"+id+"/assignment", &driver, map[string]any{"driver_id": nil}); r.code != 403 {
+		t.Fatalf("driver reassigning: %d", r.code)
 	}
 	if r := e.do("GET", "/v1/shipments/"+id, &finance, nil); r.code != 200 {
 		t.Fatalf("finance view: %d", r.code)

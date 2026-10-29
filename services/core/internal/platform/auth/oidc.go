@@ -56,11 +56,12 @@ func (v *OIDCVerifier) WithKeyRefreshInterval(d time.Duration) *OIDCVerifier {
 
 type zitadelClaims struct {
 	jwt.RegisteredClaims
-	Email   string                       `json:"email"`
-	Name    string                       `json:"name"`
-	OrgID   string                       `json:"urn:zitadel:iam:user:resourceowner:id"`
-	OrgName string                       `json:"urn:zitadel:iam:user:resourceowner:name"`
-	Roles   map[string]map[string]string `json:"urn:zitadel:iam:org:project:roles"`
+	Email         string                       `json:"email"`
+	EmailVerified bool                         `json:"email_verified"`
+	Name          string                       `json:"name"`
+	OrgID         string                       `json:"urn:zitadel:iam:user:resourceowner:id"`
+	OrgName       string                       `json:"urn:zitadel:iam:user:resourceowner:name"`
+	Roles         map[string]map[string]string `json:"urn:zitadel:iam:org:project:roles"`
 }
 
 func (v *OIDCVerifier) Verify(ctx context.Context, raw string) (Identity, error) {
@@ -92,12 +93,13 @@ func (v *OIDCVerifier) Verify(ctx context.Context, raw string) (Identity, error)
 		}
 	}
 	return Identity{
-		IdPUserID: claims.Subject,
-		IdPOrgID:  claims.OrgID,
-		OrgName:   claims.OrgName,
-		Email:     claims.Email,
-		Name:      claims.Name,
-		Roles:     roles,
+		IdPUserID:     claims.Subject,
+		IdPOrgID:      claims.OrgID,
+		OrgName:       claims.OrgName,
+		Email:         claims.Email,
+		EmailVerified: claims.EmailVerified,
+		Name:          claims.Name,
+		Roles:         roles,
 	}, nil
 }
 

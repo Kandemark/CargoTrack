@@ -35,26 +35,58 @@ type Charger interface {
 	Charge(ctx context.Context, tx pgx.Tx, p auth.Principal, meterCode string, quantity int, description string) error
 }
 
+// Fleet answers who a driver is and whether a vehicle and driver may be
+// assigned. Implemented by fleet.Service.
+type Fleet interface {
+	DriverIDForUser(ctx context.Context, tx pgx.Tx, p auth.Principal) (string, error)
+	CheckAssignment(ctx context.Context, tx pgx.Tx, vehicleID, driverID *string) (string, error)
+}
+
 type Service struct {
 	db      *database.DB
 	charger Charger
+	fleet   Fleet
 	now     func() time.Time
 }
 
-func NewService(db *database.DB, charger Charger) *Service {
-	return &Service{db: db, charger: charger, now: time.Now}
+func NewService(db *database.DB, charger Charger, fleet Fleet) *Service {
+	return &Service{db: db, charger: charger, fleet: fleet, now: time.Now}
+}
+
+// noDriver matches no shipment: the scope of a driver-only caller whose
+// login is not linked to a driver record.
+const noDriver = "00000000-0000-0000-0000-000000000000"
+
+// driverScope returns nil for callers who may see every shipment, and the
+// caller's driver ID for callers who may only see shipments assigned to them.
+func (s *Service) driverScope(ctx context.Context, tx pgx.Tx, p auth.Principal) (*string, error) {
+	if p.Can(auth.ShipmentsView) {
+		return nil, nil
+	}
+	id, err := s.fleet.DriverIDForUser(ctx, tx, p)
+	if err != nil {
+		return nil, err
+	}
+	if id == "" {
+		id = noDriver
+	}
+	return &id, nil
 }
 
 func (s *Service) Routes(mux *http.ServeMux, authn func(http.Handler) http.Handler) {
 	h := func(perm auth.Permission, fn httpx.HandlerFunc) http.Handler {
 		return authn(httpx.Handle(auth.Require(perm, fn)))
 	}
+	view := func(fn httpx.HandlerFunc) http.Handler {
+		return authn(httpx.Handle(auth.RequireAny(fn, auth.ShipmentsView, auth.ShipmentsViewAssigned)))
+	}
 	mux.Handle("POST /v1/shipments", h(auth.ShipmentsManage, s.create))
-	mux.Handle("GET /v1/shipments", h(auth.ShipmentsView, s.list))
-	mux.Handle("GET /v1/shipments/{id}", h(auth.ShipmentsView, s.get))
+	mux.Handle("GET /v1/shipments", view(s.list))
+	mux.Handle("GET /v1/shipments/{id}", view(s.get))
 	mux.Handle("PATCH /v1/shipments/{id}", h(auth.ShipmentsManage, s.update))
+	mux.Handle("PUT /v1/shipments/{id}/assignment", h(auth.ShipmentsManage, s.assign))
 	mux.Handle("POST /v1/shipments/{id}/status", h(auth.ShipmentsTrack, s.changeStatus))
-	mux.Handle("GET /v1/shipments/{id}/events", h(auth.ShipmentsView, s.events))
+	mux.Handle("GET /v1/shipments/{id}/events", view(s.events))
 	mux.Handle("POST /v1/shipments/{id}/events", h(auth.ShipmentsTrack, s.addEvent))
 
 	// Public: consignees track with the number on their waybill, no login.
@@ -245,12 +277,17 @@ func (s *Service) list(w http.ResponseWriter, r *http.Request) error {
 
 	var list []Shipment
 	err := s.db.InOrg(ctx, p.OrgID, func(tx pgx.Tx) error {
+		onlyDriver, err := s.driverScope(ctx, tx, p)
+		if err != nil {
+			return err
+		}
 		rows, err := tx.Query(ctx, `
 			SELECT `+shipmentColumns+` FROM shipments
 			WHERE ($1 = 0 OR seq < $1)
 			  AND (cardinality($2::text[]) = 0 OR status = ANY ($2))
 			  AND ($3 = '' OR tracking_number = upper($3) OR reference ILIKE '%' || $5 || '%')
-			ORDER BY seq DESC LIMIT $4`, before, statuses, search, limit, like)
+			  AND ($6::uuid IS NULL OR driver_id = $6)
+			ORDER BY seq DESC LIMIT $4`, before, statuses, search, limit, like, onlyDriver)
 		if err != nil {
 			return err
 		}
@@ -272,7 +309,9 @@ func (s *Service) list(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (s *Service) load(ctx context.Context, tx pgx.Tx, id string, forUpdate bool) (Shipment, error) {
+// load fetches a shipment the caller may act on. For a driver-only caller
+// a shipment assigned to someone else is indistinguishable from a missing one.
+func (s *Service) load(ctx context.Context, tx pgx.Tx, p auth.Principal, id string, forUpdate bool) (Shipment, error) {
 	if !httpx.IsUUID(id) {
 		return Shipment{}, httpx.ErrNotFound
 	}
@@ -280,7 +319,17 @@ func (s *Service) load(ctx context.Context, tx pgx.Tx, id string, forUpdate bool
 	if errors.Is(err, pgx.ErrNoRows) {
 		return sh, httpx.ErrNotFound
 	}
-	return sh, err
+	if err != nil {
+		return sh, err
+	}
+	onlyDriver, err := s.driverScope(ctx, tx, p)
+	if err != nil {
+		return sh, err
+	}
+	if onlyDriver != nil && (sh.DriverID == nil || *sh.DriverID != *onlyDriver) {
+		return Shipment{}, httpx.ErrNotFound
+	}
+	return sh, nil
 }
 
 func (s *Service) get(w http.ResponseWriter, r *http.Request) error {
@@ -289,7 +338,7 @@ func (s *Service) get(w http.ResponseWriter, r *http.Request) error {
 	var sh Shipment
 	err := s.db.InOrg(ctx, p.OrgID, func(tx pgx.Tx) error {
 		var err error
-		sh, err = s.load(ctx, tx, r.PathValue("id"), false)
+		sh, err = s.load(ctx, tx, p, r.PathValue("id"), false)
 		return err
 	})
 	if err != nil {
@@ -304,7 +353,7 @@ func (s *Service) events(w http.ResponseWriter, r *http.Request) error {
 	p, _ := auth.FromContext(ctx)
 	var list []Event
 	err := s.db.InOrg(ctx, p.OrgID, func(tx pgx.Tx) error {
-		sh, err := s.load(ctx, tx, r.PathValue("id"), false)
+		sh, err := s.load(ctx, tx, p, r.PathValue("id"), false)
 		if err != nil {
 			return err
 		}
@@ -344,7 +393,7 @@ func (s *Service) update(w http.ResponseWriter, r *http.Request) error {
 	}
 	var sh Shipment
 	err := s.db.InOrg(ctx, p.OrgID, func(tx pgx.Tx) error {
-		cur, err := s.load(ctx, tx, r.PathValue("id"), true)
+		cur, err := s.load(ctx, tx, p, r.PathValue("id"), true)
 		if err != nil {
 			return err
 		}
@@ -391,6 +440,56 @@ func apply[T any](dst *T, v *T) {
 	if v != nil {
 		*dst = *v
 	}
+}
+
+// ── Assignment ───────────────────────────────────────────────────────────────
+
+type assignInput struct {
+	VehicleID *string `json:"vehicle_id"` // null unassigns
+	DriverID  *string `json:"driver_id"`  // null unassigns
+}
+
+// assign sets both the vehicle and the driver of a shipment. Swapping
+// mid-route (a breakdown, a driver change at the border) is allowed;
+// closed shipments cannot be reassigned. Free.
+func (s *Service) assign(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	p, _ := auth.FromContext(ctx)
+	var in assignInput
+	if err := httpx.Decode(r, &in); err != nil {
+		return err
+	}
+	var sh Shipment
+	err := s.db.InOrg(ctx, p.OrgID, func(tx pgx.Tx) error {
+		cur, err := s.load(ctx, tx, p, r.PathValue("id"), true)
+		if err != nil {
+			return err
+		}
+		if cur.Status.Final() {
+			return httpx.NewError(http.StatusConflict, "shipment_closed",
+				fmt.Sprintf("The shipment is %s and cannot be reassigned.", cur.Status))
+		}
+		description, err := s.fleet.CheckAssignment(ctx, tx, in.VehicleID, in.DriverID)
+		if err != nil {
+			return err
+		}
+		sh, err = scanShipment(tx.QueryRow(ctx, `
+			UPDATE shipments SET vehicle_id = $2, driver_id = $3, updated_at = now()
+			WHERE id = $1 RETURNING `+shipmentColumns, cur.ID, in.VehicleID, in.DriverID))
+		if err != nil {
+			return err
+		}
+		// Plates and driver names stay off public tracking.
+		_, err = insertEvent(ctx, tx, p.OrgID, cur.ID, p.UserID, Event{
+			Kind: "assignment", Note: description, Internal: true, OccurredAt: s.now(),
+		})
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, sh)
+	return nil
 }
 
 // ── Status and events ────────────────────────────────────────────────────────
@@ -458,7 +557,7 @@ func (s *Service) changeStatus(w http.ResponseWriter, r *http.Request) error {
 	var sh Shipment
 	var ev Event
 	err = s.db.InOrg(ctx, p.OrgID, func(tx pgx.Tx) error {
-		cur, err := s.load(ctx, tx, r.PathValue("id"), true)
+		cur, err := s.load(ctx, tx, p, r.PathValue("id"), true)
 		if err != nil {
 			return err
 		}
@@ -516,7 +615,7 @@ func (s *Service) addEvent(w http.ResponseWriter, r *http.Request) error {
 
 	var ev Event
 	err = s.db.InOrg(ctx, p.OrgID, func(tx pgx.Tx) error {
-		cur, err := s.load(ctx, tx, r.PathValue("id"), false)
+		cur, err := s.load(ctx, tx, p, r.PathValue("id"), false)
 		if err != nil {
 			return err
 		}

@@ -66,6 +66,8 @@ type Shipment struct {
 	DeliverBy          time.Time  `json:"deliver_by"`
 	PickedUpAt         *time.Time `json:"picked_up_at"`
 	DeliveredAt        *time.Time `json:"delivered_at"`
+	VehicleID          *string    `json:"vehicle_id"`
+	DriverID           *string    `json:"driver_id"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 	seq                int64

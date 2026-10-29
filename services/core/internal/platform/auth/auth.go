@@ -20,15 +20,20 @@ type Identity struct {
 	IdPOrgID  string
 	OrgName   string
 	Email     string
-	Name      string
-	Roles     []string
+	// EmailVerified is Zitadel's email_verified claim. Only a verified
+	// email may be used to link a login to an existing record.
+	EmailVerified bool
+	Name          string
+	Roles         []string
 }
 
 // Principal is the caller as the rest of the service sees them.
 type Principal struct {
-	UserID string // users.id
-	OrgID  string // organizations.id
-	Roles  []string
+	UserID        string // users.id
+	OrgID         string // organizations.id
+	Roles         []string
+	Email         string
+	EmailVerified bool
 }
 
 // Verifier checks a raw bearer token and returns the identity it carries.
@@ -50,9 +55,13 @@ const (
 	BillingManage Permission = "billing.manage" // start top-ups
 	PlatformAdmin Permission = "platform.admin" // set prices, adjust any wallet
 
-	ShipmentsView   Permission = "shipments.view"   // list and read shipments and their history
-	ShipmentsManage Permission = "shipments.manage" // book (paid), edit, cancel
-	ShipmentsTrack  Permission = "shipments.track"  // move a shipment along, record checkpoints, delays, notes
+	ShipmentsView         Permission = "shipments.view"          // every shipment of the organisation
+	ShipmentsViewAssigned Permission = "shipments.view_assigned" // only shipments assigned to the caller as driver
+	ShipmentsManage       Permission = "shipments.manage"        // book (paid), edit, cancel, assign
+	ShipmentsTrack        Permission = "shipments.track"         // move a shipment along, record checkpoints, delays, notes
+
+	FleetView   Permission = "fleet.view"   // vehicles and drivers
+	FleetManage Permission = "fleet.manage" // add and edit vehicles and drivers
 )
 
 // Role keys as configured on the Zitadel project.
@@ -65,14 +74,14 @@ const (
 )
 
 // Booking a shipment costs money, so drivers can move shipments along but
-// not book or cancel them. Drivers currently see every shipment of their
-// own organisation; the fleet module will narrow that to assigned ones.
+// not book or cancel them, and they only see shipments assigned to them:
+// a lost driver's phone must not expose the company's whole book.
 var rolePermissions = map[string][]Permission{
-	RolePlatformOwner: {BillingView, BillingManage, PlatformAdmin, ShipmentsView, ShipmentsManage, ShipmentsTrack},
-	RoleOrgAdmin:      {BillingView, BillingManage, ShipmentsView, ShipmentsManage, ShipmentsTrack},
-	RoleFinance:       {BillingView, BillingManage, ShipmentsView},
-	RoleOperations:    {BillingView, ShipmentsView, ShipmentsManage, ShipmentsTrack},
-	RoleDriver:        {ShipmentsView, ShipmentsTrack},
+	RolePlatformOwner: {BillingView, BillingManage, PlatformAdmin, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage},
+	RoleOrgAdmin:      {BillingView, BillingManage, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage},
+	RoleFinance:       {BillingView, BillingManage, ShipmentsView, FleetView},
+	RoleOperations:    {BillingView, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage},
+	RoleDriver:        {ShipmentsViewAssigned, ShipmentsTrack},
 }
 
 func (p Principal) Can(perm Permission) bool {
@@ -136,14 +145,21 @@ func Middleware(v Verifier, res Resolver) func(http.Handler) http.Handler {
 
 // Require wraps a handler so it only runs for callers holding perm.
 func Require(perm Permission, h httpx.HandlerFunc) httpx.HandlerFunc {
+	return RequireAny(h, perm)
+}
+
+// RequireAny runs h for callers holding at least one of perms.
+func RequireAny(h httpx.HandlerFunc, perms ...Permission) httpx.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) error {
 		p, ok := FromContext(r.Context())
 		if !ok {
 			return httpx.ErrUnauthorized
 		}
-		if !p.Can(perm) {
-			return httpx.ErrForbidden
+		for _, perm := range perms {
+			if p.Can(perm) {
+				return h(w, r)
+			}
 		}
-		return h(w, r)
+		return httpx.ErrForbidden
 	}
 }

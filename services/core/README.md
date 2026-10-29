@@ -1,6 +1,6 @@
 # core
 
-CargoTrack's business API in Go. Today: organisations, prepaid billing, M-Pesa top-ups, and shipments. Fleet, marketplace and customs follow as modules of this same service. See [ADR 002](../../docs/adr/002-target-architecture.md) for why.
+CargoTrack's business API in Go. Today: organisations, prepaid billing, M-Pesa top-ups, shipments, and fleet. Marketplace and customs follow as modules of this same service. See [ADR 002](../../docs/adr/002-target-architecture.md) for why.
 
 The API contract is [`contracts/openapi/core.v1.yaml`](../../contracts/openapi/core.v1.yaml).
 
@@ -20,7 +20,8 @@ internal/
   billing/           wallets, ledger, meters, top-ups, reconciler
   payments/          the Provider interface
     mpesa/           Safaricom Daraja (STK Push + Query)
-  shipments/         booking (paid), statuses, history, public tracking
+  shipments/         booking (paid), statuses, assignment, history, public tracking
+  fleet/             vehicles, drivers, compliance dates, driver login linking
 ```
 
 ## Rules
@@ -62,15 +63,15 @@ Each test gets its own schema, dropped afterwards.
 3. Create the web and mobile applications with **Auth Token Type: JWT**. Opaque tokens are rejected.
 4. Each client company is a Zitadel organisation; grant the project to it and assign roles to its users. `platform_owner` is granted only in your own organisation.
 
-| Role | Billing | Shipments |
-|---|---|---|
-| `platform_owner` | everything, set prices, adjust any wallet; never billed | everything |
-| `org_admin` | see wallet and ledger, top up | book, edit, cancel, track |
-| `finance` | see wallet and ledger, top up | view |
-| `operations` | see wallet and ledger | book, edit, cancel, track |
-| `driver` | none | view, move along, checkpoints and notes; not book or cancel |
+| Role | Billing | Shipments | Fleet |
+|---|---|---|---|
+| `platform_owner` | everything, set prices, adjust any wallet; never billed | everything | everything |
+| `org_admin` | see wallet and ledger, top up | book, edit, assign, cancel, track | manage |
+| `finance` | see wallet and ledger, top up | view | view |
+| `operations` | see wallet and ledger | book, edit, assign, cancel, track | manage |
+| `driver` | none | only shipments assigned to them: view, move along, checkpoints and notes | own profile (`/v1/fleet/me`) |
 
-Drivers currently see all of their organisation's shipments; the fleet module will narrow that to shipments assigned to them.
+A driver's login is linked to their driver record the first time they sign in with a **verified** email matching the record. Add drivers with the email they use in Zitadel.
 
 ## M-Pesa (Daraja)
 
