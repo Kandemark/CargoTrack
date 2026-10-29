@@ -18,8 +18,6 @@ const ITEMS = {
   notifications: { route: '/notifications',       label: 'Notifications',     icon: 'megaphone-outline' },
   ops:           { route: '/ops/dashboard',       label: 'Operations',        icon: 'pulse-outline' },
   liveMap:       { route: '/live-map',            label: 'Live map',          icon: 'map-outline' },
-  eta:           { route: '/eta',                 label: 'Arrival times',     icon: 'time-outline' },
-  predictions:   { route: '/predictions',         label: 'Delay predictions', icon: 'bulb-outline' },
   sla:           { route: '/sla',                 label: 'SLA monitor',       icon: 'speedometer-outline' },
   pod:           { route: '/pod',                 label: 'Proof of delivery', icon: 'checkmark-done-outline' },
   coldChain:     { route: '/cold-chain',          label: 'Cold chain',        icon: 'thermometer-outline' },
@@ -63,7 +61,7 @@ const SETTINGS: NavSection = { items: ['settings'] }
 const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   ADMIN: [
     INBOX,
-    { title: 'Operations', items: ['ops', 'liveMap', 'eta', 'predictions', 'sla', 'pod', 'coldChain', 'jobBoard'] },
+    { title: 'Operations', items: ['ops', 'liveMap', 'sla', 'pod', 'coldChain', 'jobBoard'] },
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'fleetStats', 'carbon'] },
     { title: 'Money', items: ['payments', 'rates'] },
     { title: 'Reports and records', items: ['analytics', 'performance', 'documents', 'compliance', 'audit'] },
@@ -71,7 +69,7 @@ const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   ],
   LOGISTICS_MGR: [
     INBOX,
-    { title: 'Operations', items: ['liveMap', 'eta', 'predictions', 'sla', 'pod', 'coldChain'] },
+    { title: 'Operations', items: ['liveMap', 'sla', 'pod', 'coldChain'] },
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'fleetStats', 'carbon'] },
     { title: 'Money', items: ['payments', 'rates'] },
     { title: 'Reports and records', items: ['analytics', 'performance', 'documents', 'compliance'] },
@@ -79,19 +77,19 @@ const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   ],
   CARRIER: [
     INBOX,
-    { title: 'Work', items: ['jobBoard', 'liveMap', 'eta', 'pod', 'documents'] },
+    { title: 'Work', items: ['jobBoard', 'liveMap', 'pod', 'documents'] },
     SETTINGS,
   ],
   CLIENT: [
     INBOX,
-    { title: 'My cargo', items: ['jobBoard', 'liveMap', 'eta', 'pod'] },
+    { title: 'My cargo', items: ['jobBoard', 'liveMap', 'pod'] },
     { title: 'Money', items: ['payments'] },
     { title: 'Records', items: ['documents', 'compliance'] },
     SETTINGS,
   ],
   DISPATCHER: [
     INBOX,
-    { title: 'Dispatch', items: ['dispatchQueue', 'routes', 'jobBoard', 'liveMap', 'eta', 'sla', 'pod'] },
+    { title: 'Dispatch', items: ['dispatchQueue', 'routes', 'jobBoard', 'liveMap', 'sla', 'pod'] },
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'fleetStats'] },
     SETTINGS,
   ],
@@ -110,7 +108,7 @@ const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   PORT_AGENT: [
     INBOX,
     { title: 'Port', items: ['vessels', 'containers', 'manifests', 'customsDocs'] },
-    { title: 'Tracking', items: ['liveMap', 'eta', 'pod', 'compliance'] },
+    { title: 'Tracking', items: ['liveMap', 'pod', 'compliance'] },
     SETTINGS,
   ],
   FINANCE_OFFICER: [

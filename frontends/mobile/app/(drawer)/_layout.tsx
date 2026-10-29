@@ -28,7 +28,6 @@ export default function DrawerLayout() {
         <Drawer.Screen name="carriers" />
         <Drawer.Screen name="cold-chain" />
         <Drawer.Screen name="compliance" />
-        <Drawer.Screen name="eta" />
         <Drawer.Screen name="integrations" />
         <Drawer.Screen name="job-board" />
         <Drawer.Screen name="live-map" />
@@ -36,7 +35,6 @@ export default function DrawerLayout() {
         <Drawer.Screen name="notifications" />
         <Drawer.Screen name="performance" />
         <Drawer.Screen name="pod" />
-        <Drawer.Screen name="predictions" />
         <Drawer.Screen name="rates" />
         <Drawer.Screen name="settings" />
         <Drawer.Screen name="sla" />

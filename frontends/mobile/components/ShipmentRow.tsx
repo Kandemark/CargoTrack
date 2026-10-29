@@ -44,7 +44,7 @@ export default function ShipmentRow({
             {item.route.origin} → {item.route.destination}
           </Txt>
           <Txt variant="caption" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
-            {item.tracking_number} · {carrier === 'Own fleet' || !item.carrier_name ? carrier : `Carrier: ${carrier}`}
+            {carrier === 'Own fleet' || !item.carrier_name ? carrier : `by ${carrier}`} · {item.tracking_number}
           </Txt>
         </View>
         <StatusPill status={item.status} label={item.status_display} />

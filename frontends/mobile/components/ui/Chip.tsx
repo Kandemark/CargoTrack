@@ -12,6 +12,7 @@ export default function Chip({ label, selected, onPress }: { label: string; sele
       accessibilityRole="button"
       accessibilityState={{ selected }}
       style={({ pressed }) => ({
+        flexShrink: 0,
         height: 38,
         paddingHorizontal: 16,
         borderRadius: 19,
@@ -19,7 +20,7 @@ export default function Chip({ label, selected, onPress }: { label: string; sele
         backgroundColor: selected ? on : colors.muted,
         opacity: pressed ? 0.75 : 1,
       })}>
-      <Txt variant="caption" style={{ fontFamily: 'DMSans-SemiBold', color: selected ? '#FFFFFF' : colors.textSecondary }}>
+      <Txt variant="caption" numberOfLines={1} style={{ fontFamily: 'DMSans-SemiBold', color: selected ? '#FFFFFF' : colors.textSecondary }}>
         {label}
       </Txt>
     </Pressable>
