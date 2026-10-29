@@ -24,6 +24,45 @@ const KEY = 'tokens';
 const REFRESH_MARGIN_MS = 60_000;
 
 let current: Tokens | null = null;
+
+/**
+ * The roles in the access token, read locally (no network) so tabs can be
+ * chosen before the first screen. Not verified here: the core verifies
+ * every request, so these only decide what the app shows.
+ */
+export function currentRoles(): string[] {
+  if (!current) return [];
+  try {
+    const payload = current.accessToken.split('.')[1];
+    const claims = JSON.parse(base64UrlDecode(payload)) as Record<string, unknown>;
+    const orgId = claims['urn:zitadel:iam:user:resourceowner:id'] as string | undefined;
+    const roles = (claims['urn:zitadel:iam:org:project:roles'] ?? {}) as Record<string, Record<string, string>>;
+    return Object.entries(roles)
+      .filter(([, grantedIn]) => orgId !== undefined && orgId in grantedIn)
+      .map(([role]) => role);
+  } catch {
+    return [];
+  }
+}
+
+function base64UrlDecode(s: string): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  let bits = 0;
+  let value = 0;
+  const bytes: number[] = [];
+  for (const ch of s.replace(/=+$/, '')) {
+    const i = alphabet.indexOf(ch);
+    if (i < 0) continue;
+    value = ((value << 6) | i) & 0xffffff; // only the unread bits matter
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((value >> bits) & 0xff);
+    }
+  }
+  return decodeURIComponent(bytes.map((b) => `%${b.toString(16).padStart(2, '0')}`).join(''));
+}
+
 let refreshing: Promise<string | null> | null = null;
 const signedOutListeners = new Set<() => void>();
 

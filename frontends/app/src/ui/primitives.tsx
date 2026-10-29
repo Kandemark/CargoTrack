@@ -172,3 +172,25 @@ export function Loading() {
 }
 
 export type { Palette };
+
+/** A selectable pill, for filters and quick choices. */
+export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  const c = usePalette();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={{
+        minHeight: 40,
+        paddingHorizontal: space.m,
+        borderRadius: 20,
+        justifyContent: 'center',
+        backgroundColor: selected ? c.ink : c.sunken,
+      }}>
+      <Text variant="caption" style={{ color: selected ? c.paper : c.ink, fontWeight: '600' }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}

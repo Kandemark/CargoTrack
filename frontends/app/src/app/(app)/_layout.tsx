@@ -1,5 +1,7 @@
 import { NativeTabs } from 'expo-router/native-tabs';
 
+import { useAuth } from '@/auth/AuthProvider';
+import { can, isDriverOnly } from '@/auth/permissions';
 import { useI18n } from '@/i18n';
 import { usePalette } from '@/ui/theme';
 
@@ -11,13 +13,18 @@ import { usePalette } from '@/ui/theme';
 export default function AppTabs() {
   const { t } = useI18n();
   const c = usePalette();
+  const { roles } = useAuth();
   return (
     <NativeTabs
       backgroundColor={c.paper}
       indicatorColor={c.sunken}
       tintColor={c.accent}
       labelStyle={{ color: c.muted, selected: { color: c.ink } }}>
-      <NativeTabs.Trigger name="index">
+      <NativeTabs.Trigger name="(shipments)">
+        <NativeTabs.Trigger.Label>{isDriverOnly(roles) ? t('jobs') : t('shipments')}</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="shippingbox" md="local_shipping" />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="wallet" hidden={!can(roles, 'billing.view')}>
         <NativeTabs.Trigger.Label>{t('wallet')}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="creditcard" md="account_balance_wallet" />
       </NativeTabs.Trigger>

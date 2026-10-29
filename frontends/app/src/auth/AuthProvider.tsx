@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { endSession, loadSession, onSignedOut } from './session';
+import { currentRoles, endSession, loadSession, onSignedOut } from './session';
 
 type Status = 'signedIn' | 'signedOut';
 
 type Auth = {
   status: Status;
+  /** Roles from the signed-in token; empty when signed out. */
+  roles: string[];
   markSignedIn: () => void;
   signOut: () => Promise<void>;
 };
@@ -21,6 +23,7 @@ export function AuthProvider({ initial, children }: { initial: Status; children:
   const value = useMemo<Auth>(
     () => ({
       status,
+      roles: status === 'signedIn' ? currentRoles() : [],
       markSignedIn: () => setStatus('signedIn'),
       signOut: endSession,
     }),

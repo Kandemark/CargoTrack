@@ -776,6 +776,7 @@ components:
 
     Shipment:
       type: object
+      required: [id, org_id, carrier_org_id, tracking_number, reference, status, origin_name, origin_country, destination_name, destination_country, cargo_description, weight_kg, pieces, pickup_at, deliver_by, picked_up_at, delivered_at, vehicle_id, driver_id, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         org_id: { type: string, format: uuid, description: The shipper, who booked and paid }
@@ -815,6 +816,7 @@ components:
 
     Vehicle:
       type: object
+      required: [id, registration, kind, capacity_kg, insurance_expires_on, inspection_expires_on, active, lapsed, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         registration: { type: string }
@@ -841,6 +843,7 @@ components:
 
     Driver:
       type: object
+      required: [id, name, email, phone, licence_number, licence_expires_on, active, signed_in, licence_lapsed, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -856,6 +859,7 @@ components:
 
     Listing:
       type: object
+      required: [id, mine, origin_name, origin_country, destination_name, destination_country, cargo_description, weight_kg, pieces, pickup_at, deliver_by, notes, closes_at, status, bidding_open, created_at]
       properties:
         id: { type: string, format: uuid }
         mine: { type: boolean }
@@ -878,6 +882,7 @@ components:
 
     Bid:
       type: object
+      required: [id, listing_id, carrier_name, price_cents, currency, note, status, shipment_id, created_at, mine]
       properties:
         id: { type: string, format: uuid }
         listing_id: { type: string, format: uuid }
@@ -902,6 +907,7 @@ components:
 
     ShipmentEvent:
       type: object
+      required: [id, kind, from_status, to_status, location, latitude, longitude, note, internal, occurred_at, recorded_by, created_at]
       properties:
         id: { type: integer, format: int64 }
         kind: { type: string, enum: [status, checkpoint, delay, note, assignment] }

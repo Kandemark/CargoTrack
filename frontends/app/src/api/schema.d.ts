@@ -1948,47 +1948,47 @@ export interface components {
         };
         Shipment: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /**
              * Format: uuid
              * @description The shipper
              */
-            org_id?: string;
+            org_id: string;
             /**
              * Format: uuid
              * @description Carrier awarded on the marketplace
              */
-            carrier_org_id?: string | null;
+            carrier_org_id: string | null;
             /**
              * @description CT plus 10 characters
              * @example CT7KQ2M9XHRP
              */
-            tracking_number?: string;
-            reference?: string;
-            status?: components["schemas"]["ShipmentStatus"];
-            origin_name?: string;
-            origin_country?: string;
-            destination_name?: string;
-            destination_country?: string;
-            cargo_description?: string;
-            weight_kg?: number;
-            pieces?: number;
+            tracking_number: string;
+            reference: string;
+            status: components["schemas"]["ShipmentStatus"];
+            origin_name: string;
+            origin_country: string;
+            destination_name: string;
+            destination_country: string;
+            cargo_description: string;
+            weight_kg: number;
+            pieces: number;
             /** Format: date-time */
-            pickup_at?: string;
+            pickup_at: string;
             /** Format: date-time */
-            deliver_by?: string;
+            deliver_by: string;
             /** Format: date-time */
-            picked_up_at?: string | null;
+            picked_up_at: string | null;
             /** Format: date-time */
-            delivered_at?: string | null;
+            delivered_at: string | null;
             /** Format: uuid */
-            vehicle_id?: string | null;
+            vehicle_id: string | null;
             /** Format: uuid */
-            driver_id?: string | null;
+            driver_id: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         /**
          * Format: date
@@ -2009,19 +2009,19 @@ export interface components {
         };
         Vehicle: {
             /** Format: uuid */
-            id?: string;
-            registration?: string;
-            kind?: string;
-            capacity_kg?: number | null;
-            insurance_expires_on?: components["schemas"]["Date"] | null;
-            inspection_expires_on?: components["schemas"]["Date"] | null;
-            active?: boolean;
+            id: string;
+            registration: string;
+            kind: string;
+            capacity_kg: number | null;
+            insurance_expires_on: components["schemas"]["Date"] | null;
+            inspection_expires_on: components["schemas"]["Date"] | null;
+            active: boolean;
             /** @description Empty when compliant */
-            lapsed?: ("insurance" | "inspection")[];
+            lapsed: ("insurance" | "inspection")[];
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         /** @description name, licence_number and licence_expires_on are required when adding. */
         DriverInput: {
@@ -2035,73 +2035,73 @@ export interface components {
         };
         Driver: {
             /** Format: uuid */
-            id?: string;
-            name?: string;
-            email?: string;
-            phone?: string;
-            licence_number?: string;
-            licence_expires_on?: components["schemas"]["Date"];
-            active?: boolean;
+            id: string;
+            name: string;
+            email: string;
+            phone: string;
+            licence_number: string;
+            licence_expires_on: components["schemas"]["Date"];
+            active: boolean;
             /** @description Linked to a CargoTrack login */
-            signed_in?: boolean;
-            licence_lapsed?: boolean;
+            signed_in: boolean;
+            licence_lapsed: boolean;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         Listing: {
             /** Format: uuid */
-            id?: string;
-            mine?: boolean;
+            id: string;
+            mine: boolean;
             /**
              * Format: uuid
              * @description Owner only
              */
             shipment_id?: string;
-            origin_name?: string;
-            origin_country?: string;
-            destination_name?: string;
-            destination_country?: string;
-            cargo_description?: string;
-            weight_kg?: number;
-            pieces?: number;
+            origin_name: string;
+            origin_country: string;
+            destination_name: string;
+            destination_country: string;
+            cargo_description: string;
+            weight_kg: number;
+            pieces: number;
             /** Format: date-time */
-            pickup_at?: string;
+            pickup_at: string;
             /** Format: date-time */
-            deliver_by?: string;
-            notes?: string;
+            deliver_by: string;
+            notes: string;
             /** Format: date-time */
-            closes_at?: string;
+            closes_at: string;
             /** @enum {string} */
-            status?: "open" | "awarded" | "withdrawn";
-            bidding_open?: boolean;
+            status: "open" | "awarded" | "withdrawn";
+            bidding_open: boolean;
             /** @description Owner only */
             bid_count?: number;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
         };
         Bid: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
-            listing_id?: string;
-            carrier_name?: string;
+            listing_id: string;
+            carrier_name: string;
             /** Format: int64 */
-            price_cents?: number;
+            price_cents: number;
             /** @constant */
-            currency?: "KES";
-            note?: string;
+            currency: "KES";
+            note: string;
             /** @enum {string} */
-            status?: "pending" | "accepted" | "rejected" | "withdrawn";
+            status: "pending" | "accepted" | "rejected" | "withdrawn";
             /**
              * Format: uuid
              * @description Set once accepted
              */
-            shipment_id?: string | null;
+            shipment_id: string | null;
             /** Format: date-time */
-            created_at?: string;
-            mine?: boolean;
+            created_at: string;
+            mine: boolean;
         };
         EventFields: {
             /** @example Malaba border */
@@ -2123,22 +2123,22 @@ export interface components {
         };
         ShipmentEvent: {
             /** Format: int64 */
-            id?: number;
+            id: number;
             /** @enum {string} */
-            kind?: "status" | "checkpoint" | "delay" | "note" | "assignment";
-            from_status?: components["schemas"]["ShipmentStatus"] | null;
-            to_status?: components["schemas"]["ShipmentStatus"] | null;
-            location?: string;
-            latitude?: number | null;
-            longitude?: number | null;
-            note?: string;
-            internal?: boolean;
+            kind: "status" | "checkpoint" | "delay" | "note" | "assignment";
+            from_status: components["schemas"]["ShipmentStatus"] | null;
+            to_status: components["schemas"]["ShipmentStatus"] | null;
+            location: string;
+            latitude: number | null;
+            longitude: number | null;
+            note: string;
+            internal: boolean;
             /** Format: date-time */
-            occurred_at?: string;
+            occurred_at: string;
             /** Format: uuid */
-            recorded_by?: string | null;
+            recorded_by: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
         };
         Error: {
             /**

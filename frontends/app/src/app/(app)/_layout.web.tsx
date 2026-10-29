@@ -2,6 +2,8 @@ import { Tabs, TabList, TabSlot, TabTrigger, type TabTriggerSlotProps } from 'ex
 import type { ComponentRef, Ref } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 
+import { useAuth } from '@/auth/AuthProvider';
+import { can, isDriverOnly } from '@/auth/permissions';
 import { useI18n } from '@/i18n';
 import { Text } from '@/ui/primitives';
 import { space, touch, usePalette } from '@/ui/theme';
@@ -16,6 +18,7 @@ export default function WebShell() {
   const { t } = useI18n();
   const c = usePalette();
   const wide = useWindowDimensions().width >= WIDE;
+  const { roles } = useAuth();
 
   return (
     <Tabs style={{ flex: 1, flexDirection: wide ? 'row-reverse' : 'column', backgroundColor: c.paper }}>
@@ -31,9 +34,14 @@ export default function WebShell() {
             <Text variant="title">{t('appName')}</Text>
           </View>
         ) : null}
-        <TabTrigger name="index" href="/" asChild>
-          <NavItem wide={wide}>{t('wallet')}</NavItem>
+        <TabTrigger name="(shipments)" href="/" asChild>
+          <NavItem wide={wide}>{isDriverOnly(roles) ? t('jobs') : t('shipments')}</NavItem>
         </TabTrigger>
+        {can(roles, 'billing.view') ? (
+          <TabTrigger name="wallet" href="/wallet" asChild>
+            <NavItem wide={wide}>{t('wallet')}</NavItem>
+          </TabTrigger>
+        ) : null}
         <TabTrigger name="account" href="/account" asChild>
           <NavItem wide={wide}>{t('account')}</NavItem>
         </TabTrigger>
