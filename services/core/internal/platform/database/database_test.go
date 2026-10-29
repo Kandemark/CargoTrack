@@ -3,6 +3,7 @@ package database_test
 import (
 	"context"
 	"testing"
+	"testing/fstest"
 
 	"github.com/jackc/pgx/v5"
 
@@ -92,5 +93,30 @@ func TestMigrateIsIdempotent(t *testing.T) {
 	db := testkit.DB(t)
 	if err := db.Migrate(context.Background(), migrations.FS); err != nil {
 		t.Fatalf("second migrate: %v", err)
+	}
+}
+
+// A data migration must see existing rows despite forced row-level security.
+func TestMigrationsSeeTenantRows(t *testing.T) {
+	db := testkit.DB(t)
+	ctx := context.Background()
+	if err := db.AsSystem(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO organizations (idp_org_id, name) VALUES ('zm', 'lowercase name')`)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	migration := fstest.MapFS{"9001_upper_names.sql": {Data: []byte(`UPDATE organizations SET name = upper(name)`)}}
+	if err := db.Migrate(ctx, migration); err != nil {
+		t.Fatal(err)
+	}
+	var name string
+	if err := db.AsSystem(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT name FROM organizations WHERE idp_org_id = 'zm'`).Scan(&name)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if name != "LOWERCASE NAME" {
+		t.Fatalf("data migration did not reach existing rows: name = %q", name)
 	}
 }

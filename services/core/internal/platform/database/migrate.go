@@ -52,6 +52,12 @@ func (db *DB) Migrate(ctx context.Context, migrations fs.FS) error {
 			_ = tx.Rollback(ctx)
 			return err
 		}
+		// Row-level security is forced on tenant tables, so without this a
+		// data migration's UPDATE would silently touch no rows.
+		if _, err := tx.Exec(ctx, `SELECT set_config('app.system', 'on', true)`); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
 		var applied bool
 		if err := tx.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version,
