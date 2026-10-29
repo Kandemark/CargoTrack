@@ -430,10 +430,13 @@ $RECYCLE.BIN/
 .core
 
 # ── Core dumps ────────────────────────────────────────────────────────────────
+# Dump files are named core or core.<pid>. Directories named core (the
+# services/core Go service) and files like core.v1.yaml are not dumps.
 core
-core.*
+!core/
+core.[0-9]*
 *.core
-*.core.*
+*.core.[0-9]*
 
 # ── Logs & diagnostics ────────────────────────────────────────────────────────
 *.log

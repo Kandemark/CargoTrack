@@ -1,0 +1,349 @@
+openapi: 3.1.0
+info:
+  title: CargoTrack Core API
+  version: 1.0.0
+  description: |
+    Organisations, prepaid billing, and payments.
+
+    Authentication: every endpoint except provider callbacks and health
+    checks takes a Zitadel access token (JWT) as `Authorization: Bearer`.
+
+    Money: every amount is an integer number of KES cents. No endpoint
+    accepts or returns floating-point money.
+
+    Paid actions answer **402** with error `insufficient_credit` when the
+    caller's wallet cannot cover the price. Clients should send the user to
+    the top-up screen, showing `details.price_cents` and
+    `details.balance_cents`.
+servers:
+  - url: /
+security:
+  - bearer: []
+
+paths:
+  /v1/me:
+    get:
+      summary: The caller, their organisation, and their roles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user_id, organization, roles]
+                properties:
+                  user_id: { type: string, format: uuid }
+                  organization: { $ref: "#/components/schemas/Organization" }
+                  roles: { type: array, items: { $ref: "#/components/schemas/Role" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/billing/wallet:
+    get:
+      summary: Balance and current prices
+      description: Requires `billing.view` (org_admin, finance, operations).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [balance_cents, currency, low_balance, prices]
+                properties:
+                  balance_cents: { type: integer, format: int64 }
+                  currency: { type: string, const: KES }
+                  low_balance: { type: boolean }
+                  prices: { type: array, items: { $ref: "#/components/schemas/Meter" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/billing/ledger:
+    get:
+      summary: Every change to the balance, newest first
+      description: Requires `billing.view`.
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: before, in: query, description: Return entries older than this entry id, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries, next_before]
+                properties:
+                  entries: { type: array, items: { $ref: "#/components/schemas/LedgerEntry" } }
+                  next_before:
+                    description: Pass as `before` for the next page; null on the last page.
+                    type: [integer, "null"]
+                    format: int64
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/billing/topups:
+    get:
+      summary: The 50 most recent top-ups
+      description: Requires `billing.view`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topups]
+                properties:
+                  topups: { type: array, items: { $ref: "#/components/schemas/TopUp" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Start a top-up
+      description: |
+        Requires `billing.manage` (org_admin, finance). For M-Pesa this sends
+        an STK Push prompt to the phone; the top-up stays `pending` until the
+        customer enters their PIN and Safaricom confirms it. Poll
+        `GET /v1/billing/topups/{id}` (or `POST .../check`) to follow it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [provider, amount_cents, phone]
+              properties:
+                provider: { type: string, enum: [mpesa] }
+                amount_cents:
+                  type: integer
+                  format: int64
+                  description: Whole shillings for M-Pesa (a multiple of 100). Minimum set by BILLING_MIN_TOPUP_KES.
+                phone: { type: string, examples: ["0712 345 678"] }
+      responses:
+        "201":
+          description: Prompt sent; top-up pending
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topup, customer_message]
+                properties:
+                  topup: { $ref: "#/components/schemas/TopUp" }
+                  customer_message: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422":
+          description: The provider refused the payment (`payment_rejected`); `details.topup` is the failed top-up
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "502":
+          description: The provider could not be reached (`provider_unavailable`)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/billing/topups/{id}:
+    get:
+      summary: One top-up
+      description: Requires `billing.view`. Another organisation's top-up is reported as not found.
+      parameters: [{ $ref: "#/components/parameters/TopUpID" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TopUp" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/billing/topups/{id}/check:
+    post:
+      summary: Ask the provider for the result now
+      description: |
+        Requires `billing.view`. For when the callback is slow. Rate-limited
+        per top-up (BILLING_TOPUP_CHECK_SECONDS); calls inside the window
+        return the current state without asking the provider.
+      parameters: [{ $ref: "#/components/parameters/TopUpID" }]
+      responses:
+        "200": { description: Current state, content: { application/json: { schema: { $ref: "#/components/schemas/TopUp" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/payments/{provider}/callback:
+    post:
+      summary: Payment provider callback
+      description: |
+        Called by the provider, not by clients. Authenticated per provider
+        (M-Pesa: `?token=` must equal MPESA_CALLBACK_TOKEN). The body only
+        identifies the payment; credit is released solely on the provider's
+        answer to an authenticated status query.
+      security: []
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [mpesa] } }
+        - { name: token, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Accepted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/admin/meters:
+    get:
+      summary: All meters, including inactive ones
+      description: Requires `platform.admin`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  meters: { type: array, items: { $ref: "#/components/schemas/Meter" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/admin/meters/{code}:
+    put:
+      summary: Change a price or switch a meter off
+      description: Requires `platform.admin`. An inactive meter makes its action free.
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string, examples: [shipment.create] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                unit_price_cents: { type: integer, format: int64, minimum: 0 }
+                active: { type: boolean }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Meter" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/admin/organizations/{id}/adjustments:
+    post:
+      summary: Credit or debit a wallet by hand
+      description: |
+        Requires `platform.admin`. For payments received outside the app
+        (bank transfer, PesaLink), promotional credit, and corrections.
+        `reference` (e.g. the bank reference) makes it safe to retry.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [amount_cents, note]
+              properties:
+                amount_cents: { type: integer, format: int64, description: Negative to debit }
+                note: { type: string }
+                reference: { type: string }
+      responses:
+        "201": { description: Applied, content: { application/json: { schema: { $ref: "#/components/schemas/LedgerEntry" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Reference already used (`duplicate_reference`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: Would take the balance below zero (`below_zero`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /healthz:
+    get:
+      summary: Process is up
+      security: []
+      responses: { "200": { description: OK } }
+  /readyz:
+    get:
+      summary: Process can reach the database
+      security: []
+      responses: { "200": { description: Ready }, "503": { description: Database unreachable } }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+
+  parameters:
+    TopUpID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Unauthorized: { description: Missing or invalid token, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Forbidden: { description: Role lacks permission, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    NotFound: { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    PaymentRequired:
+      description: Not enough credit (`insufficient_credit`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/InsufficientCredit" }
+
+  schemas:
+    Role:
+      type: string
+      enum: [platform_owner, org_admin, finance, operations, driver]
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Stable machine-readable code. Switch on this, never on `message`.
+          examples: [invalid_request, unauthorized, forbidden, not_found, insufficient_credit, invalid_phone, payment_rejected, provider_unavailable, duplicate_reference, below_zero, internal]
+        message: { type: string, description: Human-readable; may change. }
+        details: { type: object, additionalProperties: true }
+
+    InsufficientCredit:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            details:
+              type: object
+              required: [meter, price_cents, balance_cents, currency]
+              properties:
+                meter: { type: string }
+                price_cents: { type: integer, format: int64 }
+                balance_cents: { type: integer, format: int64 }
+                currency: { type: string, const: KES }
+
+    Organization:
+      type: object
+      required: [id, name, country]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        country: { type: string, description: ISO 3166-1 alpha-2, examples: [KE] }
+
+    Meter:
+      type: object
+      required: [code, name, description, unit_price_cents, active, updated_at]
+      properties:
+        code: { type: string, examples: [shipment.create, prediction.run, document.ocr] }
+        name: { type: string }
+        description: { type: string }
+        unit_price_cents: { type: integer, format: int64 }
+        active: { type: boolean }
+        updated_at: { type: string, format: date-time }
+
+    LedgerEntry:
+      type: object
+      required: [id, kind, amount_cents, balance_after_cents, quantity, description, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [topup, charge, adjustment] }
+        amount_cents: { type: integer, format: int64, description: Positive for credit, negative for debit }
+        balance_after_cents: { type: integer, format: int64 }
+        meter_code: { type: [string, "null"] }
+        quantity: { type: integer }
+        unit_price_cents: { type: [integer, "null"], format: int64 }
+        description: { type: string }
+        actor_user_id: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+
+    TopUp:
+      type: object
+      required: [id, reference_code, provider, amount_cents, phone_masked, status, created_at, credited_at]
+      properties:
+        id: { type: string, format: uuid }
+        reference_code:
+          type: string
+          description: Shown on the customer's M-Pesa receipt as the account reference.
+          examples: [TU7F3A91C2D0]
+        provider: { type: string, enum: [mpesa] }
+        amount_cents: { type: integer, format: int64 }
+        phone_masked: { type: string, examples: ["2547*****678"] }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        failure_reason: { type: string }
+        created_at: { type: string, format: date-time }
+        credited_at: { type: [string, "null"], format: date-time }
