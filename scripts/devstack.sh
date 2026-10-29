@@ -50,7 +50,7 @@ start() {
 
   run devauth "$DATA/bin/devauth" -addr :9000 -issuer http://localhost:9000 -audience cargotrack-dev
   run devmpesa "$DATA/bin/devmpesa" -addr :9100
-  CORE_HTTP_ADDR=:8080 \
+  CORE_HTTP_ADDR=:8080 CORS_ALLOWED_ORIGINS=http://localhost:8081 \
   DATABASE_URL="postgres://cargotrack:cargotrack@localhost:$PGPORT/cargotrack" \
   OIDC_ISSUER=http://localhost:9000 OIDC_AUDIENCE=cargotrack-dev \
   MPESA_ENVIRONMENT=sandbox MPESA_BASE_URL=http://localhost:9100 \

@@ -14,6 +14,9 @@ import (
 type Config struct {
 	HTTPAddr    string // CORE_HTTP_ADDR, default ":8080"
 	DatabaseURL string // DATABASE_URL, required
+	// CORSOrigins are the web app origins allowed to call the API
+	// (CORS_ALLOWED_ORIGINS, comma-separated). Phones do not need it.
+	CORSOrigins []string
 
 	// OIDC (Zitadel). Tokens must be issued by OIDCIssuer for OIDCAudience.
 	OIDCIssuer   string // OIDC_ISSUER, required
@@ -50,6 +53,7 @@ func Load() (Config, error) {
 	c := Config{
 		HTTPAddr:     env("CORE_HTTP_ADDR", ":8080"),
 		DatabaseURL:  required("DATABASE_URL", &errs),
+		CORSOrigins:  strings.Split(env("CORS_ALLOWED_ORIGINS", ""), ","),
 		OIDCIssuer:   strings.TrimSuffix(required("OIDC_ISSUER", &errs), "/"),
 		OIDCAudience: required("OIDC_AUDIENCE", &errs),
 
