@@ -15,7 +15,6 @@ import {
   Skeleton,
   Stat,
   StatGrid,
-  StatusPill,
   Txt,
 } from '@/components/ui'
 import type {
@@ -28,9 +27,10 @@ import type {
 } from '@shared/api/types'
 
 /**
- * Home. Ordered by what needs the user first: the three numbers that
- * matter in the header, then anything that needs action, then shipments,
- * activity, and the month's figures.
+ * Home. Each fact appears once: three numbers in the header, then what
+ * needs action (one line per shipment, whatever the reason), then recent
+ * activity, the month's figures and carriers. The shipment list itself
+ * lives on the Shipments tab, not here.
  */
 
 const EVENT_ICON: Record<EventType, ComponentProps<typeof Ionicons>['name']> = {
@@ -52,7 +52,6 @@ interface PageData {
   alerts: AlertType[]
   invoices: Array<{ id: number; invoice_number: string; amount_kes: string; currency: string; status: string; shipment_tracking: string }>
   compliance: Array<{ id: number; tracking_number: string; doc_type_display: string; status_display: string; days_until_expiry: number | null }>
-  notifications: Array<{ id: number; title: string; message: string; created_at: string; is_read: boolean }>
   fleet: { trucks: number; trucks_active: number; drivers: number; drivers_on_route: number; fleet_utilisation: number } | null
   carbon: { total_kg: number; offset_kg: number; net_kg: number; by_carrier: Array<{ name: string; total_kg: number; grade: string }> } | null
   sla: { compliance_pct: number; total: number; on_time: number; at_risk: number; breached: number } | null
@@ -83,7 +82,7 @@ export default function DashboardScreen() {
         try { const res = await apiClient.get<T>(url); return res.data } catch { return null }
       }
 
-      const [statsRes, shipmentsRes, alertsRes, slaData, carbonData, fleetData, invoicesData, complianceData, notificationsData] =
+      const [statsRes, shipmentsRes, alertsRes, slaData, carbonData, fleetData, invoicesData, complianceData] =
         await Promise.all([
           dashboardApi.getStats(),
           shipmentsApi.list({ page: 1, page_size: 20 }),
@@ -93,7 +92,6 @@ export default function DashboardScreen() {
           safeGet<any>('/api/v1/fleet/stats/'),
           safeGet<any>('/api/v1/invoices/?page_size=20'),
           safeGet<any>('/api/v1/compliance/?page_size=20'),
-          safeGet<any>('/api/v1/notifications/?unread=1&page_size=8'),
         ])
 
       const statsData = statsRes.data
@@ -116,7 +114,6 @@ export default function DashboardScreen() {
         alerts: alertsRes.data.results ?? [],
         invoices: list(invoicesData),
         compliance: list(complianceData),
-        notifications: list(notificationsData),
         fleet: fleetData,
         carbon: carbonData,
         sla: slaData,
@@ -150,7 +147,7 @@ export default function DashboardScreen() {
     <HeroStats
       items={[
         { label: 'In transit', value: String(data.summary.active_shipments) },
-        { label: 'Delayed', value: String(data.summary.delayed_shipments), tone: data.summary.delayed_shipments > 0 ? 'danger' : undefined },
+        { label: 'Delivered', value: String(data.summary.delivered_shipments) },
         { label: 'On time', value: `${Math.round(data.summary.on_time_rate)}%` },
       ]}
     />
@@ -185,7 +182,6 @@ export default function DashboardScreen() {
 function Content({ data, danger, warning }: { data: PageData; danger: string; warning: string }) {
   const attention = attentionItems(data, danger, warning)
   const openInvoices = data.invoices.filter((i) => i.status === 'PENDING' || i.status === 'FAILED' || i.status === 'OVERDUE')
-  const expiring = data.compliance.filter((d) => d.days_until_expiry !== null && d.days_until_expiry <= 14)
 
   return (
     <>
@@ -198,30 +194,6 @@ function Content({ data, danger, warning }: { data: PageData; danger: string; wa
           ))
         )}
       </Section>
-
-      {data.shipments.length > 0 ? (
-        <Section label="Shipments" action="See all" onAction={() => router.push('/(drawer)/(tabs)/shipments' as any)}>
-          {data.shipments.slice(0, 5).map((s, i, all) => (
-            <ListRow
-              key={s.id}
-              title={`${s.route.origin} → ${s.route.destination}`}
-              subtitle={`${s.tracking_number} · ${s.carrier_name || 'No carrier yet'}`}
-              trailing={<StatusPill status={s.status} label={s.status_display} />}
-              onPress={() => router.push(`/(drawer)/shipment/${s.id}` as any)}
-              subtitleLines={1}
-              last={i === all.length - 1}
-            />
-          ))}
-        </Section>
-      ) : null}
-
-      {data.riskItems.length > 0 ? (
-        <Section label="Delay risk">
-          {data.riskItems.slice(0, 5).map((r) => (
-            <RiskBar key={r.id} id={r.id} trackingNumber={r.tracking_number} score={r.delay_risk_score} />
-          ))}
-        </Section>
-      ) : null}
 
       {data.events.length > 0 ? (
         <Section label="Recent activity">
@@ -257,10 +229,9 @@ function Content({ data, danger, warning }: { data: PageData; danger: string; wa
             tone={openInvoices.length > 0 ? 'warning' : undefined}
           />
           <Stat
-            label="Documents expiring"
-            value={String(expiring.length)}
-            caption={`of ${data.compliance.length} tracked`}
-            tone={expiring.length > 0 ? 'warning' : undefined}
+            label="Net carbon"
+            value={data.carbon ? `${Math.round(data.carbon.net_kg).toLocaleString()} kg` : '—'}
+            caption={data.carbon ? `${Math.round(data.carbon.offset_kg).toLocaleString()} kg offset` : 'No data yet'}
           />
         </StatGrid>
       </Section>
@@ -278,25 +249,19 @@ function Content({ data, danger, warning }: { data: PageData; danger: string; wa
           ))}
         </Section>
       ) : null}
-
-      <Section label="Sustainability and updates">
-        <StatGrid>
-          <Stat
-            label="Net carbon"
-            value={data.carbon ? `${Math.round(data.carbon.net_kg).toLocaleString()} kg` : '—'}
-            caption={data.carbon ? `${Math.round(data.carbon.offset_kg).toLocaleString()} kg offset` : 'No data yet'}
-          />
-          <Stat label="Unread updates" value={String(data.notifications.length)} caption="In your notifications" />
-        </StatGrid>
-      </Section>
     </>
   )
 }
 
-/** Everything that needs action, most urgent first, at most six. */
+/**
+ * Everything that needs action, most urgent first, at most six. A shipment
+ * appears once: if it is delayed, its alerts and risk are not repeated.
+ */
 function attentionItems(data: PageData, danger: string, warning: string): AttentionItem[] {
   const items: AttentionItem[] = []
+  const seen = new Set<string>()
   for (const s of data.shipments.filter((x) => x.status === 'DELAYED')) {
+    seen.add(s.tracking_number)
     items.push({
       key: `delayed-${s.id}`,
       icon: 'time-outline',
@@ -307,6 +272,8 @@ function attentionItems(data: PageData, danger: string, warning: string): Attent
     })
   }
   for (const a of data.alerts.filter((x) => !x.acknowledged && (x.severity === 'CRITICAL' || x.severity === 'HIGH'))) {
+    if (seen.has(a.shipment_tracking)) continue
+    seen.add(a.shipment_tracking)
     items.push({
       key: `alert-${a.id}`,
       icon: a.severity === 'CRITICAL' ? 'flame-outline' : 'warning-outline',
@@ -316,8 +283,8 @@ function attentionItems(data: PageData, danger: string, warning: string): Attent
       onPress: () => router.push('/(drawer)/(tabs)/alerts' as any),
     })
   }
-  const listed = new Set(data.shipments.filter((x) => x.status === 'DELAYED').map((x) => x.id))
-  for (const r of data.riskItems.filter((x) => x.delay_risk_score >= 0.7 && !listed.has(x.id))) {
+  for (const r of data.riskItems.filter((x) => x.delay_risk_score >= 0.7 && !seen.has(x.tracking_number))) {
+    seen.add(r.tracking_number)
     items.push({
       key: `risk-${r.id}`,
       icon: 'trending-up-outline',
@@ -350,24 +317,3 @@ function attentionItems(data: PageData, danger: string, warning: string): Attent
   return items.slice(0, 6)
 }
 
-/** How likely a shipment is to arrive late, as a thin bar on a quiet track. */
-function RiskBar({ id, trackingNumber, score }: { id: number; trackingNumber: string; score: number }) {
-  const { colors, risk } = useAppTheme()
-  const pct = Math.round(score * 100)
-  const color = score >= 0.7 ? risk.high : score >= 0.4 ? risk.medium : risk.low
-  return (
-    <Pressable
-      onPress={() => router.push(`/(drawer)/shipment/${id}` as any)}
-      accessibilityRole="button"
-      accessibilityLabel={`${trackingNumber}, ${pct} percent delay risk`}
-      style={({ pressed }) => ({ paddingVertical: 10, opacity: pressed ? 0.6 : 1 })}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-        <Txt variant="bodyStrong">{trackingNumber}</Txt>
-        <Txt variant="bodyStrong" style={{ color }}>{pct}%</Txt>
-      </View>
-      <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border }}>
-        <View style={{ width: `${Math.max(pct, 2)}%`, height: 6, borderRadius: 3, backgroundColor: color }} />
-      </View>
-    </Pressable>
-  )
-}

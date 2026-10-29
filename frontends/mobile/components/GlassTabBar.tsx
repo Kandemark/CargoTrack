@@ -1,10 +1,7 @@
 
-import { useEffect } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native'
+import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native'
 import { useAppTheme } from '@/lib/useAppTheme'
 import { Ionicons } from '@expo/vector-icons'
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
-import * as Haptics from 'expo-haptics'
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs'
 import { DrawerActions, useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -56,19 +53,10 @@ function TabButton({
   alertCount: number
   onPress: () => void
 }) {
-  const { colors } = useAppTheme()
-  const scale = useSharedValue(1)
+  const { colors, isDark, brand } = useAppTheme()
   const rootNav = useNavigation()
 
-  const scaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }))
-
   function handlePress() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    scale.value = withSpring(0.9, { damping: 14, stiffness: 320 }, () => {
-      scale.value = withSpring(1, { damping: 14, stiffness: 320 })
-    })
     if (route.name === 'menu') {
       rootNav.dispatch(DrawerActions.openDrawer())
       return
@@ -76,38 +64,33 @@ function TabButton({
     onPress()
   }
 
-  const color = isFocused ? '#f5801e' : colors.textMuted
+  // Selected: a filled icon in a strong colour. No pill, no bounce.
+  const color = isFocused ? (isDark ? '#FFFFFF' : brand.primary) : colors.textFaint
   const icons = TAB_ICONS[route.name] ?? TAB_ICONS.index
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={handlePress}
-      activeOpacity={0.85}
       style={[styles.slot, { width: slotW }]}
       accessibilityRole="button"
       accessibilityState={isFocused ? { selected: true } : {}}
       accessibilityLabel={descriptor.options.title ?? route.name}
     >
-      <Animated.View style={[styles.iconWrap, scaleStyle]}>
-        <View>
-          <Ionicons name={isFocused ? icons.activeIcon : icons.icon} size={22} color={color} />
-          {route.name === 'alerts' ? <AlertBadge count={alertCount} /> : null}
-        </View>
-        <Text style={{ fontSize: 11, fontFamily: isFocused ? 'DMSans-Bold' : 'DMSans-Medium', marginTop: 3, color }}>
-          {descriptor.options.title ?? route.name}
-        </Text>
-      </Animated.View>
-    </TouchableOpacity>
+      <View>
+        <Ionicons name={isFocused ? icons.activeIcon : icons.icon} size={22} color={color} />
+        {route.name === 'alerts' ? <AlertBadge count={alertCount} /> : null}
+      </View>
+      <Text style={{ fontSize: 11, fontFamily: isFocused ? 'DMSans-SemiBold' : 'DMSans-Medium', marginTop: 4, color }}>
+        {descriptor.options.title ?? route.name}
+      </Text>
+    </Pressable>
   )
 }
 
 /** Gap between the floating bar and the screen edges. */
 const SIDE = 16
 
-/**
- * A floating bar: lifted off the screen edges with fully rounded ends and
- * a soft shadow. A tinted pill glides to the selected tab.
- */
+/** A floating bar with rounded ends; calm, with no motion of its own. */
 export default function GlassTabBar(props: BottomTabBarProps) {
   const { state, descriptors, navigation } = props
   const insets = useSafeAreaInsets()
@@ -115,17 +98,7 @@ export default function GlassTabBar(props: BottomTabBarProps) {
   const alertCount = useAlertStore((s) => s.unreadCount)
 
   const routes = state.routes
-  const barW = SCREEN_W - SIDE * 2
-  const slotW = barW / routes.length
-  const indicatorX = useSharedValue(state.index * slotW)
-
-  useEffect(() => {
-    indicatorX.value = withSpring(state.index * slotW, { damping: 18, stiffness: 180 })
-  }, [state.index, slotW, indicatorX])
-
-  const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: indicatorX.value }],
-  }))
+  const slotW = (SCREEN_W - SIDE * 2) / routes.length
 
   function makeOnPress(idx: number) {
     return () => {
@@ -157,20 +130,6 @@ export default function GlassTabBar(props: BottomTabBarProps) {
           shadowOffset: { width: 0, height: 8 },
           elevation: 12,
         }}>
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            {
-              position: 'absolute',
-              left: 6,
-              width: slotW - 12,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: 'rgba(245,128,30,0.14)',
-            },
-            indicatorStyle,
-          ]}
-        />
         {routes.map((route, idx) => (
           <TabButton
             key={route.key}
@@ -190,10 +149,6 @@ export default function GlassTabBar(props: BottomTabBarProps) {
 const styles = StyleSheet.create({
   slot: {
     height: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconWrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },

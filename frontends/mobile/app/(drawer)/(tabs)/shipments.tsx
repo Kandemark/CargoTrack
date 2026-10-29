@@ -155,7 +155,7 @@ export default function ShipmentsScreen() {
             </View>
           ) : (
             processed.map((item, i) => (
-              <ShipmentRow key={item.id} item={item} index={i} last={i === processed.length - 1} />
+              <ShipmentRow key={item.id} item={item} last={i === processed.length - 1} />
             ))
           )}
           {loadingMore ? <ActivityIndicator color={brand.accent} style={{ marginTop: 16 }} /> : null}
