@@ -8,6 +8,7 @@
  *  4. App state monitoring (background/foreground transitions)
  */
 import { AppState, type AppStateStatus } from 'react-native'
+import Constants from 'expo-constants'
 import * as ScreenCapture from 'expo-screen-capture'
 import { authenticateWithBiometrics } from './biometrics'
 
@@ -61,8 +62,14 @@ export function idleDurationMs(): number {
 
 // ─── Screen capture prevention ───────────────────────────────────────────────
 
+/**
+ * The "CargoTrack Dev" build (APP_VARIANT=dev) allows screenshots so screens
+ * can be reviewed while they are designed. Every other build blocks them.
+ */
+const isDevVariant = Constants.expoConfig?.android?.package === 'com.cargotrack.app.dev'
+
 export async function enableScreenCapturePrevention() {
-  if (screenCapturePrevented) return
+  if (screenCapturePrevented || isDevVariant) return
   try {
     await ScreenCapture.preventScreenCaptureAsync()
     screenCapturePrevented = true

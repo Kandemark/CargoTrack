@@ -8,8 +8,21 @@ import type { ConfigContext, ExpoConfig } from 'expo/config'
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000'
 const allowCleartext = !apiUrl.startsWith('https://')
 
+/**
+ * APP_VARIANT=dev builds "CargoTrack Dev": a development client with its
+ * own package name, installed next to the real app instead of replacing it,
+ * for working on screens with instant reload. Never given to users.
+ */
+const isDevVariant = process.env.APP_VARIANT === 'dev'
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...(config as ExpoConfig),
+  ...(isDevVariant && {
+    name: 'CargoTrack Dev',
+    scheme: 'cargotrack-dev',
+    android: { ...config.android, package: 'com.cargotrack.app.dev' },
+    ios: { ...config.ios, bundleIdentifier: 'com.cargotrack.app.dev' },
+  }),
   plugins: [
     ...(config.plugins ?? []),
     ['expo-build-properties', { android: { usesCleartextTraffic: allowCleartext } }],

@@ -1,6 +1,6 @@
 
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native'
-import { BlurView } from 'expo-blur'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { Ionicons } from '@expo/vector-icons'
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
@@ -33,7 +33,7 @@ function AlertBadge({ count }: { count: number }) {
       justifyContent: 'center',
       paddingHorizontal: 3,
     }}>
-      <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', lineHeight: 12 }}>
+      <Text style={{ fontSize: 9, fontFamily: 'DMSans-Bold', color: '#fff', lineHeight: 12 }}>
         {count > 99 ? '99+' : count}
       </Text>
     </View>
@@ -90,11 +90,10 @@ function TabButton({
             name={isFocused ? icons.activeIcon : icons.icon}
             size={24}
             color={color}
-            style={isFocused ? { textShadowColor: 'rgba(245,128,30,0.5)', textShadowRadius: 8 } : undefined}
           />
           {route.name === 'alerts' ? <AlertBadge count={useAlertStore((s) => s.unreadCount)} /> : null}
         </View>
-        <Text style={{ fontSize: 10, fontWeight: '700', marginTop: 2, color, letterSpacing: 0.2 }}>
+        <Text style={{ fontSize: 11, fontFamily: 'DMSans-SemiBold', marginTop: 2, color, letterSpacing: 0.2 }}>
           {descriptor.options.title ?? route.name}
         </Text>
       </Animated.View>
@@ -105,6 +104,9 @@ function TabButton({
 export default function GlassTabBar(props: BottomTabBarProps) {
   const { state, descriptors, navigation } = props
   const insets = useSafeAreaInsets()
+  // Solid and theme-aware: a see-through bar let the content behind it
+  // show through the labels.
+  const { colors } = useAppTheme()
 
   const visibleRoutes = state.routes
   const bottomPad = insets.bottom > 0 ? insets.bottom : 6
@@ -124,8 +126,16 @@ export default function GlassTabBar(props: BottomTabBarProps) {
 
   return (
     <View style={[styles.wrapper, { height: barH, paddingBottom: bottomPad }]} pointerEvents="box-none">
-      <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
-      <View style={[styles.bar, { paddingBottom: bottomPad, backgroundColor: 'rgba(10,25,41,0.85)' }]}>
+      <View
+        style={[
+          styles.bar,
+          {
+            paddingBottom: bottomPad,
+            backgroundColor: colors.card,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: colors.borderMid,
+          },
+        ]}>
         {visibleRoutes.map((route, idx) => (
           <TabButton
             key={route.key}
