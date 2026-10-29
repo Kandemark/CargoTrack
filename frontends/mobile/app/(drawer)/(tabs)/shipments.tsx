@@ -87,6 +87,9 @@ export default function ShipmentsScreen() {
       )
     })
     .sort((a, b) => {
+      // Delivered shipments have arrived; they go after everything still moving.
+      const done = Number(a.status === 'DELIVERED') - Number(b.status === 'DELIVERED')
+      if (done !== 0) return done
       if (sort === 'risk') return (b.delay_risk_score ?? 0) - (a.delay_risk_score ?? 0)
       const aTime = a.scheduled_arrival ? new Date(a.scheduled_arrival).getTime() : Infinity
       const bTime = b.scheduled_arrival ? new Date(b.scheduled_arrival).getTime() : Infinity

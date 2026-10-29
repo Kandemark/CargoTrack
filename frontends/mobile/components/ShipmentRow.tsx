@@ -58,7 +58,7 @@ export default function ShipmentRow({
             <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border }}>
               <View style={{ width: `${Math.max(Math.round(score * 100), 2)}%`, height: 4, borderRadius: 2, backgroundColor: riskColor }} />
             </View>
-            <Txt variant="caption" style={{ color: riskColor, fontFamily: 'DMSans-SemiBold' }}>
+            <Txt variant="caption" numberOfLines={1} style={{ flexShrink: 0, color: riskColor, fontFamily: 'DMSans-SemiBold' }}>
               {Math.round(score * 100)}% risk
             </Txt>
           </View>
