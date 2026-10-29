@@ -168,10 +168,27 @@ function arrivalDelta(s: Shipment): string | null {
   return 'On time'
 }
 
-/** How far along the trip is, from departure to planned arrival. */
-function progressOf(s: Shipment): number {
+/** The place in an event's location, without a note after a colon ("Voi: traffic jam" → "Voi"). */
+function placeOf(location: string): string {
+  return location.split(':')[0].trim()
+}
+
+/**
+ * How far along the trip is. From the last known place when we can put it
+ * on the map (its share of the straight line between the two ends),
+ * otherwise from the time since departure.
+ */
+function progressOf(s: Shipment, lastPlace?: string): number {
   if (s.status === 'DELIVERED') return 1
   if (!s.actual_departure) return 0
+  const a = lookupCoords(s.route.origin)
+  const b = lookupCoords(s.route.destination)
+  const p = lastPlace ? lookupCoords(lastPlace) : null
+  if (a && b && p && p !== a) {
+    const dx = b[0] - a[0], dy = b[1] - a[1]
+    const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)
+    return Math.min(Math.max(t, 0.04), 0.95)
+  }
   const start = new Date(s.actual_departure).getTime()
   const end = new Date(s.scheduled_arrival).getTime()
   if (end <= start) return 0.95
@@ -184,21 +201,29 @@ function progressOf(s: Shipment): number {
  */
 function JourneyCard({ shipment, lastPlace }: { shipment: Shipment; lastPlace?: string }) {
   const { colors, brand, isDark, ui } = useAppTheme()
-  const progress = progressOf(shipment)
+  const progress = progressOf(shipment, lastPlace)
   const delayed = shipment.status === 'DELAYED'
   const fill = delayed ? ui.danger : brand.accent
+  const overdueDays = Math.floor((Date.now() - new Date(shipment.scheduled_arrival).getTime()) / 86_400_000)
+  const overdue =
+    shipment.status !== 'DELIVERED' && overdueDays >= 1
+      ? `${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue`
+      : null
   const where =
     shipment.status === 'DELIVERED'
       ? 'Delivered'
       : !shipment.actual_departure
         ? 'Waiting to depart'
         : lastPlace
-          ? `Last seen at ${lastPlace}`
+          ? `Last seen at ${placeOf(lastPlace)}`
           : 'On the road'
 
   return (
     <View style={{ backgroundColor: isDark ? colors.muted : '#F4F6FA', borderRadius: 20, padding: 20 }}>
-      <Txt variant="caption" tone="muted">{where}</Txt>
+      <Txt variant="caption" tone="muted">
+        {where}
+        {overdue ? <Txt variant="caption" tone="danger">{`  ·  ${overdue}`}</Txt> : null}
+      </Txt>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 18 }}>
         <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: fill }} />

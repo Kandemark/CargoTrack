@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { apiClient, dashboardApi, shipmentsApi } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { useAppTheme } from '@/lib/useAppTheme'
+import { carrierLabel } from '@/lib/carrier'
 import { timeAgo } from '@shared/utils/formatters'
 import {
   Button,
@@ -180,7 +181,8 @@ export default function DashboardScreen() {
 }
 
 function Content({ data, danger, warning }: { data: PageData; danger: string; warning: string }) {
-  const attention = attentionItems(data, danger, warning)
+  const ownOrg = useAuthStore((s) => s.user?.org_name)
+  const attention = attentionItems(data, danger, warning, ownOrg)
   const openInvoices = data.invoices.filter((i) => i.status === 'PENDING' || i.status === 'FAILED' || i.status === 'OVERDUE')
 
   return (
@@ -257,7 +259,7 @@ function Content({ data, danger, warning }: { data: PageData; danger: string; wa
  * Everything that needs action, most urgent first, at most six. A shipment
  * appears once: if it is delayed, its alerts and risk are not repeated.
  */
-function attentionItems(data: PageData, danger: string, warning: string): AttentionItem[] {
+function attentionItems(data: PageData, danger: string, warning: string, ownOrg?: string | null): AttentionItem[] {
   const items: AttentionItem[] = []
   const seen = new Set<string>()
   for (const s of data.shipments.filter((x) => x.status === 'DELAYED')) {
@@ -267,7 +269,7 @@ function attentionItems(data: PageData, danger: string, warning: string): Attent
       icon: 'time-outline',
       color: danger,
       title: `Delayed · ${s.route.origin} → ${s.route.destination}`,
-      subtitle: `${s.tracking_number} · ${s.carrier_name || 'No carrier yet'}`,
+      subtitle: `${s.tracking_number} · ${carrierLabel(s.carrier_name, ownOrg)}`,
       onPress: () => router.push(`/(drawer)/shipment/${s.id}` as any),
     })
   }
