@@ -315,8 +315,12 @@ func TestWalletAccess(t *testing.T) {
 	if code != 200 || body["balance_cents"] != float64(0) || body["low_balance"] != true {
 		t.Fatalf("finance: %d %v", code, body)
 	}
-	if prices, _ := body["prices"].([]any); len(prices) != 3 {
-		t.Fatalf("prices = %v", body["prices"])
+	found := false
+	for _, m := range body["prices"].([]any) {
+		found = found || m.(map[string]any)["code"] == "shipment.create"
+	}
+	if !found {
+		t.Fatalf("prices lack shipment.create: %v", body["prices"])
 	}
 }
 

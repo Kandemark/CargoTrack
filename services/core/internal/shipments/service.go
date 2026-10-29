@@ -42,15 +42,34 @@ type Fleet interface {
 	CheckAssignment(ctx context.Context, tx pgx.Tx, vehicleID, driverID *string) (string, error)
 }
 
-type Service struct {
-	db      *database.DB
-	charger Charger
-	fleet   Fleet
-	now     func() time.Time
+// Listings lets the marketplace keep listings consistent with their
+// shipments. Implemented by marketplace.Service and set with SetListings,
+// since the marketplace itself depends on this package.
+type Listings interface {
+	IsListed(ctx context.Context, tx pgx.Tx, shipmentID string) (bool, error)
+	WithdrawForShipment(ctx context.Context, tx pgx.Tx, shipmentID string) error
 }
 
+type noListings struct{}
+
+func (noListings) IsListed(context.Context, pgx.Tx, string) (bool, error)    { return false, nil }
+func (noListings) WithdrawForShipment(context.Context, pgx.Tx, string) error { return nil }
+
+type Service struct {
+	db       *database.DB
+	charger  Charger
+	fleet    Fleet
+	listings Listings
+	now      func() time.Time
+}
+
+func (s *Service) SetListings(l Listings) { s.listings = l }
+
+var errShipperOnly = httpx.NewError(http.StatusForbidden, "shipper_only",
+	"Only the organisation that booked this shipment can do this.")
+
 func NewService(db *database.DB, charger Charger, fleet Fleet) *Service {
-	return &Service{db: db, charger: charger, fleet: fleet, now: time.Now}
+	return &Service{db: db, charger: charger, fleet: fleet, listings: noListings{}, now: time.Now}
 }
 
 // noDriver matches no shipment: the scope of a driver-only caller whose
@@ -397,6 +416,17 @@ func (s *Service) update(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
+		if cur.OrgID != p.OrgID {
+			return errShipperOnly
+		}
+		// Carriers bid on what they saw; changing the load under them
+		// starts disputes. Withdrawing the listing is free.
+		if listed, err := s.listings.IsListed(ctx, tx, cur.ID); err != nil {
+			return err
+		} else if listed {
+			return httpx.NewError(http.StatusConflict, "listed",
+				"This shipment is on the marketplace. Withdraw the listing to edit it.")
+		}
 		if cur.Status != Booked {
 			return httpx.NewError(http.StatusConflict, "not_editable",
 				"A shipment can only be edited before pickup. Record a note or an exception instead.")
@@ -468,6 +498,12 @@ func (s *Service) assign(w http.ResponseWriter, r *http.Request) error {
 		if cur.Status.Final() {
 			return httpx.NewError(http.StatusConflict, "shipment_closed",
 				fmt.Sprintf("The shipment is %s and cannot be reassigned.", cur.Status))
+		}
+		// Trucks and drivers come from whoever operates the shipment: the
+		// shipper's own fleet, or the awarded carrier's.
+		if cur.fleetOrgID != p.OrgID {
+			return httpx.NewError(http.StatusForbidden, "not_your_fleet",
+				"Vehicles and drivers for this shipment are assigned by the carrier operating it.")
 		}
 		description, err := s.fleet.CheckAssignment(ctx, tx, in.VehicleID, in.DriverID)
 		if err != nil {
@@ -561,6 +597,9 @@ func (s *Service) changeStatus(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
+		if in.Status == Cancelled && cur.OrgID != p.OrgID {
+			return errShipperOnly
+		}
 		if !cur.Status.CanMoveTo(in.Status) {
 			e := httpx.NewError(http.StatusConflict, "invalid_transition",
 				fmt.Sprintf("A %s shipment cannot move to %s.", cur.Status, in.Status))
@@ -574,6 +613,11 @@ func (s *Service) changeStatus(w http.ResponseWriter, r *http.Request) error {
 			WHERE id = $1 RETURNING `+shipmentColumns, cur.ID, in.Status, at))
 		if err != nil {
 			return err
+		}
+		if in.Status == Cancelled {
+			if err := s.listings.WithdrawForShipment(ctx, tx, cur.ID); err != nil {
+				return err
+			}
 		}
 		from, to := cur.Status, in.Status
 		ev, err = insertEvent(ctx, tx, p.OrgID, cur.ID, p.UserID, Event{
@@ -690,4 +734,44 @@ func (s *Service) track(w http.ResponseWriter, r *http.Request) error {
 		"events":              public,
 	})
 	return nil
+}
+
+// ── Used by the marketplace ──────────────────────────────────────────────────
+
+// Listable returns a shipment the caller may put on the marketplace: their
+// own, still booked, not yet given to a carrier, with no vehicle or driver.
+func (s *Service) Listable(ctx context.Context, tx pgx.Tx, p auth.Principal, id string) (Shipment, error) {
+	sh, err := s.load(ctx, tx, p, id, true)
+	if err != nil {
+		return sh, err
+	}
+	switch {
+	case sh.OrgID != p.OrgID:
+		return sh, errShipperOnly
+	case sh.Status != Booked:
+		return sh, httpx.NewError(http.StatusConflict, "not_listable", "Only shipments that are still booked can be listed.")
+	case sh.CarrierOrgID != nil:
+		return sh, httpx.NewError(http.StatusConflict, "not_listable", "This shipment already has a carrier.")
+	case sh.VehicleID != nil || sh.DriverID != nil:
+		return sh, httpx.NewError(http.StatusConflict, "not_listable", "Unassign your own vehicle and driver before listing.")
+	}
+	return sh, nil
+}
+
+// Award hands a booked shipment to the winning carrier: from now on it
+// sees the shipment and assigns its own vehicles and drivers.
+func (s *Service) Award(ctx context.Context, tx pgx.Tx, p auth.Principal, shipmentID, carrierOrgID, note string) error {
+	sh, err := s.Listable(ctx, tx, p, shipmentID)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE shipments SET carrier_org_id = $2, fleet_org_id = $2, updated_at = now()
+		WHERE id = $1`, sh.ID, carrierOrgID); err != nil {
+		return err
+	}
+	_, err = insertEvent(ctx, tx, p.OrgID, sh.ID, p.UserID, Event{
+		Kind: "assignment", Note: note, Internal: true, OccurredAt: s.now(),
+	})
+	return err
 }

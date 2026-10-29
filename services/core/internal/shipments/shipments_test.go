@@ -13,6 +13,7 @@ import (
 
 	"github.com/cargotrack/core/internal/billing"
 	"github.com/cargotrack/core/internal/fleet"
+	"github.com/cargotrack/core/internal/marketplace"
 	"github.com/cargotrack/core/internal/orgs"
 	"github.com/cargotrack/core/internal/payments"
 	"github.com/cargotrack/core/internal/platform/auth"
@@ -41,7 +42,11 @@ func setup(t *testing.T) *env {
 	billingService.Routes(mux, authn)
 	fleetService := fleet.NewService(db)
 	fleetService.Routes(mux, authn)
-	shipments.NewService(db, billingService, fleetService).Routes(mux, authn)
+	shipmentService := shipments.NewService(db, billingService, fleetService)
+	shipmentService.Routes(mux, authn)
+	marketplaceService := marketplace.NewService(db, billingService, shipmentService)
+	shipmentService.SetListings(marketplaceService)
+	marketplaceService.Routes(mux, authn)
 	e.srv = httptest.NewServer(mux)
 	t.Cleanup(e.srv.Close)
 	return e

@@ -52,6 +52,8 @@ func (s Status) Final() bool { return s == Delivered || s == Cancelled }
 // Shipment is the owner's full view.
 type Shipment struct {
 	ID                 string     `json:"id"`
+	OrgID              string     `json:"org_id"`         // the shipper, who booked and paid
+	CarrierOrgID       *string    `json:"carrier_org_id"` // awarded carrier, if any
 	TrackingNumber     string     `json:"tracking_number"`
 	Reference          string     `json:"reference"`
 	Status             Status     `json:"status"`
@@ -71,6 +73,7 @@ type Shipment struct {
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 	seq                int64
+	fleetOrgID         string // whose vehicles and drivers may be assigned
 }
 
 type Event struct {

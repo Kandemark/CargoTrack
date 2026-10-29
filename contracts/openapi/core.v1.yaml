@@ -3,7 +3,7 @@ info:
   title: CargoTrack Core API
   version: 1.0.0
   description: |
-    Organisations, prepaid billing, payments, shipments, and fleet.
+    Organisations, prepaid billing, payments, shipments, fleet, and the freight marketplace.
 
     Authentication: every endpoint except provider callbacks and health
     checks takes a Zitadel access token (JWT) as `Authorization: Bearer`.
@@ -512,6 +512,156 @@ paths:
         "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
         "404": { description: No matching driver record, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
+  /v1/marketplace/listings:
+    post:
+      summary: Put a booked shipment out to carriers (paid)
+      description: |
+        Requires `shipments.manage`. Charged once (meter
+        `marketplace.listing`); bidding is free for carriers. The shipment
+        must be the caller's own, still `booked`, with no carrier, vehicle
+        or driver (`not_listable`). One open listing per shipment
+        (`already_listed`, not charged). While listed the shipment cannot be
+        edited. `closes_at` defaults to the earlier of pickup or three days.
+        The bid price is agreed here and paid between the two companies;
+        CargoTrack does not hold freight money.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [shipment_id]
+              properties:
+                shipment_id: { type: string, format: uuid }
+                closes_at: { type: string, format: date-time, description: At least 15 minutes from now, no later than pickup }
+                notes: { type: string, maxLength: 2000 }
+      responses:
+        "201": { description: Listed and charged, content: { application/json: { schema: { $ref: "#/components/schemas/Listing" } } } }
+        "402": { $ref: "#/components/responses/PaymentRequired" }
+        "409": { description: Already listed or not listable, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: The load board, or your own listings
+      description: |
+        Requires `marketplace.view`. `scope=open` (default): other
+        organisations' loads still taking bids, without client reference,
+        tracking number or shipper name. `scope=mine`: your listings in
+        any status, with `shipment_id` and `bid_count`.
+      parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [open, mine], default: open } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  listings: { type: array, items: { $ref: "#/components/schemas/Listing" } }
+
+  /v1/marketplace/listings/{id}:
+    get:
+      summary: One listing
+      description: Requires `marketplace.view`. Carriers see open listings only.
+      parameters: [{ $ref: "#/components/parameters/ListingID" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Listing" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/marketplace/listings/{id}/withdraw:
+    post:
+      summary: Take a load off the marketplace (free)
+      description: Requires `shipments.manage`; owner only. Pending bids are turned down. Cancelling the shipment does this too.
+      parameters: [{ $ref: "#/components/parameters/ListingID" }]
+      responses:
+        "200": { description: Withdrawn, content: { application/json: { schema: { $ref: "#/components/schemas/Listing" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Already awarded or withdrawn, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/marketplace/listings/{id}/bids:
+    post:
+      summary: Bid on a load (free)
+      description: |
+        Requires `marketplace.bid`. One pending bid per carrier per load
+        (`already_bid`; withdraw to change it). Not on your own loads
+        (`own_listing`) or after `closes_at` (`bidding_closed`).
+      parameters: [{ $ref: "#/components/parameters/ListingID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [price_cents]
+              properties:
+                price_cents: { type: integer, format: int64, description: Your price for the whole job, KES cents }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        "201": { description: Bid placed, content: { application/json: { schema: { $ref: "#/components/schemas/Bid" } } } }
+        "409": { description: Already bid, own load, or bidding closed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: Bids on a load
+      description: Requires `marketplace.view`. The owner sees every bid, cheapest first; a carrier sees only its own. Bids are sealed.
+      parameters: [{ $ref: "#/components/parameters/ListingID" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bids: { type: array, items: { $ref: "#/components/schemas/Bid" } }
+
+  /v1/marketplace/bids:
+    get:
+      summary: Your organisation's bids
+      description: Requires `marketplace.bid`. An accepted bid carries the `shipment_id` you now operate.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bids: { type: array, items: { $ref: "#/components/schemas/Bid" } }
+
+  /v1/marketplace/bids/{id}/withdraw:
+    post:
+      summary: Withdraw your pending bid
+      description: Requires `marketplace.bid`.
+      parameters: [{ $ref: "#/components/parameters/BidID" }]
+      responses:
+        "200": { description: Withdrawn, content: { application/json: { schema: { $ref: "#/components/schemas/Bid" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Not pending, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/marketplace/bids/{id}/accept:
+    post:
+      summary: Award the load to this bid
+      description: |
+        Requires `shipments.manage`; listing owner only. Allowed after
+        bidding closes. Other pending bids are turned down. The carrier now
+        sees the shipment, assigns its own vehicles and drivers, and records
+        progress; the shipper keeps editing rights (none after pickup) and
+        cancellation. Two accepts racing on one load: one wins, the other
+        gets 409.
+      parameters: [{ $ref: "#/components/parameters/BidID" }]
+      responses:
+        "200":
+          description: Awarded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  listing: { $ref: "#/components/schemas/Listing" }
+                  bid: { $ref: "#/components/schemas/Bid" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Load already awarded or withdrawn, or bid not pending, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
   /v1/track/{tracking_number}:
     get:
       summary: Public tracking for consignees
@@ -569,6 +719,8 @@ components:
   parameters:
     TopUpID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
     ShipmentID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    ListingID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    BidID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
 
   responses:
     BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -626,6 +778,8 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid }
+        org_id: { type: string, format: uuid, description: The shipper, who booked and paid }
+        carrier_org_id: { type: [string, "null"], format: uuid, description: Carrier awarded on the marketplace }
         tracking_number: { type: string, description: CT plus 10 characters, without 0/O/1/I/L, examples: [CT7KQ2M9XHRP] }
         reference: { type: string }
         status: { $ref: "#/components/schemas/ShipmentStatus" }
@@ -700,6 +854,42 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    Listing:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        mine: { type: boolean }
+        shipment_id: { type: string, format: uuid, description: Owner only }
+        origin_name: { type: string }
+        origin_country: { type: string }
+        destination_name: { type: string }
+        destination_country: { type: string }
+        cargo_description: { type: string }
+        weight_kg: { type: number }
+        pieces: { type: integer }
+        pickup_at: { type: string, format: date-time }
+        deliver_by: { type: string, format: date-time }
+        notes: { type: string }
+        closes_at: { type: string, format: date-time }
+        status: { type: string, enum: [open, awarded, withdrawn] }
+        bidding_open: { type: boolean }
+        bid_count: { type: integer, description: Owner only }
+        created_at: { type: string, format: date-time }
+
+    Bid:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        listing_id: { type: string, format: uuid }
+        carrier_name: { type: string }
+        price_cents: { type: integer, format: int64 }
+        currency: { type: string, const: KES }
+        note: { type: string }
+        status: { type: string, enum: [pending, accepted, rejected, withdrawn] }
+        shipment_id: { type: [string, "null"], format: uuid, description: Set once accepted }
+        created_at: { type: string, format: date-time }
+        mine: { type: boolean }
+
     EventFields:
       type: object
       properties:
@@ -733,7 +923,7 @@ components:
         error:
           type: string
           description: Stable machine-readable code. Switch on this, never on `message`.
-          examples: [invalid_request, unauthorized, forbidden, not_found, insufficient_credit, invalid_phone, payment_rejected, provider_unavailable, duplicate_reference, below_zero, idempotency_key_required, idempotency_key_reused, not_editable, invalid_transition, shipment_closed, duplicate_registration, duplicate_email, not_a_driver, unknown_vehicle, unknown_driver, vehicle_inactive, vehicle_not_compliant, driver_inactive, driver_not_compliant, internal]
+          examples: [invalid_request, unauthorized, forbidden, not_found, insufficient_credit, invalid_phone, payment_rejected, provider_unavailable, duplicate_reference, below_zero, idempotency_key_required, idempotency_key_reused, not_editable, invalid_transition, shipment_closed, duplicate_registration, duplicate_email, not_a_driver, unknown_vehicle, unknown_driver, vehicle_inactive, vehicle_not_compliant, driver_inactive, driver_not_compliant, not_your_fleet, shipper_only, listed, not_listable, already_listed, listing_closed, own_listing, bidding_closed, already_bid, bid_closed, internal]
         message: { type: string, description: Human-readable; may change. }
         details: { type: object, additionalProperties: true }
 

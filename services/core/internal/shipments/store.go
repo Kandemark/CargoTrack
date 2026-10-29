@@ -8,14 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-const shipmentColumns = `id, seq, tracking_number, reference, status,
+const shipmentColumns = `id, org_id, carrier_org_id, fleet_org_id, seq, tracking_number, reference, status,
 	origin_name, origin_country, destination_name, destination_country,
 	cargo_description, weight_kg::float8, pieces, pickup_at, deliver_by,
 	picked_up_at, delivered_at, vehicle_id, driver_id, created_at, updated_at`
 
 func scanShipment(row pgx.Row) (Shipment, error) {
 	var s Shipment
-	err := row.Scan(&s.ID, &s.seq, &s.TrackingNumber, &s.Reference, &s.Status,
+	err := row.Scan(&s.ID, &s.OrgID, &s.CarrierOrgID, &s.fleetOrgID, &s.seq, &s.TrackingNumber, &s.Reference, &s.Status,
 		&s.OriginName, &s.OriginCountry, &s.DestinationName, &s.DestinationCountry,
 		&s.CargoDescription, &s.WeightKg, &s.Pieces, &s.PickupAt, &s.DeliverBy,
 		&s.PickedUpAt, &s.DeliveredAt, &s.VehicleID, &s.DriverID, &s.CreatedAt, &s.UpdatedAt)
@@ -41,7 +41,7 @@ func findByIdempotencyKey(ctx context.Context, tx pgx.Tx, orgID, key string) (Sh
 	row := tx.QueryRow(ctx, `SELECT coalesce(idempotency_fingerprint, ''), `+shipmentColumns+`
 		FROM shipments WHERE org_id = $1 AND idempotency_key = $2`, orgID, key)
 	var s Shipment
-	err := row.Scan(&fingerprint, &s.ID, &s.seq, &s.TrackingNumber, &s.Reference, &s.Status,
+	err := row.Scan(&fingerprint, &s.ID, &s.OrgID, &s.CarrierOrgID, &s.fleetOrgID, &s.seq, &s.TrackingNumber, &s.Reference, &s.Status,
 		&s.OriginName, &s.OriginCountry, &s.DestinationName, &s.DestinationCountry,
 		&s.CargoDescription, &s.WeightKg, &s.Pieces, &s.PickupAt, &s.DeliverBy,
 		&s.PickedUpAt, &s.DeliveredAt, &s.VehicleID, &s.DriverID, &s.CreatedAt, &s.UpdatedAt)
@@ -68,8 +68,8 @@ func insertShipment(ctx context.Context, tx pgx.Tx, orgID, userID, idemKey, fing
 		s, err := scanShipment(sp.QueryRow(ctx, `
 			INSERT INTO shipments (org_id, tracking_number, reference, origin_name, origin_country,
 			    destination_name, destination_country, cargo_description, weight_kg, pieces,
-			    pickup_at, deliver_by, idempotency_key, idempotency_fingerprint, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			    pickup_at, deliver_by, idempotency_key, idempotency_fingerprint, created_by, fleet_org_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $1)
 			RETURNING `+shipmentColumns,
 			orgID, newTrackingNumber(), in.Reference, in.OriginName, in.OriginCountry,
 			in.DestinationName, in.DestinationCountry, in.CargoDescription, in.WeightKg, in.Pieces,

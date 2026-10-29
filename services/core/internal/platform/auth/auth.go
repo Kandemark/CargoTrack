@@ -62,6 +62,9 @@ const (
 
 	FleetView   Permission = "fleet.view"   // vehicles and drivers
 	FleetManage Permission = "fleet.manage" // add and edit vehicles and drivers
+
+	MarketplaceView Permission = "marketplace.view" // browse open loads
+	MarketplaceBid  Permission = "marketplace.bid"  // bid on other organisations' loads (free)
 )
 
 // Role keys as configured on the Zitadel project.
@@ -77,10 +80,10 @@ const (
 // not book or cancel them, and they only see shipments assigned to them:
 // a lost driver's phone must not expose the company's whole book.
 var rolePermissions = map[string][]Permission{
-	RolePlatformOwner: {BillingView, BillingManage, PlatformAdmin, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage},
-	RoleOrgAdmin:      {BillingView, BillingManage, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage},
-	RoleFinance:       {BillingView, BillingManage, ShipmentsView, FleetView},
-	RoleOperations:    {BillingView, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage},
+	RolePlatformOwner: {BillingView, BillingManage, PlatformAdmin, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage, MarketplaceView, MarketplaceBid},
+	RoleOrgAdmin:      {BillingView, BillingManage, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage, MarketplaceView, MarketplaceBid},
+	RoleFinance:       {BillingView, BillingManage, ShipmentsView, FleetView, MarketplaceView},
+	RoleOperations:    {BillingView, ShipmentsView, ShipmentsManage, ShipmentsTrack, FleetView, FleetManage, MarketplaceView, MarketplaceBid},
 	RoleDriver:        {ShipmentsViewAssigned, ShipmentsTrack},
 }
 
