@@ -1537,7 +1537,7 @@ class BidAnalyticsView(APIView):
         days = int(request.query_params.get('days', 30))
         since = timezone.now() - timedelta(days=days)
 
-        bids = Bid.objects.filter(created_at__gte=since).select_related('carrier', 'freight_listing')
+        bids = Bid.objects.filter(created_at__gte=since).select_related('carrier', 'listing')
         # Scope bids by organization for non-PLATFORM_OWNER
         from domains._authz import get_user_role
         if get_user_role(request.user) != 'PLATFORM_OWNER':
@@ -1548,8 +1548,7 @@ class BidAnalyticsView(APIView):
                 org_client_ids = list(CustomUser.objects.filter(organization_id=org_id).values_list('id', flat=True))
                 bids = bids.filter(
                     Q(carrier__organization_id=org_id) |
-                    Q(freight_listing__posted_by_id__in=org_client_ids) |
-                    Q(freight_listing__organization_id=org_id)
+                    Q(listing__posted_by_id__in=org_client_ids)
                 )
 
         # Bid success by carrier
