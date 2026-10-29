@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Runs CargoTrack on one development machine: PostgreSQL, the core API, a
-# stand-in for Zitadel (cmd/devauth) and an M-Pesa simulator
-# (cmd/devmpesa). For seeing and testing the app; never for real users.
+# stand-in for Zitadel (cmd/devauth), an M-Pesa simulator (cmd/devmpesa),
+# and the Django API with Redis that the mobile and web apps use today.
+# For seeing and testing the apps; never for real users.
+#
+# Demo sign-in for the apps: amina, brian, carol or owner, password
+# cargotrack-demo (created by `manage.py seed_demo`).
 #
 #   scripts/devstack.sh start    start everything (data kept in .devdata/)
 #   scripts/devstack.sh stop     stop everything
@@ -16,6 +20,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DATA="$ROOT/.devdata"
 CORE="$ROOT/services/core"
 PGPORT=5544
+API="$ROOT/services/api"
+REDISPORT=6380
 
 pg_running() { pg_ctl -D "$DATA/pg" status >/dev/null 2>&1; }
 
@@ -43,8 +49,26 @@ run() { # name, command...
   echo $! >"$DATA/$name.pid"
 }
 
+start_api() {
+  command -v redis-server >/dev/null || { echo "redis-server is required for the Django API" >&2; exit 1; }
+  run redis redis-server --port "$REDISPORT" --save "" --appendonly no --dir "$DATA"
+  if [[ ! -x "$DATA/venv/bin/python" ]]; then
+    echo "Creating the Python environment for the Django API (first run only)..."
+    uv venv -q -p 3.12 "$DATA/venv"
+    # xgboost is only needed to train the delay model and pulls in large GPU libraries.
+    grep -v '^xgboost' "$API/requirements.txt" > "$DATA/requirements.txt"
+    uv pip install -q -p "$DATA/venv" -r "$DATA/requirements.txt"
+  fi
+  export SECRET_KEY=dev-only-not-secret DEBUG=True ALLOWED_HOSTS='*' \
+    DB_NAME="$DATA/legacy.sqlite3" REDIS_URL="redis://localhost:$REDISPORT/0"
+  (cd "$API" && "$DATA/venv/bin/python" manage.py migrate -v 0 && "$DATA/venv/bin/python" manage.py seed_demo)
+  (cd "$API" && run api "$DATA/venv/bin/python" manage.py runserver 0.0.0.0:8000 --noreload)
+  for _ in $(seq 1 40); do curl -sf localhost:8000/api/health/ >/dev/null && break; sleep 0.5; done
+}
+
 start() {
   start_pg
+  start_api
   (cd "$CORE" && go build -o "$DATA/bin/core" ./cmd/core && go build -o "$DATA/bin/devauth" ./cmd/devauth &&
     go build -o "$DATA/bin/devmpesa" ./cmd/devmpesa)
 
@@ -62,12 +86,13 @@ start() {
   curl -sf localhost:8080/readyz >/dev/null || { echo "core did not start; see $DATA/core.log" >&2; exit 1; }
 
   if command -v adb >/dev/null && adb get-state >/dev/null 2>&1; then
-    for port in 8080 9000 8081; do adb reverse "tcp:$port" "tcp:$port" >/dev/null; done
-    echo "Phone connected: ports 8080, 9000 and 8081 forwarded over USB."
+    for port in 8000 8080 9000 8081; do adb reverse "tcp:$port" "tcp:$port" >/dev/null; done
+    echo "Phone connected: ports 8000, 8080, 9000 and 8081 forwarded over USB."
   fi
 
   cat <<EOF
 CargoTrack development stack is running.
+  Django API    http://localhost:8000   (used by the mobile and web apps today)
   core API      http://localhost:8080
   sign-in       http://localhost:9000   (choose a demo user)
   M-Pesa        http://localhost:9100   (numbers ending 000 simulate a cancel)
@@ -82,7 +107,7 @@ EOF
 }
 
 stop() {
-  for name in core devauth devmpesa; do
+  for name in core devauth devmpesa api redis; do
     if [[ -f "$DATA/$name.pid" ]]; then kill "$(cat "$DATA/$name.pid")" 2>/dev/null || true; rm -f "$DATA/$name.pid"; fi
   done
   if pg_running; then pg_ctl -D "$DATA/pg" stop -m fast >/dev/null; fi
@@ -90,7 +115,7 @@ stop() {
 }
 
 status() {
-  for name in core devauth devmpesa; do
+  for name in api redis core devauth devmpesa; do
     if [[ -f "$DATA/$name.pid" ]] && kill -0 "$(cat "$DATA/$name.pid")" 2>/dev/null; then echo "$name: running"; else echo "$name: stopped"; fi
   done
   pg_running && echo "postgres: running" || echo "postgres: stopped"
