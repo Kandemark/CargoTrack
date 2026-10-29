@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { formatDate } from '@shared/utils/formatters'
 import type { ShipmentListItem } from '@shared/api/types'
 import { useAppTheme } from '@/lib/useAppTheme'
+import { useAuthStore } from '@/lib/store'
+import { carrierLabel } from '@/lib/carrier'
 import { StatusPill, Txt } from '@/components/ui'
 
 /**
@@ -18,6 +20,8 @@ export default function ShipmentRow({
   last?: boolean
 }) {
   const { colors, risk } = useAppTheme()
+  const ownOrg = useAuthStore((s) => s.user?.org_name)
+  const carrier = carrierLabel(item.carrier_name, ownOrg)
   const moving = item.status !== 'DELIVERED'
   const score = item.delay_risk_score ?? 0
   const riskColor = score >= 0.7 ? risk.high : score >= 0.4 ? risk.medium : risk.low
@@ -40,7 +44,7 @@ export default function ShipmentRow({
             {item.route.origin} → {item.route.destination}
           </Txt>
           <Txt variant="caption" tone="muted" numberOfLines={1} style={{ marginTop: 2 }}>
-            {item.tracking_number} · {item.carrier_name || 'No carrier yet'}
+            {item.tracking_number} · {carrier === 'Own fleet' || !item.carrier_name ? carrier : `Carrier: ${carrier}`}
           </Txt>
         </View>
         <StatusPill status={item.status} label={item.status_display} />

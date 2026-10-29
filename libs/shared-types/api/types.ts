@@ -87,6 +87,12 @@ export interface Shipment {
   status: ShipmentStatus
   status_display: string
   carrier_name: string
+  carrier_id?: number | null
+  dispatch_status?: string
+  dispatch_status_display?: string
+  truck_id?: number | null
+  driver_id?: number | null
+  driver_name?: string | null
   weight_kg: number
   scheduled_departure: string
   scheduled_arrival: string

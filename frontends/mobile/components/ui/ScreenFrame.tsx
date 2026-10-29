@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { RefreshControl, ScrollView, View } from 'react-native'
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAppTheme } from '@/lib/useAppTheme'
 import Txt from './Txt'
@@ -8,7 +9,8 @@ import Txt from './Txt'
  * The sign-in screen's layout, for every main screen: a navy header with
  * the faint rings and the short orange bar, and a white sheet rising over
  * it with rounded top corners. `hero` goes under the title (key numbers);
- * `trailing` sits beside it (an avatar or one action).
+ * `trailing` sits beside it (an avatar or one action). `onBack` adds a
+ * back arrow above, for screens opened from a list.
  */
 export default function ScreenFrame({
   eyebrow,
@@ -20,6 +22,7 @@ export default function ScreenFrame({
   refreshing,
   onRefresh,
   onEndReached,
+  onBack,
 }: {
   eyebrow?: string
   title: string
@@ -31,6 +34,7 @@ export default function ScreenFrame({
   onRefresh?: () => void
   /** Called when the user scrolls near the bottom, for loading more rows. */
   onEndReached?: () => void
+  onBack?: () => void
 }) {
   const { colors, brand, radius } = useAppTheme()
   return (
@@ -56,6 +60,16 @@ export default function ScreenFrame({
           <View style={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 44, overflow: 'hidden' }}>
             <Ring size={280} top={-90} right={-90} opacity={0.06} />
             <Ring size={160} top={30} right={40} opacity={0.04} />
+            {onBack ? (
+              <Pressable
+                onPress={onBack}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+                style={{ width: 40, height: 40, marginLeft: -8, marginBottom: 8, justifyContent: 'center' }}>
+                <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+              </Pressable>
+            ) : null}
 
             <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
               <View style={{ flex: 1 }}>

@@ -5,6 +5,7 @@
  * Used in the driver dashboard and track tab.
  */
 import { View, Text, StyleSheet } from 'react-native'
+import { MAP_STYLE } from '@/lib/mapStyle'
 import MapLibreGL from '@maplibre/maplibre-react-native'
 
 interface Props {
@@ -24,7 +25,7 @@ export default function DriverMap({ latitude, longitude, driverName, truckPlate 
     <View style={styles.container}>
       <MapLibreGL.MapView
         style={styles.map}
-        mapStyle="https://demotiles.maplibre.org/style.json"
+        mapStyle={MAP_STYLE.light}
         logoEnabled={false}
         attributionEnabled={false}
       >

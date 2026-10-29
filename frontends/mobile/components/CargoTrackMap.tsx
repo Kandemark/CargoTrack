@@ -13,7 +13,8 @@ const MapLibreGL = MAPLIBRE_SUPPORTED
   ? (require('@maplibre/maplibre-react-native').default as any)
   : null
 
-const DARK_MAP_STYLE = JSON.stringify(require('@/assets/cargotrack-map-style-dark.json'))
+import { MAP_STYLE } from '@/lib/mapStyle'
+const DARK_MAP_STYLE = MAP_STYLE.dark
 
 const REFRESH_INTERVAL = 60_000
 const DEFAULT_CENTER: [number, number] = [35.0, -1.5]
