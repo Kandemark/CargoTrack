@@ -35,7 +35,8 @@ fi
 
 SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 echo "Accepting Android SDK licences..."
-yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses >/dev/null
+# `yes` is cut off with SIGPIPE when sdkmanager finishes; that is expected.
+{ yes || true; } | "$SDKMANAGER" --sdk_root="$SDK" --licenses >/dev/null
 echo "Installing SDK components (this is the large download)..."
 "$SDKMANAGER" --sdk_root="$SDK" \
   "platform-tools" "platforms;android-36" "build-tools;36.0.0" \
