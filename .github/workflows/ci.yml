@@ -83,7 +83,9 @@ jobs:
       - name: Lint Python (Django)
         if: matrix.service == 'api'
         run: |
-          pip install ruff
+          # Pinned: an unpinned install picks up new rules and fails on
+          # code nobody changed.
+          pip install ruff==0.14.0
           ruff check services/api/
 
       - name: Lint TypeScript
