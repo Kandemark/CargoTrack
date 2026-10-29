@@ -203,8 +203,17 @@ func TestConcurrentAcceptsAwardOnce(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if !(codes[0] == 200 && codes[1] == 409 || codes[0] == 409 && codes[1] == 200) {
-		t.Fatalf("accept codes = %v, want exactly one 200", codes)
+	won, refused := 0, 0
+	for _, c := range codes {
+		switch c {
+		case 200:
+			won++
+		case 409:
+			refused++
+		}
+	}
+	if won != 1 || refused != 1 {
+		t.Fatalf("accept codes = %v, want one 200 and one 409", codes)
 	}
 }
 
