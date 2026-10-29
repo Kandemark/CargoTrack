@@ -67,7 +67,9 @@ export default function SignIn() {
   const { t } = useI18n();
   const { markSignedIn } = useAuth();
   const { discovery, unreachable, retry } = useDiscovery();
-  const redirectUri = makeRedirectUri({ scheme: 'cargotrack', path: 'auth' });
+  // cargotrack://auth in the installed app (scheme from app config),
+  // exp://.../--/auth inside Expo Go, /auth on the web.
+  const redirectUri = makeRedirectUri({ path: 'auth' });
   const [request, , promptAsync] = useAuthRequest(
     { clientId: config.oidcClientId, redirectUri, scopes, usePKCE: true },
     discovery,

@@ -27,7 +27,10 @@ type Config struct {
 }
 
 type MPesa struct {
-	Environment    string // MPESA_ENVIRONMENT: sandbox | production
+	Environment string // MPESA_ENVIRONMENT: sandbox | production
+	// BaseURL overrides Safaricom's address (MPESA_BASE_URL), for the
+	// development simulator in cmd/devmpesa. Refused in production.
+	BaseURL        string
 	ConsumerKey    string // MPESA_CONSUMER_KEY
 	ConsumerSecret string // MPESA_CONSUMER_SECRET
 	Shortcode      string // MPESA_SHORTCODE
@@ -56,6 +59,7 @@ func Load() (Config, error) {
 
 		MPesa: MPesa{
 			Environment:    env("MPESA_ENVIRONMENT", "sandbox"),
+			BaseURL:        env("MPESA_BASE_URL", ""),
 			ConsumerKey:    env("MPESA_CONSUMER_KEY", ""),
 			ConsumerSecret: env("MPESA_CONSUMER_SECRET", ""),
 			Shortcode:      env("MPESA_SHORTCODE", ""),
@@ -68,6 +72,9 @@ func Load() (Config, error) {
 		if c.MPesa.CallbackToken == "" || c.MPesa.CallbackURL == "" || c.MPesa.Shortcode == "" || c.MPesa.Passkey == "" {
 			errs = append(errs, errors.New(
 				"M-Pesa is enabled: MPESA_SHORTCODE, MPESA_PASSKEY, MPESA_CALLBACK_URL and MPESA_CALLBACK_TOKEN are required"))
+		}
+		if c.MPesa.Environment == "production" && c.MPesa.BaseURL != "" {
+			errs = append(errs, errors.New("MPESA_BASE_URL may only be set with MPESA_ENVIRONMENT=sandbox"))
 		}
 		if c.MPesa.Environment != "sandbox" && c.MPesa.Environment != "production" {
 			errs = append(errs, fmt.Errorf("MPESA_ENVIRONMENT must be sandbox or production, got %q", c.MPesa.Environment))

@@ -635,3 +635,6 @@ uploads/
 # ── Telemetry & analytics (local) ─────────────────────────────────────────────
 .local/
 .telemetry/
+
+# Local development stack (scripts/devstack.sh)
+/.devdata/

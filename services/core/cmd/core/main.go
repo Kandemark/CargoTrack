@@ -55,8 +55,12 @@ func run() error {
 	var providers []payments.Provider
 	if cfg.MPesa.Enabled() {
 		base := mpesa.SandboxURL
-		if cfg.MPesa.Environment == "production" {
+		switch {
+		case cfg.MPesa.Environment == "production":
 			base = mpesa.ProductionURL
+		case cfg.MPesa.BaseURL != "":
+			base = cfg.MPesa.BaseURL
+			slog.Warn("M-Pesa calls go to a non-Safaricom address", "base_url", base)
 		}
 		providers = append(providers, mpesa.New(mpesa.Config{
 			BaseURL:        base,
