@@ -14,6 +14,7 @@ const STATUS_CONFIG: Record<InvoiceStatus, { label: string; bg: string; text: st
   PAID:     { label: 'Paid',     bg: '#d1fae5', text: '#065f46' },
   FAILED:   { label: 'Failed',   bg: '#fee2e2', text: '#991b1b' },
   REFUNDED: { label: 'Refunded', bg: '#f3f4f6', text: '#6b7280' },
+  OVERDUE:  { label: 'Overdue',  bg: '#ffedd5', text: '#9a3412' },
 }
 
 const PROVIDERS: { key: PaymentProvider; label: string; emoji: string; placeholder: string; inputLabel: string }[] = [
