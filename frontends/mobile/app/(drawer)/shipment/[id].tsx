@@ -8,6 +8,7 @@ import { useAuthStore } from '@/lib/store'
 import { useAppTheme } from '@/lib/useAppTheme'
 import { mapStyleFor } from '@/lib/mapStyle'
 import { carrierLabel } from '@/lib/carrier'
+import { lengthKm, snapToPath, type LngLat } from '@/lib/geo'
 import { formatDate, formatDateTime, formatWeight, timeAgo } from '@shared/utils/formatters'
 import { Button, HeroStats, ScreenFrame, Section, Skeleton, Txt } from '@/components/ui'
 import type { Shipment, TrackingEvent, EventType } from '@shared/api/types'
@@ -181,6 +182,9 @@ function placeOf(location: string): string {
 function progressOf(s: Shipment, lastPlace?: string): number {
   if (s.status === 'DELIVERED') return 1
   if (!s.actual_departure) return 0
+  const road = s.route.geometry
+  const seen = lastPlace ? lookupCoords(lastPlace) : null
+  if (road?.length && seen) return Math.min(Math.max(snapToPath(road as LngLat[], seen).progress, 0.04), 0.95)
   const a = lookupCoords(s.route.origin)
   const b = lookupCoords(s.route.destination)
   const p = lastPlace ? lookupCoords(lastPlace) : null
@@ -204,6 +208,8 @@ function JourneyCard({ shipment, lastPlace }: { shipment: Shipment; lastPlace?: 
   const progress = progressOf(shipment, lastPlace)
   const delayed = shipment.status === 'DELAYED'
   const fill = delayed ? ui.danger : brand.accent
+  const road = shipment.route.geometry as LngLat[] | null | undefined
+  const kmLeft = road?.length && progress > 0 && progress < 1 ? Math.round(lengthKm(road) * (1 - progress)) : null
   const overdueDays = Math.floor((Date.now() - new Date(shipment.scheduled_arrival).getTime()) / 86_400_000)
   const overdue =
     shipment.status !== 'DELIVERED' && overdueDays >= 1
@@ -222,6 +228,7 @@ function JourneyCard({ shipment, lastPlace }: { shipment: Shipment; lastPlace?: 
     <View style={{ backgroundColor: isDark ? colors.muted : '#F4F6FA', borderRadius: 20, padding: 20 }}>
       <Txt variant="caption" tone="muted">
         {where}
+        {kmLeft ? `  ·  ${kmLeft.toLocaleString()} km to go` : ''}
         {overdue ? <Txt variant="caption" tone="danger">{`  ·  ${overdue}`}</Txt> : null}
       </Txt>
 
@@ -371,16 +378,23 @@ function MiniMap({ shipment, events }: { shipment: Shipment; events: TrackingEve
   const dest = lookupCoords(shipment.route.destination)
   if (!origin || !dest) return null
 
+  // The road the truck drives; a straight line only until the server has the road.
+  const road: LngLat[] = shipment.route.geometry?.length ? (shipment.route.geometry as LngLat[]) : [origin, dest]
   const last = events[0] ? lookupCoords(events[0].location) : null
-  const here = shipment.status === 'DELIVERED' ? dest : last ?? (shipment.actual_departure ? null : origin)
-  const route: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: [origin, dest] }, properties: {} }],
-  }
-  const pad = 48
+  const seen = shipment.status === 'DELIVERED' ? dest : last ?? (shipment.actual_departure ? null : origin)
+  // Put the truck on the road, and split the road into driven and ahead.
+  const snapped = seen ? snapToPath(road, seen) : null
+  const here = snapped?.point ?? null
+  const cut = here ? road.findIndex((p) => p === here) : 0
+  const line = (coords: LngLat[]): GeoJSON.Feature => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} })
+  const driven = line(road.slice(0, Math.max(cut, 0) + 1))
+  const ahead = line(road.slice(Math.max(cut, 0)))
+  const pad = 40
+  const lngs = road.map((p) => p[0])
+  const lats = road.map((p) => p[1])
   const bounds = {
-    ne: [Math.max(origin[0], dest[0]), Math.max(origin[1], dest[1])],
-    sw: [Math.min(origin[0], dest[0]), Math.min(origin[1], dest[1])],
+    ne: [Math.max(...lngs), Math.max(...lats)],
+    sw: [Math.min(...lngs), Math.min(...lats)],
     paddingTop: pad, paddingBottom: pad, paddingLeft: pad, paddingRight: pad,
   }
   const dot = (color: string, size: number) => (
@@ -400,14 +414,20 @@ function MiniMap({ shipment, events }: { shipment: Shipment; events: TrackingEve
         attributionEnabled
         attributionPosition={{ bottom: 8, right: 8 }}>
         <MapLibreGL.Camera bounds={bounds} animationDuration={0} />
-        <MapLibreGL.ShapeSource id="route" shape={route}>
+        <MapLibreGL.ShapeSource id="ahead" shape={ahead}>
           <MapLibreGL.LineLayer
-            id="route-line"
-            style={{ lineColor: isDark ? '#93C5FD' : brand.primary, lineWidth: 3, lineOpacity: 0.7, lineDasharray: [2, 1.5] }}
+            id="ahead-line"
+            style={{ lineColor: isDark ? '#93C5FD' : brand.primary, lineWidth: 4, lineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' }}
           />
         </MapLibreGL.ShapeSource>
-        <MapLibreGL.PointAnnotation id="origin" coordinate={origin}>{dot(isDark ? '#93C5FD' : brand.primary, 14)}</MapLibreGL.PointAnnotation>
-        <MapLibreGL.PointAnnotation id="dest" coordinate={dest}>{dot('#16A34A', 14)}</MapLibreGL.PointAnnotation>
+        <MapLibreGL.ShapeSource id="driven" shape={driven}>
+          <MapLibreGL.LineLayer
+            id="driven-line"
+            style={{ lineColor: shipment.status === 'DELAYED' ? ui.danger : brand.accent, lineWidth: 5, lineCap: 'round', lineJoin: 'round' }}
+          />
+        </MapLibreGL.ShapeSource>
+        <MapLibreGL.PointAnnotation id="origin" coordinate={road[0]}>{dot(brand.accent, 12)}</MapLibreGL.PointAnnotation>
+        <MapLibreGL.PointAnnotation id="dest" coordinate={road[road.length - 1]}>{dot('#16A34A', 14)}</MapLibreGL.PointAnnotation>
         {here ? (
           <MapLibreGL.PointAnnotation id="here" coordinate={here}>
             {dot(shipment.status === 'DELAYED' ? ui.danger : brand.accent, 18)}

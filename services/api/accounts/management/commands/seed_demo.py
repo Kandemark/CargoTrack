@@ -18,6 +18,7 @@ from django.utils import timezone
 from accounts.models import CustomUser, Organization
 from alerts.models import Alert
 from shipments.models import Route, Shipment
+from shipments.road import fill_route_geometry
 from tracking.models import TrackingEvent
 
 DEMO_PASSWORD = 'cargotrack-demo'
@@ -97,6 +98,8 @@ class Command(BaseCommand):
                 defaults={'distance_km': km, 'estimated_hours': hours},
             )
             routes.append(route)
+            # The road path for maps; skipped quietly when the routing server is unreachable.
+            fill_route_geometry(route)
 
         if not Shipment.objects.filter(client=users['amina']).exists():
             now = timezone.now()

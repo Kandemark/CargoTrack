@@ -31,9 +31,9 @@ class RouteSerializer(serializers.ModelSerializer):
         model = Route
         fields = [
             'id', 'origin', 'destination',
-            'distance_km', 'estimated_hours', 'created_at',
+            'distance_km', 'estimated_hours', 'geometry', 'created_at',
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'geometry', 'created_at']
 
     def validate_distance_km(self, value):
         if value <= 0:

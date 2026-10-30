@@ -69,6 +69,8 @@ export interface Route {
   destination: string
   distance_km: number
   estimated_hours: number
+  /** The road a truck drives, [[lng, lat], ...]; null until the server has fetched it. */
+  geometry?: [number, number][] | null
 }
 
 // ─── Shipments ────────────────────────────────────────────────────────────────

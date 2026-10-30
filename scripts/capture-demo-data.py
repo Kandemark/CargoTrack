@@ -8,12 +8,18 @@ Run against the dev stack after `scripts/devstack.sh start`:
 """
 import json
 import pathlib
+import sys
+import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
 BASE = 'http://localhost:8000'
 USER, PASSWORD = 'amina', 'cargotrack-demo'
 OUT = pathlib.Path(__file__).resolve().parent.parent / 'frontends/mobile/assets/demo/fixtures.json'
+
+# Paths the demo user may not be allowed to read; the app shows an "administrators only" state.
+OPTIONAL = {'/api/v1/audit/', '/api/v1/integrations/', '/api/v1/accounts/users/'}
 
 LISTS = [
     '/api/v1/accounts/me/', '/api/v1/accounts/notification-prefs/',
@@ -30,15 +36,23 @@ LISTS = [
 
 
 def call(path, token=None, body=None):
-    req = urllib.request.Request(BASE + path, data=json.dumps(body).encode() if body else None,
-                                 headers={'Content-Type': 'application/json'})
-    if token:
-        req.add_header('Authorization', f'Bearer {token}')
-    try:
-        with urllib.request.urlopen(req, timeout=20) as res:
-            return json.load(res)
-    except Exception:
-        return None
+    """GET (or POST with body) as JSON. Paced and retried, since the API allows 100 requests a minute."""
+    for _ in range(4):
+        req = urllib.request.Request(BASE + path, data=json.dumps(body).encode() if body else None,
+                                     headers={'Content-Type': 'application/json'})
+        if token:
+            req.add_header('Authorization', f'Bearer {token}')
+        try:
+            time.sleep(0.7)
+            with urllib.request.urlopen(req, timeout=20) as res:
+                return json.load(res)
+        except urllib.error.HTTPError as err:
+            if err.code != 429:
+                return None
+            time.sleep(int(err.headers.get('Retry-After') or 30) + 1)
+        except Exception:
+            return None
+    return None
 
 
 def items(data):
@@ -64,6 +78,10 @@ def main():
         grab(f"/api/v1/chat/conversations/{c['id']}/")
     for inv in items(responses.get('/api/v1/invoices/')):
         grab(f"/api/v1/invoices/{inv['id']}/")
+
+    missing = [p for p in LISTS if p not in responses and p not in OPTIONAL]
+    if missing:
+        sys.exit(f'Not saved: no answer for {", ".join(missing)}. Is the dev stack running?')
 
     OUT.write_text(json.dumps({
         'capturedAt': datetime.now(timezone.utc).isoformat(),

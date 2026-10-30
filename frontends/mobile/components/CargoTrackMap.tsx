@@ -166,11 +166,14 @@ export default function CargoTrackMap() {
         const originLL = lookupLngLat(s.route?.origin ?? '')
         const destLL   = lookupLngLat(s.route?.destination ?? '')
         const progress = estimateProgress(s.scheduled_departure, s.scheduled_arrival)
-        // Initial position: fallback to midpoint if no route yet
-        const lngLat = originLL && destLL
-          ? interpolateAlong([originLL, destLL], progress)
-          : originLL ?? [36.8219, -1.2921] as [number, number]
-        return { ...s, lngLat, originLL, destLL, routeCoords: null, progress }
+        // The road path stored on the route, when the server has it.
+        const road = s.route?.geometry?.length ? asTupleArray(s.route.geometry) : null
+        const lngLat = road
+          ? interpolateAlong(road, progress)
+          : originLL && destLL
+            ? interpolateAlong([originLL, destLL], progress)
+            : originLL ?? [36.8219, -1.2921] as [number, number]
+        return { ...s, lngLat, originLL, destLL, routeCoords: road, progress }
       })
       setShipments(enriched)
       routesRequestedRef.current = false
@@ -187,8 +190,9 @@ export default function CargoTrackMap() {
     if (routesRequestedRef.current || !shipmentsLoaded) return
     routesRequestedRef.current = true
 
+    // Only routes the server has no road path for yet.
     const pairs = shipments
-      .filter((s) => s.originLL && s.destLL)
+      .filter((s) => !s.routeCoords && s.originLL && s.destLL)
       .map((s) => ({
         id: String(s.id),
         from: s.originLL!,
@@ -208,7 +212,7 @@ export default function CargoTrackMap() {
 
       setShipments((prev) =>
         prev.map((s) => {
-          const coords = coordMap.get(String(s.id)) ?? null
+          const coords = coordMap.get(String(s.id)) ?? s.routeCoords
           const lngLat = coords
             ? interpolateAlong(coords, s.progress)
             : s.lngLat

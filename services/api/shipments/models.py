@@ -23,6 +23,8 @@ class Route(models.Model):
     destination      = models.CharField(max_length=100)
     distance_km      = models.FloatField()
     estimated_hours  = models.FloatField()
+    # The road a truck drives, [[lng, lat], ...]; filled by shipments.road.
+    geometry         = models.JSONField(null=True, blank=True)
     created_at       = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
