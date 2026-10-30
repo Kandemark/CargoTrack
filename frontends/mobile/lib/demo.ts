@@ -107,6 +107,11 @@ function write(path: string, method: string, body?: unknown): unknown {
     if (detail) Object.assign(detail, paid)
     return { detail: 'Payment started.' }
   }
+  if ((path === '/api/v1/accounts/me/' || path === '/api/v1/accounts/notification-prefs/') && body && typeof body === 'object') {
+    const target = (s[path] ?? (s[path] = {})) as Record<string, unknown>
+    Object.assign(target, body)
+    return target
+  }
   if (ack) touch((r) => String(r.id) === ack[1] && 'acknowledged' in r, { acknowledged: true })
   else if (read) touch((r) => String(r.id) === read[1] && 'is_read' in r, { is_read: true })
   else if (path === '/api/v1/notifications/mark-all-read/') touch((r) => 'is_read' in r && 'title' in r, { is_read: true })

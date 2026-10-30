@@ -44,14 +44,12 @@ const ITEMS = {
   audit:         { route: '/audit',               label: 'Audit log',         icon: 'reader-outline' },
   integrations:  { route: '/integrations',        label: 'Integrations',      icon: 'link-outline' },
   team:          { route: '/team',                label: 'Team',              icon: 'people-outline' },
-  settings:      { route: '/settings',            label: 'Settings',          icon: 'settings-outline' },
 } satisfies Record<string, { route: string; label: string; icon: IconName }>
 
 type ItemKey = keyof typeof ITEMS
 type NavSection = { title?: string; items: ItemKey[] }
 
 const INBOX: NavSection = { items: ['messages', 'notifications'] }
-const SETTINGS: NavSection = { items: ['settings'] }
 
 // Each role sees each screen once, under the heading where its work happens.
 const DRAWER_SECTIONS: Record<string, NavSection[]> = {
@@ -61,7 +59,7 @@ const DRAWER_SECTIONS: Record<string, NavSection[]> = {
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'carbon'] },
     { title: 'Money', items: ['payments', 'rates'] },
     { title: 'Reports and records', items: ['analytics', 'documents', 'audit'] },
-    { title: 'Organisation', items: ['team', 'integrations', 'settings'] },
+    { title: 'Organisation', items: ['team', 'integrations'] },
   ],
   LOGISTICS_MGR: [
     INBOX,
@@ -69,49 +67,41 @@ const DRAWER_SECTIONS: Record<string, NavSection[]> = {
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'carbon'] },
     { title: 'Money', items: ['payments', 'rates'] },
     { title: 'Reports and records', items: ['analytics', 'documents'] },
-    SETTINGS,
   ],
   CARRIER: [
     INBOX,
     { title: 'Work', items: ['jobBoard', 'liveMap', 'pod', 'documents'] },
-    SETTINGS,
   ],
   CLIENT: [
     INBOX,
     { title: 'My cargo', items: ['jobBoard', 'liveMap', 'pod'] },
     { title: 'Money', items: ['payments'] },
     { title: 'Records', items: ['documents'] },
-    SETTINGS,
   ],
   DISPATCHER: [
     INBOX,
     { title: 'Dispatch', items: ['dispatchQueue', 'routes', 'jobBoard', 'liveMap', 'sla', 'pod'] },
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers'] },
-    SETTINGS,
   ],
   CUSTOMS_BROKER: [
     INBOX,
     { title: 'Clearance', items: ['customsQueue', 'documents'] },
     { title: 'Tracking', items: ['liveMap', 'audit'] },
-    SETTINGS,
   ],
   WAREHOUSE_MGR: [
     INBOX,
     { title: 'Warehouse', items: ['inventory', 'inbound', 'outbound', 'coldChain', 'pod'] },
     { title: 'Reports and records', items: ['liveMap', 'analytics', 'documents'] },
-    SETTINGS,
   ],
   PORT_AGENT: [
     INBOX,
     { title: 'Port', items: ['vessels', 'containers', 'manifests', 'documents'] },
     { title: 'Tracking', items: ['liveMap', 'pod'] },
-    SETTINGS,
   ],
   FINANCE_OFFICER: [
     INBOX,
     { title: 'Money', items: ['payments', 'revenue', 'financeReports', 'rates'] },
     { title: 'Reports and records', items: ['analytics', 'carbon', 'pod', 'documents', 'audit'] },
-    SETTINGS,
   ],
 }
 
@@ -148,7 +138,7 @@ export default function DrawerContent({ drawerNav }: { drawerNav?: any }) {
     ? `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase() || (user.username?.[0] ?? '?').toUpperCase()
     : '?'
   const role = user?.role ?? ''
-  const sections = DRAWER_SECTIONS[role] ?? [INBOX, SETTINGS]
+  const sections = DRAWER_SECTIONS[role] ?? [INBOX]
   const roleLabel = ROLE_LABELS[role] ?? user?.role_display ?? ''
   const on = isDark ? brand.accent : brand.primary
 

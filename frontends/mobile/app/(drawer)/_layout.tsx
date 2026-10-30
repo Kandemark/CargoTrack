@@ -34,7 +34,6 @@ export default function DrawerLayout() {
         <Drawer.Screen name="notifications" />
         <Drawer.Screen name="pod" />
         <Drawer.Screen name="rates" />
-        <Drawer.Screen name="settings" />
         <Drawer.Screen name="sla" />
         <Drawer.Screen name="team" />
         <Drawer.Screen name="documents" />
