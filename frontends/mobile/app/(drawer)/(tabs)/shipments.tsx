@@ -1,35 +1,32 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, FlatList, RefreshControl, TouchableOpacity, StyleSheet } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { ActivityIndicator, ScrollView, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { shipmentsApi } from '@/lib/api'
 import { useAppTheme } from '@/lib/useAppTheme'
-import { SHIPMENT_STATUS_COLORS } from '@shared/utils/statusColors'
-import ShipmentCard from '@/components/ShipmentCard'
-import { FilterPills, Input, EmptyState, Skeleton, GlassCard } from '@/components/ui'
+import ShipmentRow from '@/components/ShipmentRow'
+import { Chip, HeroSearch, ScreenFrame, Skeleton, Txt } from '@/components/ui'
 import type { ShipmentListItem, ShipmentStatus } from '@shared/api/types'
 
 type FilterKey = 'ALL' | ShipmentStatus
 
-const STATUS_PILLS = [
+const STATUS_PILLS: { key: FilterKey; label: string }[] = [
   { key: 'ALL',        label: 'All'        },
-  { key: 'PENDING',    label: 'Pending'    },
-  { key: 'IN_TRANSIT', label: 'In Transit' },
-  { key: 'CUSTOMS',    label: 'Customs'    },
-  { key: 'DELIVERED',  label: 'Delivered'  },
+  { key: 'IN_TRANSIT', label: 'In transit' },
   { key: 'DELAYED',    label: 'Delayed'    },
+  { key: 'CUSTOMS',    label: 'Customs'    },
+  { key: 'PENDING',    label: 'Pending'    },
+  { key: 'DELIVERED',  label: 'Delivered'  },
 ]
 
 type SortKey = 'arrival' | 'risk'
-const SORT_OPTIONS: { key: SortKey; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
-  { key: 'arrival', label: 'Soonest ETA', icon: 'calendar-outline' },
-  { key: 'risk',    label: 'Highest Risk', icon: 'warning-outline'  },
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'arrival', label: 'Soonest arrival' },
+  { key: 'risk',    label: 'Highest risk' },
 ]
 
 const PAGE_SIZE = 15
 
 export default function ShipmentsScreen() {
-  const { colors, font, spacing, radius, isDark } = useAppTheme()
   const [shipments, setShipments]     = useState<ShipmentListItem[]>([])
   const [search, setSearch]           = useState('')
   const [statusFilter, setStatus]     = useState<FilterKey>('ALL')
@@ -90,6 +87,9 @@ export default function ShipmentsScreen() {
       )
     })
     .sort((a, b) => {
+      // Delivered shipments have arrived; they go after everything still moving.
+      const done = Number(a.status === 'DELIVERED') - Number(b.status === 'DELIVERED')
+      if (done !== 0) return done
       if (sort === 'risk') return (b.delay_risk_score ?? 0) - (a.delay_risk_score ?? 0)
       const aTime = a.scheduled_arrival ? new Date(a.scheduled_arrival).getTime() : Infinity
       const bTime = b.scheduled_arrival ? new Date(b.scheduled_arrival).getTime() : Infinity
@@ -98,133 +98,72 @@ export default function ShipmentsScreen() {
 
   const canLoadMore = !search && hasNext && !loadingMore
 
+  const { colors, brand } = useAppTheme()
+
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={s.flex1}>
-        {/* Glass header */}
-        <GlassCard variant="elevated" accentColor="#3b82f6" accentPosition="left" style={{ marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: 8 }}>
-          <View style={{ padding: spacing.lg }}>
-            <View style={[s.rowSpaceBetween, { marginBottom: 12 }]}>
-              <Text style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: colors.text }}>Shipments</Text>
-              <Text style={{ fontSize: font.size.sm, color: colors.textMuted }}>{totalCount} total</Text>
-            </View>
-
-            {/* Search */}
-            <View style={{ marginBottom: 10 }}>
-              <Input
-                icon="search"
-                placeholder="Search tracking, carrier, route…"
-                value={search}
-                onChangeText={setSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-                rightSlot={
-                  search.length > 0 ? (
-                    <TouchableOpacity onPress={() => setSearch('')}>
-                      <Ionicons name="close-circle" size={16} color="#94a3b8" />
-                    </TouchableOpacity>
-                  ) : undefined
-                }
-              />
-            </View>
-
-            {/* Sort */}
-            <View style={s.row}>
-              {SORT_OPTIONS.map((opt) => {
-                const active = sort === opt.key
-                return (
-                  <TouchableOpacity
-                    key={opt.key}
+    <ScreenFrame
+      title="Shipments"
+      subtitle={totalCount === 1 ? '1 shipment' : `${totalCount} shipments`}
+      refreshing={refreshing}
+      onRefresh={() => fetchPage(1)}
+      onEndReached={() => { if (canLoadMore) fetchPage(page + 1) }}
+      hero={
+        <View style={{ gap: 14 }}>
+          <HeroSearch value={search} onChangeText={setSearch} placeholder="Search tracking number, carrier, route" />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {SORT_OPTIONS.map((opt) => {
+              const active = sort === opt.key
+              return (
+                <View key={opt.key} style={{ borderRadius: 16, overflow: 'hidden' }}>
+                  <Txt
                     onPress={() => setSort(opt.key)}
-                    activeOpacity={0.75}
-                    style={[
-                      s.sortPill,
-                      { marginRight: 10 },
-                      active
-                        ? { backgroundColor: '#f5801e' }
-                        : { backgroundColor: 'rgba(255,255,255,0.1)' },
-                    ]}
-                  >
-                    <Ionicons name={opt.icon} size={11} color={active ? '#fff' : '#94a3b8'} />
-                    <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, marginLeft: 4, color: active ? '#ffffff' : '#cbd5e1' }}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-          </View>
-        </GlassCard>
-
-        {/* Status filter pills */}
-        <View style={{ marginHorizontal: spacing.lg, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}>
-          <FilterPills
-            options={STATUS_PILLS.map((p) => {
-              const c = p.key !== 'ALL' ? SHIPMENT_STATUS_COLORS[p.key as ShipmentStatus] : null
-              return {
-                key: p.key,
-                label: p.label,
-                dotColor: c?.dot,
-                activeBg: c?.background,
-                activeText: c?.text,
-                activeBorder: c?.border,
-              }
-            })}
-            selected={statusFilter}
-            onSelect={(key) => setStatus((key as FilterKey) ?? 'ALL')}
-            allowDeselect={false}
-          />
-        </View>
-
-        {/* List */}
-        {loading ? (
-          <View style={[s.flex1, { paddingHorizontal: spacing.lg, paddingTop: spacing.lg }]}>
-            <Skeleton variant="card" />
-            <Skeleton variant="card" />
-            <Skeleton variant="card" />
-            <Skeleton variant="card" />
-            <Skeleton variant="card" />
-          </View>
-        ) : (
-          <FlatList
-            data={processed}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => <ShipmentCard item={item} />}
-            contentContainerStyle={{ paddingTop: 14, paddingBottom: 32 }}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={() => fetchPage(1)}
-                tintColor="#f5801e"
-              />
-            }
-            ListEmptyComponent={
-              <EmptyState
-                icon="cube-outline"
-                title="No shipments found"
-                description={search ? 'Try a different search term' : 'Shipments will appear here once created'}
-                size="lg"
-              />
-            }
-            onEndReached={() => { if (canLoadMore) fetchPage(page + 1) }}
-            onEndReachedThreshold={0.3}
-            ListFooterComponent={
-              loadingMore ? (
-                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
-                  <Skeleton variant="rect" />
+                    variant="caption"
+                    accessibilityRole="button"
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 7,
+                      fontFamily: active ? 'DMSans-Bold' : 'DMSans-Medium',
+                      color: active ? brand.primary : '#FFFFFF',
+                      backgroundColor: active ? '#FFFFFF' : 'rgba(255,255,255,0.10)',
+                    }}>
+                    {opt.label}
+                  </Txt>
                 </View>
-              ) : null
-            }
-          />
-        )}
+              )
+            })}
+          </View>
+        </View>
+      }>
+      <View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
+          {STATUS_PILLS.map((p) => (
+            <Chip key={p.key} label={p.label} selected={statusFilter === p.key} onPress={() => setStatus(p.key)} />
+          ))}
+        </ScrollView>
+
+        <View style={{ marginTop: 8 }}>
+          {loading ? (
+            <View style={{ gap: 12, marginTop: 12 }}>
+              <Skeleton variant="card" style={{ height: 84 }} />
+              <Skeleton variant="card" style={{ height: 84 }} />
+              <Skeleton variant="card" style={{ height: 84 }} />
+            </View>
+          ) : processed.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
+              <Ionicons name="cube-outline" size={36} color={colors.textFaint} />
+              <Txt variant="heading">{search ? 'No matches' : 'No shipments here'}</Txt>
+              <Txt variant="body" tone="muted" style={{ textAlign: 'center' }}>
+                {search ? 'Try a different tracking number, carrier or place.' : 'Shipments with this status will show up here.'}
+              </Txt>
+            </View>
+          ) : (
+            processed.map((item, i) => (
+              <ShipmentRow key={item.id} item={item} last={i === processed.length - 1} />
+            ))
+          )}
+          {loadingMore ? <ActivityIndicator color={brand.accent} style={{ marginTop: 16 }} /> : null}
+        </View>
       </View>
-    </SafeAreaView>
+    </ScreenFrame>
   )
 }
-
-const s = StyleSheet.create({
-  flex1: { flex: 1 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  rowSpaceBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sortPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9999 },
-})

@@ -1,0 +1,73 @@
+# Core (Go) service: lint, test against real Postgres, build the image.
+name: Core
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["services/core/**", "contracts/**", ".github/workflows/core.yml"]
+  push:
+    branches: [main]
+    paths: ["services/core/**", "contracts/**", ".github/workflows/core.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: core-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: services/core
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/core/go.mod
+          cache-dependency-path: services/core/go.sum
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.5.0
+          working-directory: services/core
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/core/go.mod
+          cache-dependency-path: services/core/go.sum
+      # Tests must run as an ordinary role: a superuser bypasses row-level
+      # security, and the tenant-isolation tests refuse to run as one.
+      - name: Create test role
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c "CREATE ROLE core_test LOGIN PASSWORD 'core_test'"
+          psql -h localhost -U postgres -c "CREATE DATABASE core_test OWNER core_test"
+      - name: go test
+        env:
+          CORE_TEST_DATABASE_URL: postgres://core_test:core_test@localhost:5432/core_test?sslmode=disable
+        run: go test -race -count=1 ./...
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker build
+        run: docker build -t cargotrack-core:${{ github.sha }} .

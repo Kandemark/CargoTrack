@@ -13,6 +13,32 @@ so it can be re-run safely.
 from django.db import migrations
 
 
+class TimescaleSQL(migrations.RunSQL):
+    """RunSQL that applies only where TimescaleDB is installable.
+
+    Plain PostgreSQL (and SQLite, used by tests and local development)
+    skips these optimisations instead of failing the whole migration run;
+    tracking events then live in an ordinary table.
+    """
+
+    @staticmethod
+    def _timescale_available(schema_editor) -> bool:
+        conn = schema_editor.connection
+        if conn.vendor != 'postgresql':
+            return False
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT 1 FROM pg_available_extensions WHERE name = 'timescaledb'")
+            return cursor.fetchone() is not None
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        if self._timescale_available(schema_editor):
+            super().database_forwards(app_label, schema_editor, from_state, to_state)
+
+    def database_backwards(self, app_label, schema_editor, from_state, to_state):
+        if self._timescale_available(schema_editor):
+            super().database_backwards(app_label, schema_editor, from_state, to_state)
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ('tracking', '0001_initial'),
@@ -21,7 +47,7 @@ class Migration(migrations.Migration):
     operations = [
         # 1. Enable the TimescaleDB extension (loaded by shared_preload_libraries
         #    in the timescaledb Docker image).
-        migrations.RunSQL(
+        TimescaleSQL(
             sql='CREATE EXTENSION IF NOT EXISTS timescaledb;',
             reverse_sql='DROP EXTENSION IF EXISTS timescaledb;',
         ),
@@ -29,7 +55,7 @@ class Migration(migrations.Migration):
         # 2. TimescaleDB 2.x requires the partition column to be part of the
         #    primary key.  Drop the auto-generated single-column PK and replace
         #    it with a composite (id, timestamp) so the hypertable can be created.
-        migrations.RunSQL(
+        TimescaleSQL(
             sql=(
                 "DO $$ BEGIN"
                 "  ALTER TABLE tracking_trackingevent DROP CONSTRAINT IF EXISTS tracking_trackingevent_pkey;"
@@ -48,7 +74,7 @@ class Migration(migrations.Migration):
         #    the ``timestamp`` column using 7-day chunk intervals.  This means
         #    every 7 days of data lives in its own physical partition, making
         #    range queries fast and compression efficient.
-        migrations.RunSQL(
+        TimescaleSQL(
             sql=(
                 "SELECT create_hypertable("
                 "  'tracking_trackingevent', 'timestamp',"
@@ -62,7 +88,7 @@ class Migration(migrations.Migration):
         # 3. Enable native compression on the hypertable.  segment_by groups
         #    data by event_type within each compressed chunk so queries that
         #    filter on event_type can skip irrelevant segments entirely.
-        migrations.RunSQL(
+        TimescaleSQL(
             sql=(
                 "ALTER TABLE tracking_trackingevent SET ("
                 "  timescaledb.compress,"
@@ -77,7 +103,7 @@ class Migration(migrations.Migration):
         # 4. Automatically compress chunks older than 30 days.  Compressed
         #    chunks are read-only and typically achieve 90-97 % space savings
         #    on tracking data (many repeated event_type/location values).
-        migrations.RunSQL(
+        TimescaleSQL(
             sql=(
                 "SELECT add_compression_policy("
                 "  'tracking_trackingevent',"
@@ -93,7 +119,7 @@ class Migration(migrations.Migration):
         # 5. Create a continuous aggregate that rolls up tracking events
         #    into hourly buckets.  This powers the "events over time" chart
         #    on the analytics dashboard without scanning raw data.
-        migrations.RunSQL(
+        TimescaleSQL(
             sql=(
                 "CREATE MATERIALIZED VIEW IF NOT EXISTS tracking_events_hourly"
                 "  WITH (timescaledb.continuous) AS"
@@ -118,7 +144,7 @@ class Migration(migrations.Migration):
         ),
 
         # 6. Daily rollup for longer-range trend queries (retention: 2 years).
-        migrations.RunSQL(
+        TimescaleSQL(
             sql=(
                 "CREATE MATERIALIZED VIEW IF NOT EXISTS tracking_events_daily"
                 "  WITH (timescaledb.continuous) AS"

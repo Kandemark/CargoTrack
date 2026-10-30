@@ -1,650 +1,228 @@
-import { View, Text, ScrollView, Alert } from 'react-native'
+import { Pressable, ScrollView, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { router, usePathname } from 'expo-router'
-import { DrawerContentScrollView } from '@react-navigation/drawer'
-import { DrawerActions } from '@react-navigation/native'
-import { useAuthStore, useAlertStore } from '@/lib/store'
+import { useAuthStore } from '@/lib/store'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAppTheme } from '@/lib/useAppTheme'
-import { T } from '@/lib/theme'
-import AnimatedPressable from './animated/AnimatedPressable'
+import { Txt } from '@/components/ui'
 
 type IconName = React.ComponentProps<typeof Ionicons>['name']
 
-interface NavItem {
-  route: string
-  label: string
-  icon: IconName
-  alertBadge?: boolean
-}
+/**
+ * Every screen the menu can open, defined once. Home, Shipments and Alerts
+ * are not here: they are on the tab bar, and the menu never repeats them.
+ * Account is reached from the profile row at the top.
+ */
+const ITEMS = {
+  messages:      { route: '/messages',            label: 'Messages',          icon: 'chatbubbles-outline' },
+  notifications: { route: '/notifications',       label: 'Notifications',     icon: 'megaphone-outline' },
+  liveMap:       { route: '/live-map',            label: 'Live map',          icon: 'map-outline' },
+  sla:           { route: '/sla',                 label: 'SLA monitor',       icon: 'speedometer-outline' },
+  pod:           { route: '/pod',                 label: 'Proof of delivery', icon: 'checkmark-done-outline' },
+  coldChain:     { route: '/cold-chain',          label: 'Cold chain',        icon: 'thermometer-outline' },
+  jobBoard:      { route: '/job-board',           label: 'Job board',         icon: 'briefcase-outline' },
+  carriers:      { route: '/carriers',            label: 'Carriers',          icon: 'business-outline' },
+  trucks:        { route: '/fleet/trucks',        label: 'Trucks',            icon: 'bus-outline' },
+  drivers:       { route: '/fleet/drivers',       label: 'Drivers',           icon: 'id-card-outline' },
+  carbon:        { route: '/carbon',              label: 'Carbon',            icon: 'leaf-outline' },
+  dispatchQueue: { route: '/dispatch/queue',      label: 'Dispatch queue',    icon: 'list-outline' },
+  customsQueue:  { route: '/customs/queue',       label: 'Clearance queue',   icon: 'hourglass-outline' },
+  inventory:     { route: '/warehouse/inventory', label: 'Inventory',         icon: 'file-tray-stacked-outline' },
+  inbound:       { route: '/warehouse/inbound',   label: 'Inbound',           icon: 'arrow-down-circle-outline' },
+  outbound:      { route: '/warehouse/outbound',  label: 'Outbound',          icon: 'arrow-up-circle-outline' },
+  vessels:       { route: '/port/vessels',        label: 'Vessel schedule',   icon: 'boat-outline' },
+  containers:    { route: '/port/containers',     label: 'Containers',        icon: 'cube-outline' },
+  manifests:     { route: '/port/manifest',       label: 'Manifests',         icon: 'clipboard-outline' },
+  payments:      { route: '/payments',            label: 'Payments',          icon: 'card-outline' },
+  rates:         { route: '/rates',               label: 'Rate cards',        icon: 'pricetags-outline' },
+  financeReports:{ route: '/finance/reports',     label: 'Finance reports',   icon: 'receipt-outline' },
+  analytics:     { route: '/analytics',           label: 'Analytics',         icon: 'bar-chart-outline' },
+  documents:     { route: '/documents',           label: 'Documents',         icon: 'document-text-outline' },
+  audit:         { route: '/audit',               label: 'Audit log',         icon: 'reader-outline' },
+  integrations:  { route: '/integrations',        label: 'Integrations',      icon: 'link-outline' },
+  team:          { route: '/team',                label: 'Team',              icon: 'people-outline' },
+} satisfies Record<string, { route: string; label: string; icon: IconName }>
 
-interface NavSection {
-  title?: string
-  items: NavItem[]
-}
+type ItemKey = keyof typeof ITEMS
+type NavSection = { title?: string; items: ItemKey[] }
 
-// ── Role → nav sections (mirrors web Sidebar.tsx) ────────────────────────────
+const INBOX: NavSection = { items: ['messages', 'notifications'] }
 
+// Each role sees each screen once, under the heading where its work happens.
 const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   ADMIN: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Admin Home',      icon: 'grid-outline' },
-        { route: '/ops/dashboard',    label: 'Operations',       icon: 'stats-chart-outline' },
-        { route: '/messages',         label: 'Messages',         icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'Logistics',
-      items: [
-        { route: '/(tabs)/shipments', label: 'Shipments',       icon: 'cube-outline' },
-        { route: '/live-map',     label: 'Live Map',        icon: 'map-outline' },
-        { route: '/carriers',         label: 'Carriers',        icon: 'car-outline' },
-        { route: '/job-board',        label: 'Job Board',       icon: 'hammer-outline' },
-        { route: '/predictions',      label: 'AI Predictions',  icon: 'bulb-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/sla',              label: 'SLA Monitor',     icon: 'alert-circle-outline' },
-        { route: '/pod',              label: 'Proof of Delivery', icon: 'checkmark-done-outline' },
-        { route: '/cold-chain',       label: 'Cold Chain',      icon: 'thermometer-outline' },
-        { route: '/eta',              label: 'ETA Tracker',     icon: 'time-outline' },
-      ],
-    },
-    {
-      title: 'Fleet',
-      items: [
-        { route: '/fleet/trucks',     label: 'Trucks',          icon: 'car-outline' },
-        { route: '/fleet/drivers',    label: 'Drivers',         icon: 'person-outline' },
-        { route: '/fleet/analytics',  label: 'Fleet Analytics', icon: 'trending-up-outline' },
-        { route: '/carbon',           label: 'Carbon Tracker',  icon: 'leaf-outline' },
-      ],
-    },
-    {
-      title: 'Finance',
-      items: [
-        { route: '/payments',         label: 'Payments',        icon: 'card-outline' },
-        { route: '/rates',            label: 'Rate Cards',      icon: 'cash-outline' },
-        { route: '/documents',        label: 'Documents',       icon: 'document-text-outline' },
-      ],
-    },
-    {
-      title: 'Intelligence',
-      items: [
-        { route: '/analytics',        label: 'Analytics',       icon: 'bar-chart-outline' },
-        { route: '/performance',      label: 'Performance',     icon: 'trending-up-outline' },
-        { route: '/compliance',       label: 'Compliance',      icon: 'shield-checkmark-outline' },
-        { route: '/integrations',     label: 'Integrations',    icon: 'link-outline' },
-        { route: '/audit',            label: 'Audit Log',       icon: 'reader-outline' },
-      ],
-    },
-    {
-      title: 'Admin',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/team',             label: 'Team',            icon: 'people-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'Operations', items: ['liveMap', 'sla', 'pod', 'coldChain', 'jobBoard'] },
+    { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'carbon'] },
+    { title: 'Money', items: ['payments', 'rates'] },
+    { title: 'Reports and records', items: ['analytics', 'documents', 'audit'] },
+    { title: 'Organisation', items: ['team', 'integrations'] },
   ],
-
   LOGISTICS_MGR: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Dashboard',       icon: 'grid-outline' },
-        { route: '/messages',         label: 'Messages',        icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'Logistics',
-      items: [
-        { route: '/(tabs)/shipments', label: 'Shipments',       icon: 'cube-outline' },
-        { route: '/live-map',     label: 'Live Map',        icon: 'map-outline' },
-        { route: '/carriers',         label: 'Carriers',        icon: 'car-outline' },
-        { route: '/predictions',      label: 'AI Predictions',  icon: 'bulb-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-        { route: '/sla',              label: 'SLA Monitor',     icon: 'alert-circle-outline' },
-        { route: '/documents',        label: 'Documents',       icon: 'document-text-outline' },
-        { route: '/pod',              label: 'Proof of Delivery', icon: 'checkmark-done-outline' },
-        { route: '/cold-chain',       label: 'Cold Chain',      icon: 'thermometer-outline' },
-        { route: '/eta',              label: 'ETA Tracker',     icon: 'time-outline' },
-      ],
-    },
-    {
-      title: 'Fleet',
-      items: [
-        { route: '/fleet/trucks',     label: 'Trucks',          icon: 'car-outline' },
-        { route: '/fleet/drivers',    label: 'Drivers',         icon: 'person-outline' },
-        { route: '/fleet/analytics',  label: 'Fleet Analytics', icon: 'trending-up-outline' },
-        { route: '/carbon',           label: 'Carbon Tracker',  icon: 'leaf-outline' },
-      ],
-    },
-    {
-      title: 'Finance & Reports',
-      items: [
-        { route: '/payments',         label: 'Payments',        icon: 'card-outline' },
-        { route: '/rates',            label: 'Rate Cards',      icon: 'cash-outline' },
-        { route: '/analytics',        label: 'Analytics',       icon: 'bar-chart-outline' },
-        { route: '/performance',      label: 'Performance',     icon: 'trending-up-outline' },
-        { route: '/compliance',       label: 'Compliance',      icon: 'shield-checkmark-outline' },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'Operations', items: ['liveMap', 'jobBoard', 'sla', 'pod', 'coldChain'] },
+    { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'carbon'] },
+    { title: 'Money', items: ['payments', 'rates'] },
+    { title: 'Reports and records', items: ['analytics', 'documents'] },
   ],
-
   CARRIER: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Dashboard',       icon: 'grid-outline' },
-        { route: '/messages',         label: 'Messages',        icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'Shipments',
-      items: [
-        { route: '/job-board',        label: 'Job Board',       icon: 'hammer-outline' },
-        { route: '/(tabs)/shipments', label: 'My Shipments',    icon: 'cube-outline' },
-        { route: '/live-map',     label: 'Live Map',        icon: 'map-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-        { route: '/documents',        label: 'Documents',       icon: 'document-text-outline' },
-        { route: '/pod',              label: 'Proof of Delivery', icon: 'checkmark-done-outline' },
-        { route: '/eta',              label: 'ETA Tracker',     icon: 'time-outline' },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'Work', items: ['jobBoard', 'liveMap', 'pod', 'documents'] },
   ],
-
   CLIENT: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Dashboard',       icon: 'grid-outline' },
-        { route: '/messages',         label: 'Messages',        icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'My Cargo',
-      items: [
-        { route: '/job-board',        label: 'Job Board',       icon: 'hammer-outline' },
-        { route: '/(tabs)/shipments', label: 'Shipments',       icon: 'cube-outline' },
-        { route: '/live-map',     label: 'Live Map',        icon: 'map-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-        { route: '/documents',        label: 'Documents',       icon: 'document-text-outline' },
-        { route: '/compliance',       label: 'Compliance',      icon: 'shield-checkmark-outline' },
-        { route: '/pod',              label: 'Proof of Delivery', icon: 'checkmark-done-outline' },
-        { route: '/eta',              label: 'ETA Tracker',     icon: 'time-outline' },
-      ],
-    },
-    {
-      title: 'Finance',
-      items: [
-        { route: '/payments',         label: 'Payments',        icon: 'card-outline' },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'My cargo', items: ['jobBoard', 'liveMap', 'pod'] },
+    { title: 'Money', items: ['payments'] },
+    { title: 'Records', items: ['documents'] },
   ],
-
   DISPATCHER: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Dispatch Hub',   icon: 'grid-outline' },
-        { route: '/messages',         label: 'Messages',        icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'Dispatch',
-      items: [
-        { route: '/job-board',        label: 'Job Board',       icon: 'hammer-outline' },
-        { route: '/dispatch/queue',   label: 'Dispatch Queue',  icon: 'git-compare-outline' },
-        { route: '/dispatch/routes',  label: 'Route Planning',  icon: 'git-branch-outline' },
-        { route: '/live-map',     label: 'Live Map',        icon: 'map-outline' },
-        { route: '/carriers',         label: 'Carriers',        icon: 'car-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-        { route: '/sla',              label: 'SLA Monitor',     icon: 'alert-circle-outline' },
-        { route: '/pod',              label: 'Proof of Delivery', icon: 'checkmark-done-outline' },
-        { route: '/eta',              label: 'ETA Tracker',     icon: 'time-outline' },
-      ],
-    },
-    {
-      title: 'Fleet',
-      items: [
-        { route: '/fleet/trucks',     label: 'Trucks',          icon: 'car-outline' },
-        { route: '/fleet/drivers',    label: 'Drivers',         icon: 'person-outline' },
-        { route: '/fleet/analytics',  label: 'Fleet Analytics', icon: 'trending-up-outline' },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'Dispatch', items: ['dispatchQueue', 'jobBoard', 'liveMap', 'sla', 'pod'] },
+    { title: 'Fleet', items: ['carriers', 'trucks', 'drivers'] },
   ],
-
   CUSTOMS_BROKER: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Customs Hub',     icon: 'grid-outline' },
-        { route: '/messages',         label: 'Messages',        icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'Clearance',
-      items: [
-        { route: '/customs/queue',    label: 'Clearance Queue', icon: 'git-compare-outline' },
-        { route: '/customs/documents',label: 'Documents',       icon: 'document-text-outline' },
-        { route: '/compliance',       label: 'Compliance',      icon: 'shield-checkmark-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-      ],
-    },
-    {
-      title: 'Tracking',
-      items: [
-        { route: '/(tabs)/shipments', label: 'Shipments',       icon: 'cube-outline' },
-        { route: '/live-map',     label: 'Live Map',        icon: 'map-outline' },
-        { route: '/audit',            label: 'Audit Log',       icon: 'reader-outline' },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'Clearance', items: ['customsQueue', 'documents'] },
+    { title: 'Tracking', items: ['liveMap', 'audit'] },
   ],
-
   WAREHOUSE_MGR: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Warehouse Hub',   icon: 'grid-outline' },
-        { route: '/messages',         label: 'Messages',        icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'Operations',
-      items: [
-        { route: '/warehouse/inventory', label: 'Inventory',    icon: 'cube-outline' },
-        { route: '/warehouse/inbound',   label: 'Inbound',      icon: 'download-outline' },
-        { route: '/warehouse/outbound',  label: 'Outbound',     icon: 'arrow-forward-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-        { route: '/compliance',       label: 'Compliance',      icon: 'shield-checkmark-outline' },
-        { route: '/pod',              label: 'Proof of Delivery', icon: 'checkmark-done-outline' },
-        { route: '/cold-chain',       label: 'Cold Chain',      icon: 'thermometer-outline' },
-      ],
-    },
-    {
-      title: 'Documents',
-      items: [
-        { route: '/documents',        label: 'Documents',       icon: 'document-text-outline' },
-        { route: '/live-map',     label: 'Live Map',        icon: 'map-outline' },
-        { route: '/analytics',        label: 'Analytics',       icon: 'bar-chart-outline' },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'Warehouse', items: ['inventory', 'inbound', 'outbound', 'coldChain', 'pod'] },
+    { title: 'Reports and records', items: ['liveMap', 'analytics', 'documents'] },
   ],
-
   PORT_AGENT: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Port Hub',        icon: 'grid-outline' },
-        { route: '/messages',         label: 'Messages',        icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'Port Ops',
-      items: [
-        { route: '/port/vessels',     label: 'Vessel Schedule', icon: 'boat-outline' },
-        { route: '/port/containers',  label: 'Containers',      icon: 'cube-outline' },
-        { route: '/port/manifest',    label: 'Manifests',       icon: 'git-compare-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-        { route: '/compliance',       label: 'Compliance',      icon: 'shield-checkmark-outline' },
-        { route: '/pod',              label: 'Proof of Delivery', icon: 'checkmark-done-outline' },
-        { route: '/eta',              label: 'ETA Tracker',     icon: 'time-outline' },
-      ],
-    },
-    {
-      title: 'Tracking',
-      items: [
-        { route: '/(tabs)/shipments', label: 'Shipments',       icon: 'cube-outline' },
-        { route: '/live-map',     label: 'Live Map',        icon: 'map-outline' },
-        { route: '/customs/documents',label: 'Documents',       icon: 'document-text-outline' },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'Port', items: ['vessels', 'containers', 'manifests', 'documents'] },
+    { title: 'Tracking', items: ['liveMap', 'pod'] },
   ],
-
   FINANCE_OFFICER: [
-    {
-      items: [
-        { route: '/(tabs)/index',     label: 'Finance Hub',     icon: 'grid-outline' },
-        { route: '/messages',         label: 'Messages',        icon: 'chatbubbles-outline' },
-      ],
-    },
-    {
-      title: 'Finance',
-      items: [
-        { route: '/payments',         label: 'Invoices',        icon: 'card-outline' },
-        { route: '/finance/revenue',  label: 'Revenue',         icon: 'trending-up-outline' },
-        { route: '/finance/reports',  label: 'Reports',         icon: 'bar-chart-outline' },
-        { route: '/rates',            label: 'Rate Cards',      icon: 'cash-outline' },
-        { route: '/(tabs)/alerts',    label: 'Alerts',          icon: 'notifications-outline', alertBadge: true },
-        { route: '/pod',              label: 'Proof of Delivery', icon: 'checkmark-done-outline' },
-      ],
-    },
-    {
-      title: 'Reporting',
-      items: [
-        { route: '/analytics',        label: 'Analytics',       icon: 'bar-chart-outline' },
-        { route: '/carbon',           label: 'Carbon Tracker',  icon: 'leaf-outline' },
-        { route: '/(tabs)/shipments', label: 'Shipments',       icon: 'cube-outline' },
-        { route: '/documents',        label: 'Documents',       icon: 'document-text-outline' },
-        { route: '/audit',            label: 'Audit Log',       icon: 'reader-outline' },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        { route: '/account',         label: 'My Account',     icon: 'person-circle-outline' },
-        { route: '/notifications',    label: 'Notifications',   icon: 'megaphone-outline' },
-        { route: '/settings',         label: 'Settings',        icon: 'settings-outline' },
-      ],
-    },
+    INBOX,
+    { title: 'Money', items: ['payments', 'rates'] },
+    { title: 'Reports and records', items: ['analytics', 'carbon', 'pod', 'documents', 'audit'] },
   ],
-}
-
-// ── Role display helpers ─────────────────────────────────────────────────────
-
-const ROLE_COLORS: Record<string, string> = {
-  ADMIN:           '#dc2626',
-  LOGISTICS_MGR:   '#0f2d5e',
-  CARRIER:         '#2563eb',
-  CLIENT:          '#7c3aed',
-  DISPATCHER:      '#0891b2',
-  CUSTOMS_BROKER:  '#b45309',
-  WAREHOUSE_MGR:   '#16a34a',
-  PORT_AGENT:      '#0f766e',
-  FINANCE_OFFICER: '#9333ea',
 }
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN:           'Administrator',
-  LOGISTICS_MGR:   'Logistics Manager',
-  CARRIER:         'Carrier / Driver',
+  LOGISTICS_MGR:   'Logistics manager',
+  CARRIER:         'Carrier',
   CLIENT:          'Client',
   DISPATCHER:      'Dispatcher',
-  CUSTOMS_BROKER:  'Customs Broker',
-  WAREHOUSE_MGR:   'Warehouse Manager',
-  PORT_AGENT:      'Port Agent',
-  FINANCE_OFFICER: 'Finance Officer',
+  CUSTOMS_BROKER:  'Customs broker',
+  WAREHOUSE_MGR:   'Warehouse manager',
+  PORT_AGENT:      'Port agent',
+  FINANCE_OFFICER: 'Finance officer',
 }
-
-// Map of existing routes — if a route is not in this set, navigating to it
-// shows a "coming soon" alert instead of crashing.
-const EXISTING_ROUTES = new Set([
-  // Tabs
-  '/(tabs)/index',
-  '/(tabs)/shipments',
-  '/(tabs)/alerts',
-  '/(tabs)/menu',
-  // Top-level feature screens
-  '/live-map',
-  '/notifications',
-  '/messages',
-  '/settings',
-  '/analytics',
-  '/performance',
-  '/compliance',
-  '/integrations',
-  '/audit',
-  '/carriers',
-  '/job-board',
-  '/predictions',
-  '/sla',
-  '/pod',
-  '/cold-chain',
-  '/eta',
-  '/carbon',
-  '/rates',
-  '/team',
-  '/payments',
-  '/documents',
-  '/account',
-  // Shipment detail
-  '/shipment/[id]',
-  '/shipment/log-event',
-  // Fleet
-  '/fleet/trucks',
-  '/fleet/drivers',
-  '/fleet/analytics',
-  // Dispatch
-  '/dispatch/queue',
-  '/dispatch/routes',
-  // Customs
-  '/customs/queue',
-  '/customs/documents',
-  // Warehouse
-  '/warehouse/inventory',
-  '/warehouse/inbound',
-  '/warehouse/outbound',
-  // Port
-  '/port/vessels',
-  '/port/containers',
-  '/port/manifest',
-  // Finance
-  '/finance/revenue',
-  '/finance/reports',
-  // Ops
-  '/ops/dashboard',
-])
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function routeMatch(current: string, navRoute: string): boolean {
-  // Normalise both: strip leading slash, strip (tabs) group prefix
-  const norm = (p: string) => p.replace(/^\//, '').replace(/^\(tabs\)\//, '')
-  return norm(current) === norm(navRoute)
+  return current.replace(/^\//, '') === navRoute.replace(/^\//, '')
 }
 
+/**
+ * The side menu: who you are at the top (tap for Account), then the
+ * screens for your role in short groups. Rows are plain lines, the
+ * current screen in the accent colour; nothing moves.
+ */
 export default function DrawerContent({ drawerNav }: { drawerNav?: any }) {
   const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
-  const unreadCount = useAlertStore((s) => s.unreadCount)
   const insets = useSafeAreaInsets()
-  const { colors } = useAppTheme()
+  const { colors, brand, isDark } = useAppTheme()
   const currentPath = usePathname()
 
   const initials = user
-    ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase()
+    ? `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase() || (user.username?.[0] ?? '?').toUpperCase()
     : '?'
-
   const role = user?.role ?? ''
-  const sections = DRAWER_SECTIONS[role] ?? []
-  const roleColor = ROLE_COLORS[role] ?? '#0f2d5e'
-  const roleLabel = ROLE_LABELS[role] ?? role
+  const sections = DRAWER_SECTIONS[role] ?? [INBOX]
+  const roleLabel = ROLE_LABELS[role] ?? user?.role_display ?? ''
+  const on = isDark ? brand.accent : brand.primary
 
-  function handleNavigate(route: string) {
-    if (!EXISTING_ROUTES.has(route)) {
-      Alert.alert('Coming Soon', `The "${route.replace('/', '').replace('/', ' › ')}" screen will be available in an upcoming update.`)
-      return
-    }
-
-    const nav = drawerNav
-    if (!nav) {
-      // Fallback: use Expo Router (URL-based, layout groups stripped from path)
-      if (route === '/(tabs)/index') {
-        router.push('/')
-      } else if (route.startsWith('/(tabs)/')) {
-        router.push(`/${route.replace(/^\/(tabs)\//, '')}` as any)
-      } else {
-        router.push(route as any)
-      }
-      return
-    }
-
-    // Tab routes: "/(tabs)/index" → navigate to drawer screen "(tabs)" then tab screen "index"
-    if (route.startsWith('/(tabs)/')) {
-      const screen = route.replace(/^\/(tabs)\//, '')
-      nav.navigate('(tabs)', { screen })
+  function go(route: string) {
+    const name = route.replace(/^\//, '')
+    if (drawerNav) {
+      drawerNav.navigate(name)
+      try { drawerNav.closeDrawer() } catch { /* not a drawer navigator */ }
     } else {
-      // Drawer routes: "/analytics" → "analytics", "/fleet/trucks" → "fleet/trucks"
-      const name = route.startsWith('/') ? route.substring(1) : route
-      nav.navigate(name)
+      router.push(route as any)
     }
-
-    // Close the drawer after navigation
-    try { nav.closeDrawer() } catch { /* not a drawer navigator */ }
-  }
-
-  async function handleLogout() {
-    await logout()
-    router.replace('/(auth)/login')
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Brand header */}
-      <View style={{ paddingTop: insets.top, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16, gap: 12 }}>
-          <View style={{
-            width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-            backgroundColor: T.color.brand.accent, shadowColor: T.color.brand.accent, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
-          }}>
-            <Ionicons name="cube" size={18} color="#fff" />
+    <View style={{ flex: 1, backgroundColor: colors.card }}>
+      <Pressable
+        onPress={() => go('/account')}
+        accessibilityRole="button"
+        accessibilityLabel="Your account"
+        style={({ pressed }) => ({
+          backgroundColor: brand.primary,
+          paddingTop: insets.top + 24,
+          paddingHorizontal: 24,
+          paddingBottom: 24,
+          opacity: pressed ? 0.85 : 1,
+        })}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: brand.accent, alignItems: 'center', justifyContent: 'center' }}>
+            <Txt variant="heading" tone="inverse">{initials}</Txt>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15, letterSpacing: -0.3 }}>CargoTrack</Text>
-            <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase' }}>
-              Logistics Intelligence
-            </Text>
+            <Txt variant="heading" tone="inverse" numberOfLines={1}>
+              {user ? `${user.first_name} ${user.last_name}`.trim() || user.username : 'Guest'}
+            </Txt>
+            {roleLabel ? (
+              <Txt variant="caption" style={{ color: 'rgba(255,255,255,0.7)', marginTop: 2 }} numberOfLines={1}>
+                {roleLabel}
+              </Txt>
+            ) : null}
+            {user?.org_name ? (
+              <Txt variant="caption" style={{ color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>
+                {user.org_name}
+              </Txt>
+            ) : null}
           </View>
+          <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
         </View>
-      </View>
+      </Pressable>
 
-      {/* Navigation sections */}
-      <DrawerContentScrollView style={{ flex: 1, paddingTop: 8 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 24 }}
+        showsVerticalScrollIndicator={false}>
         {sections.map((section, si) => (
-          <View key={si} style={{ marginBottom: 4 }}>
-            {section.title && (
-              <Text style={{
-                fontSize: 10, fontWeight: '800', color: colors.textFaint,
-                textTransform: 'uppercase', letterSpacing: 1.2,
-                paddingHorizontal: 20, marginTop: si > 0 ? 14 : 4, marginBottom: 6,
-              }}>
+          <View key={si} style={{ marginTop: si === 0 ? 0 : 20 }}>
+            {section.title ? (
+              <Txt variant="label" tone="faint" style={{ paddingHorizontal: 24, marginBottom: 4 }}>
                 {section.title}
-              </Text>
-            )}
-            {section.items.map((item) => {
+              </Txt>
+            ) : null}
+            {section.items.map((key) => {
+              const item = ITEMS[key]
               const active = routeMatch(currentPath, item.route)
               return (
-              <AnimatedPressable
-                key={item.route}
-                onPress={() => handleNavigate(item.route)}
-                scaleTo={0.97}
-                haptic={false}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginHorizontal: 8,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                  borderRadius: 10,
-                  gap: 12,
-                  backgroundColor: active ? T.color.brand.accentSoft : 'transparent',
-                }}
-              >
-                <View style={{ width: 22, alignItems: 'center' }}>
-                  <Ionicons name={item.icon} size={18} color={active ? T.color.brand.accent : colors.textMuted} />
-                </View>
-                <Text style={{
-                  flex: 1,
-                  fontSize: 14,
-                  fontWeight: active ? '700' : '600',
-                  color: active ? T.color.brand.accent : colors.textSecondary,
-                }}>
-                  {item.label}
-                </Text>
-                {item.alertBadge && unreadCount > 0 && (
-                  <View style={{
-                    minWidth: 20, height: 20, borderRadius: 10,
-                    backgroundColor: T.color.risk.high, alignItems: 'center', justifyContent: 'center',
-                    paddingHorizontal: 5,
-                  }}>
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </Text>
-                  </View>
-                )}
-              </AnimatedPressable>
-            )})}
+                <Pressable
+                  key={key}
+                  onPress={() => go(item.route)}
+                  accessibilityRole="button"
+                  accessibilityState={active ? { selected: true } : {}}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 16,
+                    paddingHorizontal: 24,
+                    paddingVertical: 12,
+                    opacity: pressed ? 0.6 : 1,
+                  })}>
+                  <Ionicons name={item.icon} size={20} color={active ? on : colors.textMuted} />
+                  <Txt variant={active ? 'bodyStrong' : 'body'} style={{ flex: 1, color: active ? on : colors.text }}>
+                    {item.label}
+                  </Txt>
+                </Pressable>
+              )
+            })}
           </View>
         ))}
-      </DrawerContentScrollView>
-
-      {/* User footer */}
-      <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: insets.bottom }}>
-        <AnimatedPressable
-          onPress={handleLogout}
-          scaleTo={0.97}
-          haptic={false}
-          style={{
-            flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
-            paddingVertical: 12, gap: 12,
-          }}
-        >
-          <View style={{
-            width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
-            backgroundColor: roleColor,
-          }}>
-            <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>{initials}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
-              {user ? `${user.first_name} ${user.last_name}` : 'User'}
-            </Text>
-            <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '600' }}>
-              {roleLabel}
-            </Text>
-          </View>
-          <Ionicons name="log-out-outline" size={18} color={colors.textFaint} />
-        </AnimatedPressable>
-      </View>
+      </ScrollView>
     </View>
   )
 }

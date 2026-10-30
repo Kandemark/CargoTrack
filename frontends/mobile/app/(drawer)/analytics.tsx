@@ -1,197 +1,168 @@
-import { useState, useEffect, useCallback } from 'react'
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
-import { router } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
+import { ScrollView, View } from 'react-native'
 import { apiClient } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
+import { useBack } from '@/lib/useBack'
+import { carrierLabel } from '@/lib/carrier'
 import { useAppTheme } from '@/lib/useAppTheme'
-import ScreenHeader from '@/components/ScreenHeader'
+import { money } from '@/lib/data'
+import { Chip, Empty, HeroStats, ListRow, Loading, ScreenFrame, Section, Txt } from '@/components/ui'
 
-const ANALYTICS_ROLES = new Set(['ADMIN', 'LOGISTICS_MGR', 'FINANCE_OFFICER'])
+interface Profit {
+  margin_pct: number
+  revenue_total: number
+  cost_total: number
+  profit_total: number
+  monthly: { month: string; revenue: number; cost: number; profit: number }[]
+  by_carrier: { carrier_name: string; revenue: number; profit: number; shipments: number; margin_pct: number }[]
+}
+interface RouteRow { route: string; shipment_count: number; on_time_rate: number; avg_risk: number; total_revenue: number }
+interface Corridor { corridor_name: string; shipment_count: number; active: number; delayed: number; on_time_rate: number; congestion_index: number }
 
-interface AnalyticsData { total_shipments: number; active_shipments: number; delivered_shipments: number; on_time_rate: number; avg_delay_hours: number; revenue_total: number }
-interface ProfitData { month: string; revenue: number; cost: number; profit: number }
-interface RouteAnalytics { route_name: string; shipment_count: number; avg_delay_hours: number; on_time_pct: number }
-interface CorridorData { corridor: string; shipment_count: number; avg_transit_days: number; on_time_pct: number }
-interface DriverAnalytics { driver_name: string; shipment_count: number; avg_rating: number; on_time_pct: number }
+const ROLES = new Set(['ADMIN', 'LOGISTICS_MGR', 'FINANCE_OFFICER', 'PLATFORM_OWNER', 'WAREHOUSE_MGR'])
+type Tab = 'money' | 'routes' | 'corridors'
 
-const TABS = ['Overview', 'Profit', 'Routes', 'Corridors', 'Drivers']
-
+/** Reports: what the business earned, and how each route and corridor performs. */
 export default function AnalyticsScreen() {
-  const user = useAuthStore((s) => s.user)
-  const [tab, setTab] = useState(0)
-  const [overview, setOverview] = useState<AnalyticsData | null>(null)
-  const [profit, setProfit] = useState<ProfitData[]>([])
-  const [routes, setRoutes] = useState<RouteAnalytics[]>([])
-  const [corridors, setCorridors] = useState<CorridorData[]>([])
-  const [drivers, setDrivers] = useState<DriverAnalytics[]>([])
+  const back = useBack()
+  const role = useAuthStore((s) => s.user?.role)
+  const ownOrg = useAuthStore((s) => s.user?.org_name)
+  const [profit, setProfit] = useState<Profit | null>(null)
+  const [routes, setRoutes] = useState<RouteRow[]>([])
+  const [corridors, setCorridors] = useState<Corridor[]>([])
+  const [tab, setTab] = useState<Tab>('money')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const { colors, font, brand, spacing } = useAppTheme()
 
-  if (user && !ANALYTICS_ROLES.has(user.role)) {
+  const load = useCallback(async () => {
+    const [p, r, c] = await Promise.all([
+      apiClient.get<Profit>('/api/v1/analytics/profit/').catch(() => null),
+      apiClient.get<{ routes: RouteRow[] }>('/api/v1/analytics/routes/').catch(() => null),
+      apiClient.get<{ corridors: Corridor[] }>('/api/v1/analytics/corridors/').catch(() => null),
+    ])
+    setProfit(p?.data ?? null)
+    setRoutes(r?.data.routes ?? [])
+    setCorridors(c?.data.corridors ?? [])
+  }, [])
+
+  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
+
+  if (role && !ROLES.has(role)) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#0a1929' }}>
-        <ScreenHeader title="Analytics" backButton />
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Ionicons name="lock-closed" size={48} color="#64748b" />
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 16 }}>Access Denied</Text>
-          <Text style={{ color: '#93b4d8', fontSize: 14, textAlign: 'center', marginTop: 8 }}>You don't have permission to view analytics.</Text>
-          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 24, backgroundColor: '#f5801e', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <ScreenFrame title="Analytics" onBack={back}>
+        <Empty icon="lock-closed-outline" title="Not available for your role" body="Ask your administrator if you need reports." />
+      </ScreenFrame>
     )
   }
 
-  const fetchAll = useCallback(async () => {
-    try {
-      const [a, p, r, c, d] = await Promise.all([
-        apiClient.get<AnalyticsData>('/api/v1/analytics/'),
-        apiClient.get<ProfitData[]>('/api/v1/analytics/profit/'),
-        apiClient.get<RouteAnalytics[]>('/api/v1/analytics/routes/'),
-        apiClient.get<CorridorData[]>('/api/v1/analytics/corridors/'),
-        apiClient.get<DriverAnalytics[]>('/api/v1/analytics/drivers/'),
-      ])
-      setOverview(a.data); setProfit(p.data); setRoutes(r.data); setCorridors(c.data); setDrivers(d.data)
-    } catch {}
-  }, [])
-
-  useEffect(() => { fetchAll().finally(() => setLoading(false)) }, [fetchAll])
-  async function handleRefresh() { setRefreshing(true); await fetchAll(); setRefreshing(false) }
-
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Analytics" backButton />
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
-        {/* Tab bar */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingHorizontal: spacing.md, marginTop: 8 }}>
-          {TABS.map((t, i) => (
-            <TouchableOpacity key={t} onPress={() => setTab(i)} style={[s.tab, { backgroundColor: tab === i ? brand.primary : colors.muted, marginRight: 8 }]}>
-              <Text style={[s.tabText, { color: tab === i ? '#fff' : colors.textMuted }]}>{t}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+    <ScreenFrame
+      title="Analytics"
+      onBack={back}
+      refreshing={refreshing}
+      onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false) }}
+      hero={
+        profit ? (
+          <HeroStats
+            items={[
+              { label: 'Revenue, KES', value: compact(profit.revenue_total) },
+              { label: 'Profit, KES', value: compact(profit.profit_total), tone: profit.profit_total < 0 ? 'danger' : undefined },
+              { label: 'Margin', value: `${Math.round(profit.margin_pct)}%` },
+            ]}
+          />
+        ) : null
+      }>
+      {loading ? (
+        <Loading />
+      ) : (
+        <View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, marginBottom: 16 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
+            <Chip label="Money" selected={tab === 'money'} onPress={() => setTab('money')} />
+            <Chip label="Routes" selected={tab === 'routes'} onPress={() => setTab('routes')} />
+            <Chip label="Corridors" selected={tab === 'corridors'} onPress={() => setTab('corridors')} />
+          </ScrollView>
 
-        <View style={{ padding: spacing.md }}>
-          {tab === 0 && overview && (
-            <>
-              <View style={s.kpiGrid}>
-                {[
-                  ['Total', overview.total_shipments, 'cube-outline', brand.primary],
-                  ['Active', overview.active_shipments, 'map-outline', '#2563eb'],
-                  ['Delivered', overview.delivered_shipments, 'checkmark-done-outline', '#16a34a'],
-                  ['On-Time', `${overview.on_time_rate.toFixed(1)}%`, 'time-outline', '#eab308'],
-                ].map(([label, val, icon, color]) => (
-                  <View key={label as string} style={[s.kpi, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Ionicons name={icon as any} size={18} color={color as string} />
-                    <Text style={[s.kpiVal, { color: colors.text }]}>{val as string}</Text>
-                    <Text style={[s.kpiLabel, { color: colors.textFaint }]}>{label as string}</Text>
-                  </View>
-                ))}
-              </View>
-              <View style={[s.kpiGrid, { marginTop: 8 }]}>
-                {[
-                  ['Avg Delay', `${overview.avg_delay_hours.toFixed(1)}h`, 'alert-circle-outline', '#f5801e'],
-                  ['Revenue', `$${(overview.revenue_total / 1000).toFixed(0)}k`, 'card-outline', '#7c3aed'],
-                ].map(([label, val, icon, color]) => (
-                  <View key={label as string} style={[s.kpi, { backgroundColor: colors.card, borderColor: colors.border, flex: 0.48 }]}>
-                    <Ionicons name={icon as any} size={18} color={color as string} />
-                    <Text style={[s.kpiVal, { color: colors.text }]}>{val as string}</Text>
-                    <Text style={[s.kpiLabel, { color: colors.textFaint }]}>{label as string}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
-          )}
-
-          {tab === 1 && (
-            <>
-              <Text style={[s.sectionTitle, { color: colors.text }]}>Monthly Profit</Text>
-              {profit.slice(-6).map((p) => (
-                <View key={p.month} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textMuted }}>{p.month}</Text>
-                    <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#16a34a' }}>+${(p.revenue / 1000).toFixed(1)}k</Text>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#ef4444' }}>-${(p.cost / 1000).toFixed(1)}k</Text>
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: p.profit >= 0 ? '#16a34a' : '#ef4444' }}>${(p.profit / 1000).toFixed(1)}k</Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
-
-          {tab === 2 && routes.map((r) => (
-            <View key={r.route_name} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <View>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{r.route_name}</Text>
-                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{r.shipment_count} shipments · {r.avg_delay_hours.toFixed(1)}h avg delay</Text>
-                </View>
-                <View style={[s.badge, { backgroundColor: r.on_time_pct >= 80 ? '#16a34a20' : '#eab30820' }]}>
-                  <Text style={[s.badgeText, { color: r.on_time_pct >= 80 ? '#16a34a' : '#eab308' }]}>{r.on_time_pct.toFixed(0)}%</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-
-          {tab === 3 && corridors.map((c) => (
-            <View key={c.corridor} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{c.corridor}</Text>
-                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{c.shipment_count} shipments · {c.avg_transit_days.toFixed(1)} days</Text>
-                </View>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: c.on_time_pct >= 80 ? '#16a34a' : '#eab308' }}>{c.on_time_pct.toFixed(0)}%</Text>
-              </View>
-            </View>
-          ))}
-
-          {tab === 4 && drivers.map((d) => {
-            const initials = d.driver_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-            return (
-              <View key={d.driver_name} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={[s.avatarSmall, { backgroundColor: brand.primary }]}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#fff' }}>{initials}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{d.driver_name}</Text>
-                    <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{d.shipment_count} trips · {d.avg_rating.toFixed(1)}★</Text>
-                  </View>
-                  <Text style={{ fontSize: 18, fontWeight: '800', color: d.on_time_pct >= 80 ? '#16a34a' : '#eab308' }}>{d.on_time_pct.toFixed(0)}%</Text>
-                </View>
+          {tab === 'money' ? (
+            !profit || profit.revenue_total === 0 ? (
+              <Empty icon="cash-outline" title="No revenue yet" body="Paid invoices count towards revenue." />
+            ) : (
+              <View style={{ gap: 32 }}>
+                <Section label="By month">
+                  <ProfitBars months={profit.monthly.slice(-6)} />
+                </Section>
+                <Section label="By carrier">
+                  {profit.by_carrier.map((c, i) => (
+                    <ListRow
+                      key={c.carrier_name}
+                      title={carrierLabel(c.carrier_name, ownOrg)}
+                      subtitle={`${c.shipments} shipment${c.shipments === 1 ? '' : 's'} · ${Math.round(c.margin_pct)}% margin`}
+                      trailing={money(c.profit)}
+                      last={i === profit.by_carrier.length - 1}
+                    />
+                  ))}
+                </Section>
               </View>
             )
-          })}
-
-          {loading && (
-            <View style={{ paddingTop: 60, alignItems: 'center' }}>
-              <Text style={{ color: colors.textFaint, fontSize: 14 }}>Loading analytics...</Text>
-            </View>
+          ) : tab === 'routes' ? (
+            <Section label="On time by route">
+              {routes.length === 0 ? <Empty icon="git-branch-outline" title="No routes yet" /> : routes.map((r, i) => (
+                <ListRow
+                  key={r.route}
+                  title={r.route}
+                  subtitle={`${r.shipment_count} shipment${r.shipment_count === 1 ? '' : 's'} · average delay risk ${Math.round(r.avg_risk)}%`}
+                  trailing={<Txt variant="bodyStrong" tone={r.on_time_rate >= 80 ? 'success' : 'warning'}>{Math.round(r.on_time_rate)}%</Txt>}
+                  last={i === routes.length - 1}
+                />
+              ))}
+            </Section>
+          ) : (
+            <Section label="Trade corridors">
+              {corridors.length === 0 ? <Empty icon="map-outline" title="No corridor data yet" /> : corridors.map((c, i) => (
+                <ListRow
+                  key={c.corridor_name}
+                  title={c.corridor_name}
+                  subtitle={`${c.shipment_count} shipments · ${c.active} moving · ${c.delayed} delayed · congestion ${c.congestion_index.toFixed(1)}`}
+                  trailing={<Txt variant="bodyStrong" tone={c.on_time_rate >= 80 ? 'success' : 'warning'}>{Math.round(c.on_time_rate)}%</Txt>}
+                  last={i === corridors.length - 1}
+                />
+              ))}
+            </Section>
           )}
         </View>
-      </ScrollView>
-    </View>
+      )}
+    </ScreenFrame>
   )
 }
 
-const s = StyleSheet.create({
-  tab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  tabText: { fontSize: 13, fontWeight: '700' },
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  kpi: { width: '47%', borderRadius: 12, borderWidth: 1, padding: 14, alignItems: 'center' },
-  kpiVal: { fontSize: 26, fontWeight: '800', marginTop: 4 },
-  kpiLabel: { fontSize: 10, fontWeight: '600', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionTitle: { fontSize: 15, fontWeight: '800', marginBottom: 12 },
-  card: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 8 },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  badgeText: { fontSize: 12, fontWeight: '700' },
-  avatarSmall: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-})
+/** 86,000 → "86k", 1,200,000 → "1.2m". */
+function compact(n: number): string {
+  const a = Math.abs(n)
+  if (a >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`
+  if (a >= 1_000) return `${Math.round(n / 1_000)}k`
+  return String(Math.round(n))
+}
+
+function ProfitBars({ months }: { months: Profit['monthly'] }) {
+  const { colors, brand, isDark, status } = useAppTheme()
+  const max = Math.max(1, ...months.map((m) => m.revenue))
+  const bar = isDark ? colors.textBrand : brand.primary
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: 12 }}>
+        {months.map((m) => (
+          <View key={m.month} style={{ flex: 1, height: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
+            <View style={{ width: '60%', maxWidth: 36, height: `${Math.max((m.revenue / max) * 100, 2)}%`, backgroundColor: `${bar}55`, borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' }}>
+              <View style={{ height: `${Math.max((m.profit / Math.max(m.revenue, 1)) * 100, 0)}%`, backgroundColor: status.delivered }} />
+            </View>
+          </View>
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+        {months.map((m) => (
+          <Txt key={m.month} variant="caption" tone="faint" style={{ flex: 1, textAlign: 'center' }}>{m.month.split(' ')[0]}</Txt>
+        ))}
+      </View>
+      <Txt variant="caption" tone="muted" style={{ marginTop: 10 }}>Full bar: revenue. Green part: profit.</Txt>
+    </View>
+  )
+}

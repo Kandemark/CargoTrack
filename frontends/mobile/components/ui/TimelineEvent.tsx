@@ -69,7 +69,7 @@ export default function TimelineEvent({
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={{
             fontSize: font.size.base,
-            fontWeight: font.weight.bold,
+            fontFamily: 'DMSans-Bold', fontWeight: font.weight.bold,
             color: labelColor,
           }}>
             {label}

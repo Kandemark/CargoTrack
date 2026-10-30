@@ -1,170 +1,198 @@
-import { useState, useEffect, useCallback } from 'react'
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { useCallback, useEffect, useState } from 'react'
+import { View } from 'react-native'
+import { router } from 'expo-router'
+import Svg, { Line, Polyline, Rect } from 'react-native-svg'
 import { apiClient } from '@/lib/api'
+import { useBack } from '@/lib/useBack'
 import { useAppTheme } from '@/lib/useAppTheme'
-import ScreenHeader from '@/components/ScreenHeader'
+import { listOf } from '@/lib/data'
+import { timeAgo } from '@shared/utils/formatters'
+import { Empty, HeroStats, KeyValue, ListRow, Loading, Pill, ScreenFrame, Section, Txt } from '@/components/ui'
 
-interface TempReading { timestamp: string; temperature_c: number; location: string }
-interface TempExcursion { start_time: string; end_time: string | null; duration_minutes: number; min_temp_c: number; max_temp_c: number }
-interface ColdChainCertificate { certificate_id: string; issued_at: string; valid_until: string; compliance: boolean }
-interface ColdChainShipment {
-  id: number; shipment_id: number; tracking_number: string
-  product_type: string; product_type_display: string
-  temp_min_c: number; temp_max_c: number
-  monitoring_device_id: string
-  active_excursion: boolean
-  current_temp_c: number | null; last_reading_at: string | null
-  certificate: ColdChainCertificate | null
+interface Reading {
+  id: number
+  timestamp: string
+  temperature_c: number
+  humidity_pct: number | null
 }
 
+interface ColdShipment {
+  id: number
+  shipment: number
+  product_type: string
+  temp_min_c: number
+  temp_max_c: number
+  monitoring_device_id: string
+  recent_readings: Reading[]
+  active_excursion: unknown | null
+  certificate: { certificate_id?: string } | null
+}
+
+interface ShipmentRef {
+  id: number
+  tracking_number: string
+  route: { origin: string; destination: string }
+}
+
+const PRODUCT: Record<string, string> = {
+  PHARMA: 'Medicines',
+  VACCINES: 'Vaccines',
+  FLOWERS: 'Fresh flowers',
+  VEGETABLES: 'Fresh vegetables',
+  FRUITS: 'Fresh fruit',
+  MEAT: 'Chilled or frozen meat',
+  FISH: 'Chilled or frozen fish',
+  DAIRY: 'Dairy',
+}
+
+function latest(c: ColdShipment): Reading | undefined {
+  return [...(c.recent_readings ?? [])].sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]
+}
+
+function outOfRange(c: ColdShipment, t: number) {
+  return t < c.temp_min_c || t > c.temp_max_c
+}
+
+/** Temperature-controlled cargo: the current reading against its allowed range. */
 export default function ColdChainScreen() {
-  const [shipments, setShipments] = useState<ColdChainShipment[]>([])
+  const back = useBack()
+  const [items, setItems] = useState<ColdShipment[]>([])
+  const [refs, setRefs] = useState<Record<number, ShipmentRef>>({})
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [selected, setSelected] = useState<ColdChainShipment | null>(null)
-  const [readings, setReadings] = useState<TempReading[]>([])
-  const { colors, font, brand, spacing } = useAppTheme()
+  const [selected, setSelected] = useState<ColdShipment | null>(null)
 
-  const fetchData = useCallback(async () => {
-    try { const res = await apiClient.get<ColdChainShipment[]>('/api/v1/coldchain/'); setShipments(res.data) } catch {}
+  const load = useCallback(async () => {
+    try {
+      const [cc, sh] = await Promise.all([
+        apiClient.get('/api/v1/coldchain/coldchain/'),
+        apiClient.get('/api/v1/shipments/', { params: { page_size: 100 } }),
+      ])
+      setItems(listOf<ColdShipment>(cc.data))
+      setRefs(Object.fromEntries(listOf<ShipmentRef>(sh.data).map((s) => [s.id, s])))
+    } catch {
+      setItems([])
+    }
   }, [])
 
-  useEffect(() => { fetchData().finally(() => setLoading(false)) }, [fetchData])
-  async function handleRefresh() { setRefreshing(true); await fetchData(); setRefreshing(false) }
+  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
 
-  async function showDetail(item: ColdChainShipment) {
-    setSelected(item)
-    try {
-      const res = await apiClient.get<{ readings: TempReading[] }>(`/api/v1/coldchain/${item.id}/compliance-report/`)
-      setReadings(res.data.readings ?? [])
-    } catch { setReadings([]) }
+  const name = (c: ColdShipment) => {
+    const s = refs[c.shipment]
+    return s ? `${s.route.origin} → ${s.route.destination}` : `Shipment ${c.shipment}`
   }
 
   if (selected) {
+    const c = selected
+    const now = latest(c)
+    const bad = now ? outOfRange(c, now.temperature_c) : false
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScreenHeader title={selected.tracking_number} subtitle={selected.product_type_display} backButton />
-        <View style={{ padding: spacing.md }}>
-          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.cardRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.title, { color: colors.text }]}>{selected.product_type_display}</Text>
-                <Text style={[s.sub, { color: colors.textMuted }]}>Device: {selected.monitoring_device_id}</Text>
-              </View>
-              {selected.active_excursion ? (
-                <View style={[s.badge, { backgroundColor: '#ef444420' }]}>
-                  <Ionicons name="warning" size={14} color="#ef4444" />
-                  <Text style={[s.badgeText, { color: '#ef4444' }]}>Excursion</Text>
-                </View>
-              ) : (
-                <View style={[s.badge, { backgroundColor: '#16a34a20' }]}>
-                  <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
-                  <Text style={[s.badgeText, { color: '#16a34a' }]}>Stable</Text>
-                </View>
-              )}
-            </View>
-            <View style={[s.divider, { backgroundColor: colors.border, marginTop: 12 }]} />
-            {[
-              ['Range', `${selected.temp_min_c}°C – ${selected.temp_max_c}°C`],
-              ['Current', selected.current_temp_c != null ? `${selected.current_temp_c.toFixed(1)}°C` : 'N/A'],
-              ['Last Reading', selected.last_reading_at ? new Date(selected.last_reading_at).toLocaleString() : 'N/A'],
-            ].map(([label, value], i) => (
-              <View key={label}>
-                {i > 0 && <View style={[s.divider, { backgroundColor: colors.border }]} />}
-                <View style={s.row}>
-                  <Text style={[s.label, { color: colors.textFaint }]}>{label}</Text>
-                  <Text style={[s.value, { color: colors.text }]}>{value}</Text>
-                </View>
-              </View>
-            ))}
-            {selected.certificate && (
-              <>
-                <View style={[s.divider, { backgroundColor: colors.border }]} />
-                <View style={s.row}>
-                  <Text style={[s.label, { color: colors.textFaint }]}>Certificate</Text>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={[s.value, { color: colors.text }]}>{selected.certificate.certificate_id}</Text>
-                    <Text style={{ fontSize: 11, color: selected.certificate.compliance ? '#16a34a' : '#ef4444', fontWeight: '600' }}>
-                      {selected.certificate.compliance ? 'Compliant' : 'Non-Compliant'}
-                    </Text>
-                  </View>
-                </View>
-              </>
-            )}
-          </View>
-
-          {readings.length > 0 && (
-            <>
-              <Text style={[s.sectionTitle, { color: colors.text, marginTop: 16 }]}>Recent Readings</Text>
-              {readings.slice(0, 10).map((r, i) => (
-                <View key={i} style={[s.readingRow, { borderBottomColor: colors.border }]}>
-                  <Text style={[s.readingTime, { color: colors.textFaint }]}>{new Date(r.timestamp).toLocaleTimeString()}</Text>
-                  <Text style={[s.readingLoc, { color: colors.textMuted }]}>{r.location}</Text>
-                  <Text style={[s.readingTemp, { color: r.temperature_c > selected.temp_max_c || r.temperature_c < selected.temp_min_c ? '#ef4444' : '#16a34a' }]}>
-                    {r.temperature_c.toFixed(1)}°C
-                  </Text>
-                </View>
-              ))}
-            </>
-          )}
-        </View>
-      </View>
+      <ScreenFrame
+        eyebrow={refs[c.shipment]?.tracking_number}
+        title={name(c)}
+        subtitle={PRODUCT[c.product_type] ?? c.product_type}
+        onBack={() => setSelected(null)}
+        hero={
+          <HeroStats
+            items={[
+              { label: 'Now', value: now ? `${now.temperature_c.toFixed(1)}°C` : '—', tone: bad ? 'danger' : undefined },
+              { label: 'Allowed', value: `${c.temp_min_c}–${c.temp_max_c}°C` },
+              { label: 'Humidity', value: now?.humidity_pct != null ? `${Math.round(now.humidity_pct)}%` : '—' },
+            ]}
+          />
+        }>
+        <Section label="Last 12 hours">
+          <TempChart c={c} />
+        </Section>
+        <Section label="Monitoring">
+          <KeyValue label="Status" value={<Pill label={c.active_excursion || bad ? 'Out of range' : 'In range'} tone={c.active_excursion || bad ? 'danger' : 'success'} />} />
+          <KeyValue label="Last reading" value={now ? timeAgo(now.timestamp) : 'None yet'} />
+          <KeyValue label="Logger" value={c.monitoring_device_id || '—'} />
+          <KeyValue label="Certificate" value={c.certificate?.certificate_id ?? 'Not issued yet'} last />
+        </Section>
+        <ListRow icon="cube-outline" title="Open the shipment" onPress={() => router.push(`/(drawer)/shipment/${c.shipment}` as any)} last />
+      </ScreenFrame>
     )
   }
 
+  const out = items.filter((c) => c.active_excursion || (latest(c) && outOfRange(c, latest(c)!.temperature_c))).length
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Cold Chain" backButton />
-      <FlatList
-        data={shipments}
-        keyExtractor={(item) => String(item.id)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: 40 }}
-        ListEmptyComponent={loading ? null : (
-          <View style={s.empty}>
-            <Ionicons name="thermometer-outline" size={48} color={colors.textFaint} />
-            <Text style={{ fontSize: font.size.base, fontWeight: '700', color: colors.textMuted, marginTop: 12 }}>No cold chain shipments</Text>
-          </View>
-        )}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => showDetail(item)} activeOpacity={0.7} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.cardRow}>
-              <View style={[s.iconBox, { backgroundColor: item.active_excursion ? '#ef444418' : '#16a34a18' }]}>
-                <Ionicons name="thermometer-outline" size={20} color={item.active_excursion ? '#ef4444' : '#16a34a'} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.title, { color: colors.text }]}>{item.tracking_number}</Text>
-                <Text style={[s.sub, { color: colors.textMuted }]}>{item.product_type_display}</Text>
-              </View>
-              <Text style={[s.temp, { color: colors.text }]}>
-                {item.current_temp_c != null ? `${item.current_temp_c.toFixed(1)}°C` : '--'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-      />
-    </View>
+    <ScreenFrame
+      title="Cold chain"
+      onBack={back}
+      refreshing={refreshing}
+      onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false) }}
+      hero={
+        items.length ? (
+          <HeroStats
+            items={[
+              { label: 'Monitored', value: String(items.length) },
+              { label: 'In range', value: String(items.length - out) },
+              { label: 'Out of range', value: String(out), tone: out ? 'danger' : undefined },
+            ]}
+          />
+        ) : null
+      }>
+      {loading ? (
+        <Loading />
+      ) : items.length === 0 ? (
+        <Empty icon="thermometer-outline" title="No temperature-controlled cargo" body="Shipments with a temperature logger show their readings here." />
+      ) : (
+        <Section label="Shipments">
+          {items.map((c, i) => {
+            const now = latest(c)
+            const bad = now ? outOfRange(c, now.temperature_c) : false
+            return (
+              <ListRow
+                key={c.id}
+                icon="thermometer-outline"
+                title={name(c)}
+                subtitle={`${PRODUCT[c.product_type] ?? c.product_type} · allowed ${c.temp_min_c}–${c.temp_max_c}°C`}
+                trailing={
+                  <Txt variant="bodyStrong" tone={bad ? 'danger' : 'success'}>
+                    {now ? `${now.temperature_c.toFixed(1)}°C` : '—'}
+                  </Txt>
+                }
+                onPress={() => setSelected(c)}
+                last={i === items.length - 1}
+              />
+            )
+          })}
+        </Section>
+      )}
+    </ScreenFrame>
   )
 }
 
-const s = StyleSheet.create({
-  card: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 15, fontWeight: '700' },
-  sub: { fontSize: 13, marginTop: 2 },
-  temp: { fontSize: 16, fontWeight: '800' },
-  badge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  label: { fontSize: 13, fontWeight: '500' },
-  value: { fontSize: 13, fontWeight: '600' },
-  divider: { height: 1 },
-  sectionTitle: { fontSize: 14, fontWeight: '800', marginBottom: 8 },
-  readingRow: { flexDirection: 'row', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 8 },
-  readingTime: { fontSize: 12, width: 80 },
-  readingLoc: { fontSize: 12, flex: 1 },
-  readingTemp: { fontSize: 13, fontWeight: '700', width: 50, textAlign: 'right' },
-  empty: { alignItems: 'center', paddingTop: 80 },
-})
+/** Readings as a line, with the allowed band shaded behind it. */
+function TempChart({ c }: { c: ColdShipment }) {
+  const { colors, brand, isDark, ui } = useAppTheme()
+  const pts = [...(c.recent_readings ?? [])].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+  if (pts.length < 2) return <Txt variant="body" tone="muted">Not enough readings yet.</Txt>
+  const W = 320, H = 140, pad = 8
+  const temps = pts.map((p) => p.temperature_c)
+  const lo = Math.min(c.temp_min_c, ...temps) - 1
+  const hi = Math.max(c.temp_max_c, ...temps) + 1
+  const y = (t: number) => pad + (H - 2 * pad) * (1 - (t - lo) / (hi - lo))
+  const x = (i: number) => pad + ((W - 2 * pad) * i) / (pts.length - 1)
+  const line = isDark ? colors.textBrand : brand.primary
+  return (
+    <View>
+      <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
+        <Rect x={0} y={y(c.temp_max_c)} width={W} height={y(c.temp_min_c) - y(c.temp_max_c)} fill={`${line}14`} />
+        <Line x1={0} x2={W} y1={y(c.temp_max_c)} y2={y(c.temp_max_c)} stroke={colors.borderMid} strokeDasharray="4 4" />
+        <Line x1={0} x2={W} y1={y(c.temp_min_c)} y2={y(c.temp_min_c)} stroke={colors.borderMid} strokeDasharray="4 4" />
+        <Polyline points={pts.map((p, i) => `${x(i)},${y(p.temperature_c)}`).join(' ')} fill="none" stroke={line} strokeWidth={2.5} strokeLinejoin="round" />
+        {pts.map((p, i) =>
+          outOfRange(c, p.temperature_c) ? <Rect key={p.id} x={x(i) - 3} y={y(p.temperature_c) - 3} width={6} height={6} rx={3} fill={ui.danger} /> : null,
+        )}
+      </Svg>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+        <Txt variant="caption" tone="faint">{new Date(pts[0].timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</Txt>
+        <Txt variant="caption" tone="faint">Shaded: allowed {c.temp_min_c}–{c.temp_max_c}°C</Txt>
+        <Txt variant="caption" tone="faint">{new Date(pts[pts.length - 1].timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</Txt>
+      </View>
+    </View>
+  )
+}

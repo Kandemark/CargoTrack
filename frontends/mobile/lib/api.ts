@@ -25,6 +25,7 @@ import {
   saveApiBaseUrl,
   resetDiscovery,
 } from './runtime-config'
+import { DEMO, demoAdapter } from './demo'
 
 let currentBaseUrl = normalizeApiBaseUrl(process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000')
 
@@ -46,6 +47,9 @@ export const apiClient = createApiClient({
   refreshEndpoint: '/api/auth/token/refresh/',
 })
 
+// The offline demo build answers every call from recorded data on the phone.
+if (DEMO) apiClient.defaults.adapter = demoAdapter
+
 export const authApi      = createAuthApi(apiClient)
 export const shipmentsApi = createShipmentsApi(apiClient)
 export const dashboardApi = createDashboardApi(apiClient)
@@ -63,6 +67,7 @@ export function getCurrentApiBaseUrl() {
 }
 
 export async function initializeApiBaseUrl() {
+  if (DEMO) return currentBaseUrl
   // Auto-discover the API server — probes candidate URLs and picks the
   // first reachable one.  This means the user never has to type an IP.
   currentBaseUrl = await discoverApiServer()
@@ -116,6 +121,7 @@ export async function checkApiHealth(targetBaseUrl?: string) {
 
 export async function checkApiConnection(targetBaseUrl?: string): Promise<ApiConnectionCheck> {
   const baseUrl = normalizeApiBaseUrl(targetBaseUrl || currentBaseUrl)
+  if (DEMO) return { baseUrl, healthStatus: 200, authStatus: 200, healthOk: true, authOk: true }
 
   const [healthResponse, authResponse] = await Promise.all([
     axios.get(`${baseUrl}/api/health/`, {

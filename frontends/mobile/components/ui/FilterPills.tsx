@@ -79,7 +79,7 @@ export default function FilterPills({
             )}
             <Text style={{
               fontSize: font.size.sm,
-              fontWeight: font.weight.bold,
+              fontFamily: 'DMSans-Bold', fontWeight: font.weight.bold,
               color: textColor,
             }}>
               {opt.label}
@@ -87,7 +87,7 @@ export default function FilterPills({
             {opt.count !== undefined && (
               <Text style={{
                 fontSize: font.size.xs,
-                fontWeight: font.weight.bold,
+                fontFamily: 'DMSans-Bold', fontWeight: font.weight.bold,
                 marginLeft: 6,
                 color: countColor,
               }}>

@@ -38,7 +38,9 @@ export const T = {
   spacing,
   radius,
   font: {
-    family,
+    // The shared tokens name the web fonts; on Android those names fall back
+    // to the system font, so the app uses the static files it loads instead.
+    family: { ...family, heading: 'SpaceGrotesk-Bold', body: 'DMSans-Regular' },
     size,
     weight,
   },

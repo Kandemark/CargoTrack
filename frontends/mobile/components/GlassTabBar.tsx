@@ -1,9 +1,7 @@
 
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native'
-import { BlurView } from 'expo-blur'
+import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native'
+import { useAppTheme } from '@/lib/useAppTheme'
 import { Ionicons } from '@expo/vector-icons'
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated'
-import * as Haptics from 'expo-haptics'
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs'
 import { DrawerActions, useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -33,7 +31,7 @@ function AlertBadge({ count }: { count: number }) {
       justifyContent: 'center',
       paddingHorizontal: 3,
     }}>
-      <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff', lineHeight: 12 }}>
+      <Text style={{ fontSize: 9, fontFamily: 'DMSans-Bold', color: '#fff', lineHeight: 12 }}>
         {count > 99 ? '99+' : count}
       </Text>
     </View>
@@ -45,26 +43,20 @@ function TabButton({
   descriptor,
   isFocused,
   width: slotW,
+  alertCount,
   onPress,
 }: {
   route: BottomTabBarProps['state']['routes'][number]
   descriptor: BottomTabBarProps['descriptors'][string]
   isFocused: boolean
   width: number
+  alertCount: number
   onPress: () => void
 }) {
-  const scale = useSharedValue(1)
+  const { colors, isDark, brand } = useAppTheme()
   const rootNav = useNavigation()
 
-  const scaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }))
-
   function handlePress() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    scale.value = withSpring(0.88, { damping: 12, stiffness: 300 }, () => {
-      scale.value = withSpring(1, { damping: 12, stiffness: 300 })
-    })
     if (route.name === 'menu') {
       rootNav.dispatch(DrawerActions.openDrawer())
       return
@@ -72,48 +64,45 @@ function TabButton({
     onPress()
   }
 
-  const color = isFocused ? '#f5801e' : '#64748b'
+  // Selected: a filled icon in a strong colour. No pill, no bounce.
+  const color = isFocused ? (isDark ? '#FFFFFF' : brand.primary) : colors.textFaint
   const icons = TAB_ICONS[route.name] ?? TAB_ICONS.index
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={handlePress}
-      activeOpacity={0.8}
       style={[styles.slot, { width: slotW }]}
       accessibilityRole="button"
       accessibilityState={isFocused ? { selected: true } : {}}
       accessibilityLabel={descriptor.options.title ?? route.name}
     >
-      <Animated.View style={[styles.iconWrap, scaleStyle]}>
-        <View>
-          <Ionicons
-            name={isFocused ? icons.activeIcon : icons.icon}
-            size={24}
-            color={color}
-            style={isFocused ? { textShadowColor: 'rgba(245,128,30,0.5)', textShadowRadius: 8 } : undefined}
-          />
-          {route.name === 'alerts' ? <AlertBadge count={useAlertStore((s) => s.unreadCount)} /> : null}
-        </View>
-        <Text style={{ fontSize: 10, fontWeight: '700', marginTop: 2, color, letterSpacing: 0.2 }}>
-          {descriptor.options.title ?? route.name}
-        </Text>
-      </Animated.View>
-    </TouchableOpacity>
+      <View>
+        <Ionicons name={isFocused ? icons.activeIcon : icons.icon} size={22} color={color} />
+        {route.name === 'alerts' ? <AlertBadge count={alertCount} /> : null}
+      </View>
+      <Text style={{ fontSize: 11, fontFamily: isFocused ? 'DMSans-SemiBold' : 'DMSans-Medium', marginTop: 4, color }}>
+        {descriptor.options.title ?? route.name}
+      </Text>
+    </Pressable>
   )
 }
 
+/** Gap between the floating bar and the screen edges. */
+const SIDE = 16
+
+/** A floating bar with rounded ends; calm, with no motion of its own. */
 export default function GlassTabBar(props: BottomTabBarProps) {
   const { state, descriptors, navigation } = props
   const insets = useSafeAreaInsets()
+  const { colors, isDark } = useAppTheme()
+  const alertCount = useAlertStore((s) => s.unreadCount)
 
-  const visibleRoutes = state.routes
-  const bottomPad = insets.bottom > 0 ? insets.bottom : 6
-  const barH = 56 + bottomPad
-  const slotW = SCREEN_W / visibleRoutes.length
+  const routes = state.routes
+  const slotW = (SCREEN_W - SIDE * 2) / routes.length
 
   function makeOnPress(idx: number) {
     return () => {
-      const route = visibleRoutes[idx]
+      const route = routes[idx]
       if (route.name === 'menu') return
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true })
       if (state.index !== idx && !event.defaultPrevented) {
@@ -123,16 +112,32 @@ export default function GlassTabBar(props: BottomTabBarProps) {
   }
 
   return (
-    <View style={[styles.wrapper, { height: barH, paddingBottom: bottomPad }]} pointerEvents="box-none">
-      <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
-      <View style={[styles.bar, { paddingBottom: bottomPad, backgroundColor: 'rgba(10,25,41,0.85)' }]}>
-        {visibleRoutes.map((route, idx) => (
+    <View
+      pointerEvents="box-none"
+      style={{ position: 'absolute', left: SIDE, right: SIDE, bottom: Math.max(insets.bottom, 8) + 8 }}>
+      <View
+        style={{
+          height: 64,
+          borderRadius: 32,
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: isDark ? '#1E2A40' : colors.card,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,45,94,0.08)',
+          shadowColor: '#0f2d5e',
+          shadowOpacity: isDark ? 0.5 : 0.18,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 12,
+        }}>
+        {routes.map((route, idx) => (
           <TabButton
             key={route.key}
             route={route}
             descriptor={descriptors[route.key]}
             isFocused={state.index === idx}
             width={slotW}
+            alertCount={alertCount}
             onPress={makeOnPress(idx)}
           />
         ))}
@@ -142,24 +147,8 @@ export default function GlassTabBar(props: BottomTabBarProps) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 0,
-    overflow: 'hidden',
-  },
-  bar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   slot: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconWrap: {
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
   },

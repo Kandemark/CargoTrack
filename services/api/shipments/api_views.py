@@ -390,6 +390,22 @@ class SLAListView(APIView):
         })
 
 
+def _last_months(now, count=12):
+    """
+    The first day of each of the last `count` calendar months, oldest first.
+    Stepping back 30 days at a time can land in the same month twice or skip
+    one, so this walks real months.
+    """
+    year, month = now.year, now.month
+    months = []
+    for _ in range(count):
+        months.append(datetime.date(year, month, 1))
+        month -= 1
+        if month == 0:
+            year, month = year - 1, 12
+    return months[::-1]
+
+
 def _get_org_client_ids(request):
     """Return the list of client user IDs in the current user's organisation, or None if PLATFORM_OWNER (no filter)."""
     from accounts.models import CustomUser
@@ -481,20 +497,22 @@ class AnalyticsView(AsyncCacheMixin, APIView):
             .values_list('month', 'avg')
         )
 
+        # TruncMonth on a datetime column gives datetimes; key by date to match _last_months.
+        def by_date(rows):
+            return {(k.date() if isinstance(k, datetime.datetime) else k): v for k, v in rows.items()}
+
+        revenue_by_month, risk_by_month = by_date(revenue_by_month), by_date(risk_by_month)
         monthly_revenue = []
         monthly_risk = []
-        for i in range(11, -1, -1):
-            month_start = (now.replace(day=1) - datetime.timedelta(days=i * 30)).replace(
-                day=1, hour=0, minute=0, second=0, microsecond=0
-            )
+        for month_start in _last_months(now):
             month_key = month_start.strftime('%b')
             monthly_revenue.append({
                 'month': month_key,
-                'revenue': round(float(revenue_by_month.get(month_start.date(), 0)), 2),
+                'revenue': round(float(revenue_by_month.get(month_start, 0)), 2),
             })
             monthly_risk.append({
                 'month': month_key,
-                'avg_risk': round(float(risk_by_month.get(month_start.date(), 0)) * 100, 1),
+                'avg_risk': round(float(risk_by_month.get(month_start, 0)) * 100, 1),
             })
 
         total_shipments = sum(status_counts.values())
@@ -543,7 +561,7 @@ class CarbonView(AsyncCacheMixin, APIView):
             weight_t = s.weight_kg / 1000
             co2 = dist * weight_t * EMISSION_FACTOR
 
-            month_key = s.created_at.strftime('%b')
+            month_key = s.created_at.date().replace(day=1)
             monthly_emissions[month_key] = monthly_emissions.get(month_key, 0) + co2
 
             c = s.carrier_name
@@ -555,12 +573,11 @@ class CarbonView(AsyncCacheMixin, APIView):
 
         # Build 12-month list
         monthly_list = []
-        for i in range(11, -1, -1):
-            month = (now - datetime.timedelta(days=i * 30)).strftime('%b')
+        for month_start in _last_months(now):
             monthly_list.append({
-                'month': month,
-                'emissions': round(monthly_emissions.get(month, 0), 1),
-                'offset': round(monthly_emissions.get(month, 0) * 0.12, 1),
+                'month': month_start.strftime('%b'),
+                'emissions': round(monthly_emissions.get(month_start, 0), 1),
+                'offset': round(monthly_emissions.get(month_start, 0) * 0.12, 1),
             })
 
         # Grade carriers
@@ -1537,7 +1554,7 @@ class BidAnalyticsView(APIView):
         days = int(request.query_params.get('days', 30))
         since = timezone.now() - timedelta(days=days)
 
-        bids = Bid.objects.filter(created_at__gte=since).select_related('carrier', 'freight_listing')
+        bids = Bid.objects.filter(created_at__gte=since).select_related('carrier', 'listing')
         # Scope bids by organization for non-PLATFORM_OWNER
         from domains._authz import get_user_role
         if get_user_role(request.user) != 'PLATFORM_OWNER':
@@ -1548,8 +1565,7 @@ class BidAnalyticsView(APIView):
                 org_client_ids = list(CustomUser.objects.filter(organization_id=org_id).values_list('id', flat=True))
                 bids = bids.filter(
                     Q(carrier__organization_id=org_id) |
-                    Q(freight_listing__posted_by_id__in=org_client_ids) |
-                    Q(freight_listing__organization_id=org_id)
+                    Q(listing__posted_by_id__in=org_client_ids)
                 )
 
         # Bid success by carrier

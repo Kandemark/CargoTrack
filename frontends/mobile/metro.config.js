@@ -21,6 +21,7 @@ const config = getDefaultConfig(projectRoot)
 // Watch shared/ and the root node_modules so Metro picks up packages that
 // npm workspaces hoisted out of mobile/node_modules into the repo root.
 config.watchFolders = [
+  ...config.watchFolders,
   sharedTypes,
   designTokens,
   path.resolve(workspaceRoot, '..', 'node_modules'),

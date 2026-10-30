@@ -436,3 +436,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 LOGGING = get_logging_config(debug=DEBUG)
+
+# Road routing (shipments/road.py). The public OSRM demo server is for
+# development only; production points this at our own OSRM instance.
+OSRM_URL = config('OSRM_URL', default='https://router.project-osrm.org')

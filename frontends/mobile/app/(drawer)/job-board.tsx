@@ -1,141 +1,265 @@
-import { useState, useEffect, useCallback } from 'react'
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, ScrollView, StyleSheet } from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { Alert, Modal, Pressable, ScrollView, TextInput, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { apiClient } from '@/lib/api'
+import { useAuthStore } from '@/lib/store'
+import { useBack } from '@/lib/useBack'
 import { useAppTheme } from '@/lib/useAppTheme'
-import ScreenHeader from '@/components/ScreenHeader'
+import { day, listOf, money } from '@/lib/data'
+import { Button, Chip, Empty, HeroStats, KeyValue, ListRow, Loading, Pill, ScreenFrame, Section, Txt, type PillTone } from '@/components/ui'
 
-interface FreightListing {
-  id: number; posted_by_name: string; cargo_type: string; cargo_type_display: string; weight_kg: number
-  origin: string; destination: string; pickup_date: string; delivery_date: string
-  budget_min: string | null; budget_max: string | null; description: string
-  requires_hazmat: boolean; requires_reefer: boolean; status: string; status_display: string
-  bid_count: number; lowest_bid: number | null
+interface Bid {
+  id: number
+  carrier_name: string
+  amount: string
+  estimated_days: number | null
+  notes: string
+  status: string
 }
 
-const TABS = ['Browse', 'My Listings', 'My Bids']
+interface Listing {
+  id: number
+  posted_by_name: string
+  cargo_type_display?: string
+  cargo_type: string
+  weight_kg: number
+  origin: string
+  destination: string
+  pickup_date: string
+  delivery_date: string
+  budget_min: string | null
+  budget_max: string | null
+  description: string
+  requires_hazmat: boolean
+  requires_reefer: boolean
+  status: string
+  bid_count: number
+  lowest_bid: number | null
+  bids?: Bid[]
+}
 
+const STATUS: Record<string, { label: string; tone: PillTone }> = {
+  OPEN: { label: 'Open', tone: 'info' },
+  IN_PROGRESS: { label: 'In progress', tone: 'warning' },
+  AWARDED: { label: 'Awarded', tone: 'success' },
+  COMPLETED: { label: 'Completed', tone: 'success' },
+  CANCELLED: { label: 'Cancelled', tone: 'neutral' },
+  EXPIRED: { label: 'Expired', tone: 'neutral' },
+  PENDING: { label: 'Waiting', tone: 'warning' },
+  ACCEPTED: { label: 'Accepted', tone: 'success' },
+  REJECTED: { label: 'Not chosen', tone: 'neutral' },
+}
+
+const CARRIER_ROLES = new Set(['CARRIER', 'DISPATCHER'])
+type Tab = 'mine' | 'browse' | 'bids'
+
+/**
+ * Loads put out to carriers. Shippers post loads and pick a bid; carriers
+ * browse open loads and bid on them.
+ */
 export default function JobBoardScreen() {
-  const [tab, setTab] = useState(0)
-  const [listings, setListings] = useState<FreightListing[]>([])
+  const back = useBack()
+  const role = useAuthStore((s) => s.user?.role ?? '')
+  const isCarrier = CARRIER_ROLES.has(role)
+  const [tab, setTab] = useState<Tab>(isCarrier ? 'browse' : 'mine')
+  const [items, setItems] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [selected, setSelected] = useState<FreightListing | null>(null)
-  const { colors, font, brand, status, spacing } = useAppTheme()
+  const [selected, setSelected] = useState<Listing | null>(null)
 
-  const fetchData = useCallback(async () => {
+  const load = useCallback(async () => {
+    const path = tab === 'mine' ? '/api/v1/marketplace/my-listings/' : tab === 'bids' ? '/api/v1/marketplace/my-bids/' : '/api/v1/marketplace/listings/'
     try {
-      const endpoint = tab === 0 ? '/api/v1/marketplace/listings/' : tab === 1 ? '/api/v1/marketplace/my-listings/' : '/api/v1/marketplace/my-bids/'
-      const res = await apiClient.get<FreightListing[]>(endpoint)
-      setListings(res.data ?? [])
-    } catch { setListings([]) }
+      const res = await apiClient.get(path)
+      setItems(listOf<Listing>(res.data))
+    } catch {
+      setItems([])
+    }
   }, [tab])
 
-  useEffect(() => { setLoading(true); fetchData().finally(() => setLoading(false)) }, [fetchData])
-  async function handleRefresh() { setRefreshing(true); await fetchData(); setRefreshing(false) }
+  useEffect(() => { setLoading(true); load().finally(() => setLoading(false)) }, [load])
 
   if (selected) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScreenHeader title="Listing Detail" subtitle={selected.origin + ' → ' + selected.destination} backButton />
-        <View style={{ padding: spacing.md }}>
-          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={{ fontSize: 17, fontWeight: '800', color: colors.text }}>{selected.cargo_type_display}</Text>
-            <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 4 }}>Posted by {selected.posted_by_name}</Text>
-            <View style={[s.divider, { backgroundColor: colors.border }]} />
-            {[
-              ['Weight', `${selected.weight_kg.toLocaleString()} kg`],
-              ['Pickup', new Date(selected.pickup_date).toLocaleDateString()],
-              ['Delivery', new Date(selected.delivery_date).toLocaleDateString()],
-              ['Budget', selected.budget_min ? `$${selected.budget_min} – $${selected.budget_max ?? 'open'}` : 'Open'],
-              ['Bids', `${selected.bid_count}${selected.lowest_bid ? ` · Lowest: $${selected.lowest_bid}` : ''}`],
-              ['Status', selected.status_display],
-            ].map(([label, value], i) => (
-              <View key={label}>
-                <View style={[s.divider, { backgroundColor: colors.border }]} />
-                <View style={s.row}>
-                  <Text style={[s.label, { color: colors.textFaint }]}>{label}</Text>
-                  <Text style={[s.value, { color: colors.text }]}>{value}</Text>
-                </View>
-              </View>
-            ))}
-            {(selected.requires_hazmat || selected.requires_reefer) && (
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                {selected.requires_hazmat && <View style={[s.tag, { backgroundColor: '#ef444418' }]}><Text style={{ fontSize: 10, fontWeight: '800', color: '#ef4444' }}>HAZMAT</Text></View>}
-                {selected.requires_reefer && <View style={[s.tag, { backgroundColor: '#3b82f618' }]}><Text style={{ fontSize: 10, fontWeight: '800', color: '#3b82f6' }}>REEFER</Text></View>}
-              </View>
-            )}
-            {selected.description ? (
-              <>
-                <View style={[s.divider, { backgroundColor: colors.border }]} />
-                <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 8, lineHeight: 20 }}>{selected.description}</Text>
-              </>
-            ) : null}
-          </View>
-        </View>
-      </View>
-    )
+    return <ListingDetail listing={selected} mine={tab === 'mine'} canBid={isCarrier && tab === 'browse'} onBack={() => { setSelected(null); load() }} />
   }
 
+  const open = items.filter((l) => l.status === 'OPEN').length
+  const bids = items.reduce((s, l) => s + (l.bid_count ?? 0), 0)
+  const awarded = items.filter((l) => l.status === 'AWARDED' || l.status === 'COMPLETED').length
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Job Board" backButton />
-      <FlatList
-        data={listings}
-        keyExtractor={(l) => String(l.id)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        ListHeaderComponent={
-          <View style={{ paddingHorizontal: spacing.md, marginTop: 8, marginBottom: 4 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {TABS.map((t, i) => (
-                <TouchableOpacity key={t} onPress={() => setTab(i)} style={[s.tab, { backgroundColor: tab === i ? brand.primary : colors.muted, marginRight: 8 }]}>
-                  <Text style={[s.tabText, { color: tab === i ? '#fff' : colors.textMuted }]}>{t}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        }
-        ListEmptyComponent={!loading ? (
-          <View style={{ alignItems: 'center', paddingTop: 60 }}>
-            <Ionicons name="hammer-outline" size={48} color={colors.textFaint} />
-            <Text style={{ fontSize: font.size.base, fontWeight: '700', color: colors.textMuted, marginTop: 12 }}>No listings found</Text>
-          </View>
-        ) : null}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => setSelected(item)} activeOpacity={0.7} style={{ paddingHorizontal: spacing.md }}>
-            <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{item.origin} → {item.destination}</Text>
-                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{item.cargo_type_display} · {item.weight_kg.toLocaleString()} kg</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: brand.primary }}>
-                    {item.budget_min ? `$${item.budget_min}` : 'Open'}
-                  </Text>
-                  <Text style={{ fontSize: 10, color: colors.textFaint, marginTop: 2 }}>{item.bid_count} bids</Text>
-                </View>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                {item.requires_hazmat && <View style={[s.tag, { backgroundColor: '#ef444418' }]}><Text style={{ fontSize: 8, fontWeight: '800', color: '#ef4444' }}>HAZMAT</Text></View>}
-                {item.requires_reefer && <View style={[s.tag, { backgroundColor: '#3b82f618' }]}><Text style={{ fontSize: 8, fontWeight: '800', color: '#3b82f6' }}>REEFER</Text></View>}
-              </View>
-            </View>
-          </TouchableOpacity>
+    <ScreenFrame
+      title="Job board"
+      onBack={back}
+      refreshing={refreshing}
+      onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false) }}
+      hero={
+        items.length && tab !== 'bids' ? (
+          <HeroStats
+            items={[
+              { label: 'Open', value: String(open) },
+              { label: tab === 'mine' ? 'Bids received' : 'Bids placed', value: String(bids) },
+              { label: 'Awarded', value: String(awarded) },
+            ]}
+          />
+        ) : null
+      }>
+      <View>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          {!isCarrier ? <Chip label="My loads" selected={tab === 'mine'} onPress={() => setTab('mine')} /> : null}
+          <Chip label="Open loads" selected={tab === 'browse'} onPress={() => setTab('browse')} />
+          {isCarrier ? <Chip label="My bids" selected={tab === 'bids'} onPress={() => setTab('bids')} /> : null}
+        </View>
+        {loading ? (
+          <Loading />
+        ) : items.length === 0 ? (
+          <Empty
+            icon="briefcase-outline"
+            title={tab === 'mine' ? 'No loads posted' : tab === 'bids' ? 'No bids yet' : 'No open loads'}
+            body={tab === 'mine' ? 'Post a load on the web app and carriers will bid on it.' : 'Loads put out by shippers appear here.'}
+          />
+        ) : (
+          <Section label={tab === 'mine' ? 'Your loads' : tab === 'bids' ? 'Your bids' : 'Open now'}>
+            {items.map((l, i) => {
+              const st = STATUS[l.status] ?? { label: l.status, tone: 'neutral' as PillTone }
+              return (
+                <ListRow
+                  key={l.id}
+                  title={`${l.origin} → ${l.destination}`}
+                  subtitle={`${(l.weight_kg / 1000).toFixed(1)} t · pickup ${day(l.pickup_date)} · ${l.bid_count} bid${l.bid_count === 1 ? '' : 's'}${l.lowest_bid ? `, lowest ${money(l.lowest_bid)}` : ''}`}
+                  trailing={<Pill label={st.label} tone={st.tone} />}
+                  onPress={() => setSelected(l)}
+                  last={i === items.length - 1}
+                />
+              )
+            })}
+          </Section>
         )}
-      />
-    </View>
+      </View>
+    </ScreenFrame>
   )
 }
 
-const s = StyleSheet.create({
-  tab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  tabText: { fontSize: 13, fontWeight: '700' },
-  card: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
-  divider: { height: 1, marginVertical: 10 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  label: { fontSize: 13, fontWeight: '500' },
-  value: { fontSize: 13, fontWeight: '600' },
-  tag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-})
+function ListingDetail({ listing: l, mine, canBid, onBack }: { listing: Listing; mine: boolean; canBid: boolean; onBack: () => void }) {
+  const [bids, setBids] = useState<Bid[]>(l.bids ?? [])
+  const [bidding, setBidding] = useState(false)
+
+  function accept(b: Bid) {
+    Alert.alert(`Accept ${b.carrier_name}?`, `${money(b.amount)}. The other bids will be declined.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Accept',
+        onPress: async () => {
+          try {
+            await apiClient.post(`/api/v1/marketplace/bids/${b.id}/accept/`)
+            setBids((all) => all.map((x) => ({ ...x, status: x.id === b.id ? 'ACCEPTED' : 'REJECTED' })))
+          } catch {
+            Alert.alert('Not accepted', 'Check your connection and try again.')
+          }
+        },
+      },
+    ])
+  }
+
+  const budget = l.budget_min ? `${money(l.budget_min)}${l.budget_max ? ` to ${money(l.budget_max).replace('KES ', '')}` : ''}` : 'Open'
+  const anyAccepted = bids.some((b) => b.status === 'ACCEPTED')
+
+  return (
+    <ScreenFrame eyebrow={l.cargo_type_display ?? l.cargo_type} title={`${l.origin} → ${l.destination}`} subtitle={`Posted by ${l.posted_by_name}`} onBack={onBack}>
+      <Section label="Load">
+        <KeyValue label="Weight" value={`${(l.weight_kg / 1000).toFixed(1)} t`} />
+        <KeyValue label="Pickup" value={day(l.pickup_date)} />
+        <KeyValue label="Delivery" value={day(l.delivery_date)} />
+        <KeyValue label="Budget" value={budget} />
+        {l.requires_hazmat || l.requires_reefer ? (
+          <KeyValue label="Needs" value={[l.requires_hazmat && 'Hazardous goods licence', l.requires_reefer && 'Refrigerated truck'].filter(Boolean).join(', ')} />
+        ) : null}
+        <KeyValue label="Notes" value={l.description || '—'} last />
+      </Section>
+
+      {mine ? (
+        <Section label={bids.length ? 'Bids, lowest first' : 'Bids'}>
+          {bids.length === 0 ? (
+            <Empty icon="hourglass-outline" title="No bids yet" body="Carriers usually bid within a day." />
+          ) : (
+            [...bids].sort((a, b) => Number(a.amount) - Number(b.amount)).map((b, i, all) => {
+              const st = STATUS[b.status] ?? STATUS.PENDING
+              return (
+                <View key={b.id}>
+                  <ListRow
+                    icon="business-outline"
+                    title={b.carrier_name}
+                    subtitle={[money(b.amount), b.estimated_days ? `${b.estimated_days} days` : null, b.notes].filter(Boolean).join(' · ')}
+                    subtitleLines={3}
+                    trailing={<Pill label={st.label} tone={st.tone} />}
+                    onPress={!anyAccepted && b.status === 'PENDING' ? () => accept(b) : undefined}
+                    last={i === all.length - 1}
+                  />
+                </View>
+              )
+            })
+          )}
+          {!anyAccepted && bids.length ? <Txt variant="caption" tone="muted" style={{ marginTop: 8 }}>Tap a bid to accept it.</Txt> : null}
+        </Section>
+      ) : null}
+
+      {canBid ? <Button variant="primary" onPress={() => setBidding(true)}>Place a bid</Button> : null}
+      {bidding ? <BidSheet listing={l} onClose={() => setBidding(false)} /> : null}
+    </ScreenFrame>
+  )
+}
+
+function BidSheet({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+  const { colors } = useAppTheme()
+  const [amount, setAmount] = useState('')
+  const [days, setDays] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function send() {
+    setSaving(true)
+    try {
+      await apiClient.post(`/api/v1/marketplace/listings/${listing.id}/bid/`, { amount, estimated_days: days ? Number(days) : null, notes })
+      Alert.alert('Bid sent', 'The shipper will see it straight away.')
+      onClose()
+    } catch {
+      Alert.alert('Not sent', 'Check the amount and try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const input = { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.muted, color: colors.text, fontFamily: 'DMSans-Medium', fontSize: 16 } as const
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.card }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 }}>
+          <View style={{ flex: 1 }}>
+            <Txt variant="title">Place a bid</Txt>
+            <Txt variant="caption" tone="muted">{listing.origin} → {listing.destination}</Txt>
+          </View>
+          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+            <Ionicons name="close" size={26} color={colors.textMuted} />
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }} keyboardShouldPersistTaps="handled">
+          <View>
+            <Txt variant="label" tone="faint" style={{ marginBottom: 8 }}>Your price, KES</Txt>
+            <TextInput value={amount} onChangeText={setAmount} keyboardType="number-pad" style={input} />
+          </View>
+          <View>
+            <Txt variant="label" tone="faint" style={{ marginBottom: 8 }}>Days to deliver</Txt>
+            <TextInput value={days} onChangeText={setDays} keyboardType="number-pad" style={input} />
+          </View>
+          <View>
+            <Txt variant="label" tone="faint" style={{ marginBottom: 8 }}>Note for the shipper</Txt>
+            <TextInput value={notes} onChangeText={setNotes} multiline style={[input, { minHeight: 90, textAlignVertical: 'top' }]} />
+          </View>
+          <Button variant="primary" onPress={send} loading={saving} disabled={!amount}>Send bid</Button>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  )
+}

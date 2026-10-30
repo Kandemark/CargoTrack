@@ -1,264 +1,193 @@
+<div align="center">
+
+<img src="docs/assets/logo.png" width="96" alt="CargoTrack" />
+
 # CargoTrack
 
-**B2B SaaS for real-time freight tracking, ML-powered delay prediction, and logistics management across East Africa.**
+**Freight booking, tracking and fleet operations for East Africa, paid for as you use it.**
 
-CargoTrack connects freight forwarders, 3PLs, carriers, importers, customs brokers, and port agents across Kenya, Uganda, Tanzania, Rwanda, and Burundi.
+[![Core](https://github.com/Kandemark/CargoTrack/actions/workflows/core.yml/badge.svg)](https://github.com/Kandemark/CargoTrack/actions/workflows/core.yml)
+[![App](https://github.com/Kandemark/CargoTrack/actions/workflows/app.yml/badge.svg)](https://github.com/Kandemark/CargoTrack/actions/workflows/app.yml)
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8)](services/core/go.mod)
+[![Expo SDK](https://img.shields.io/badge/Expo_SDK-58-000020)](frontends/app/package.json)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 
----
+[Overview](#overview) ·
+[Features](#features) ·
+[Architecture](#architecture) ·
+[Quick start](#quick-start) ·
+[Documentation](#documentation) ·
+[Roadmap](#roadmap) ·
+[Contributing](#contributing)
 
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Core API | Django 4.2 + Django REST Framework + Daphne ASGI |
-| Database | PostgreSQL 16 + TimescaleDB 2.16 |
-| Event Bus | Apache Kafka (KRaft mode) + Schema Registry |
-| Cache | Redis 7 |
-| Identity | Keycloak 26 (OIDC) |
-| API Gateway | Traefik v3 |
-| Frontend | React 18 + Vite + TypeScript + Tailwind CSS v4 |
-| Mobile | Expo (React Native) — development builds, not Expo Go |
-| ML | scikit-learn (RandomForestClassifier) + XGBoost |
-| Workflow Engine | Java 21 + Camunda 7 (BPMN + DMN) |
-| EDI Gateway | Java 21 + Apache Camel (EDIFACT + X12 + AS2) |
-| WebSocket | Elixir + Phoenix |
-| GPS Ingest | Rust (tokio, rumqttc, rdkafka) |
-| Route Optimizer | Rust (tonic gRPC, geo) |
-| Notification | Go (Kafka consumer, FCM/Email/SMS/WhatsApp/USSD) |
-| Webhook Dispatcher | Go (HMAC-SHA256, exponential backoff) |
-| Observability | Prometheus + Grafana + Jaeger + Loki + Promtail |
-| Object Storage | MinIO (S3-compatible) |
-
-Full architecture details: [docs/architecture.md](docs/architecture.md)
+</div>
 
 ---
 
-## Quick Start (Docker)
+## Overview
 
-### Prerequisites
+CargoTrack connects shippers, freight forwarders, carriers and their drivers across Kenya, Uganda, Tanzania, Rwanda and Burundi. Shippers book and follow shipments, carriers win loads on an open marketplace and run them with their own trucks, and consignees track deliveries without an account.
 
-- Docker Desktop 24+
-- A `.env` file in the project root
+The platform is **prepaid**. Each organisation tops up a KES wallet with M-Pesa, and paid actions such as booking a shipment are deducted from it. An action without credit behind it does not run. CargoTrack never holds freight money: what a shipper pays a carrier is settled between the two companies.
 
-### 1. Create your `.env`
+> **Status.** The platform is being rebuilt from an earlier prototype. The Go core and the app described here are the new system; the prototype services still in the repository are marked [legacy](#legacy-prototype) and are retired as their replacements land. There is no production data yet.
 
-```bash
-cp .env.example .env
-```
+## Features
 
-Edit `.env` and set at minimum:
-
-```env
-DEBUG=True
-SECRET_KEY=<generate with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())">
-DB_PASSWORD=a-strong-local-password
-```
-
-### 2. Build and start
-
-**Sandbox (lightweight dev — recommended for first run):**
-
-```bash
-docker compose -f docker-compose.sandbox.yml up -d
-```
-
-**Full production stack (30+ services):**
-
-```bash
-docker compose up -d
-```
-
-Migrations run automatically on backend startup.
-
-### 3. Access the services
-
-| Service | URL |
-|---|---|
-| React frontend | http://localhost:5173 |
-| Django API | http://localhost:8000/api/ |
-| Django Admin | http://localhost:8000/admin/ |
-| Keycloak Admin | http://localhost:8080 (admin/admin) |
-| Traefik Dashboard | http://localhost:8082 |
-| Kafka UI | http://localhost:8088 |
-| EMQX Dashboard | http://localhost:18083 |
-| Grafana | http://localhost:3000 (admin/admin) |
-| Jaeger | http://localhost:16686 |
-| MinIO Console | http://localhost:9001 |
-
----
-
-## Makefile Targets
-
-```bash
-make up                # docker compose up (foreground)
-make down              # stop and remove containers
-make build             # rebuild all images
-make logs              # tail backend logs
-make shell             # Django management shell
-make migrate           # run pending migrations
-make createsuperuser   # create Django admin account
-make seed              # load demo data
-make test              # run tests
-make check             # run full CI suite (lint, type-check, test)
-make lint              # run linters across all languages
-make proto             # regenerate gRPC protobuf stubs
-make clean             # remove containers, volumes, built assets
-make sandbox-up        # start sandbox environment
-make sandbox-seed      # seed sandbox with demo data
-make train-model       # train ML delay prediction model
-```
-
----
-
-## Local Development (without Docker)
-
-### Backend
-
-```powershell
-# Windows
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-.\scripts\run-dev.ps1
-```
-
-```bash
-# macOS / Linux
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-daphne -b 0.0.0.0 -p 8000 cargotrack.asgi:application
-```
-
-### Frontend
-
-```bash
-cd frontends/web
-npm install
-npm run dev
-```
-
-### Mobile App (Android)
-
-> Requires a development build, not Expo Go (uses native modules for biometrics, maps, notifications).
-
-```bash
-cd frontends/mobile
-npm install
-npx expo run:android
-```
-
-For EAS cloud builds: `npx eas build --platform android --profile development`
-
-Connect the app to Django:
-- **Emulator:** `http://10.0.2.2:8000`
-- **Physical device (same WiFi):** `http://<lan-ip>:8000`
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
+| Area | What it does | Status |
 |---|---|---|
-| `SECRET_KEY` | insecure dev key | Django secret — must be rotated in production |
-| `DEBUG` | `False` | Enable debug mode |
-| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated allowed hostnames |
-| `DB_NAME` | `cargotrack` | PostgreSQL database name |
-| `DB_USER` | `postgres` | PostgreSQL user |
-| `DB_PASSWORD` | *(required)* | PostgreSQL password |
-| `DB_HOST` | `localhost` | PostgreSQL host |
-| `DB_PORT` | `5432` | PostgreSQL port |
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection string |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Allowed CORS origins |
-| `OIDC_ENABLED` | `true` | Enable Keycloak OIDC |
-| `KEYCLOAK_SERVER_URL` | `http://localhost:8080` | Keycloak base URL |
-| `JWT_SECRET_KEY` | insecure dev key | JWT signing key for cross-service auth |
+| **Wallet and billing** | Prepaid KES wallet; per-action prices set by the platform owner; append-only ledger; HTTP 402 when credit runs out | Built |
+| **M-Pesa top-ups** | STK Push; credit released only after Safaricom confirms over an authenticated query; lost callbacks recovered automatically | Built |
+| **Shipments** | Paid, idempotent booking; enforced status rules (booked, picked up, in transit, customs, delivered); full history | Built |
+| **Public tracking** | Consignees follow a shipment by tracking number without signing in; private details never shown | Built |
+| **Fleet** | Vehicles and drivers with insurance, inspection and licence dates; non-compliant ones cannot be assigned | Built |
+| **Marketplace** | Shippers list loads, carriers bid (sealed), the accepted carrier operates the shipment with its own fleet | Built |
+| **App (web, Android, iOS)** | One codebase, equal features on every platform, English and Swahili | In progress: sign-in, wallet, top-up, account |
+| **Live GPS, geofences, ETA** | High-volume device ingest and route intelligence | Planned |
+| **Realtime** | Live map positions, chat, presence | Planned |
+| **EDI** | EDIFACT, X12 and AS2 with shipping lines, ports and customs | Planned, when a contract needs it |
 
----
+## Architecture
 
-## API Overview
+Deployables are split by how they behave at runtime, and each is written in the language built for that job. The full reasoning is in [ADR 002](docs/adr/002-target-architecture.md).
 
-**Base URL:** `http://localhost:8000` | **Version:** `v1` | **Auth:** JWT Bearer token
+```mermaid
+flowchart LR
+    subgraph Clients
+        APP["App<br/>web · Android · iOS"]
+        TRACK["Public tracking"]
+    end
+    subgraph Platform
+        CORE["core (Go)<br/>orgs · billing · shipments<br/>fleet · marketplace"]
+        GEO["geo (Rust)<br/>GPS · geofences · ETA"]
+        RT["realtime (Elixir)<br/>live map · chat"]
+        PG[("PostgreSQL<br/>row-level security")]
+        NATS{{"NATS JetStream"}}
+    end
+    ZIT["Zitadel<br/>identity"]
+    MPESA["M-Pesa Daraja"]
 
-```text
-POST /api/auth/register/          Create account, returns JWT pair
-POST /api/auth/token/             Obtain access + refresh tokens
-POST /api/auth/token/refresh/     Rotate refresh token
-POST /api/auth/token/logout/      Blacklist refresh token
-GET  /api/v1/shipments/           Paginated shipment list
-POST /api/v1/shipments/           Create shipment
-GET  /api/v1/shipments/<id>/      Shipment detail
-POST /api/v1/shipments/<id>/tracking-events/   Log tracking event
-GET  /api/v1/dashboard/           KPI summary
-GET  /api/v1/alerts/              Alert list
-POST /api/v1/predict-delay/       ML delay prediction
+    APP --> CORE
+    TRACK --> CORE
+    APP -. sign in .-> ZIT
+    CORE --> PG
+    CORE <--> MPESA
+    GEO --> NATS --> RT --> APP
+    NATS --> CORE
 ```
 
-Full API reference: [docs/api-reference.md](docs/api-reference.md)
+| Component | Technology | Responsibility | Status |
+|---|---|---|---|
+| [`services/core`](services/core) | Go, PostgreSQL | Business API: organisations, billing, payments, shipments, fleet, marketplace | Built |
+| [`frontends/app`](frontends/app) | TypeScript, Expo Router, React Native | Every feature on web, Android and iOS | In progress |
+| `services/geo` | Rust | GPS and IoT ingest, map-matching, geofences, ETA, optimisation | Planned |
+| `services/realtime` | Elixir, Phoenix | Live positions, chat, presence | Planned |
+| `services/edi` | Java, Apache Camel | EDI with shipping lines, ports and customs | Planned |
+| [`contracts/openapi`](contracts/openapi/core.v1.yaml) | OpenAPI 3.1 | The public API; the app's types are generated from it | Built |
 
----
+### Guarantees
 
-## Repository Structure
+These are enforced by the database or the build, not by convention:
+
+- **Tenant isolation.** PostgreSQL row-level security scopes every query to the caller's organisation. A query that forgets to filter returns nothing, never another company's data.
+- **Money.** All amounts are integer KES cents. A wallet balance cannot go below zero, a paid action and its charge commit together, and a retried request is never charged twice.
+- **Payments.** Callbacks from payment providers are never trusted on their own. Credit is released only on the provider's answer to an authenticated status query.
+- **Cross-company safety.** A shipment can only be assigned trucks and drivers from the fleet operating it; the foreign keys include the organisation.
+- **App start-up.** Release builds must point at hosted HTTPS servers or the build fails, and nothing on the network can hold the app on its splash screen.
+
+## Quick start
+
+### Requirements
+
+| Tool | Version | For |
+|---|---|---|
+| Go | 1.25+ | `services/core` |
+| PostgreSQL | 17+ | running the core and its tests |
+| Node.js | 24+ | `frontends/app` |
+| Expo Go | matching SDK 58 | previewing the app on a phone |
+
+### Core API
+
+```sh
+cd services/core
+export DATABASE_URL=postgres://core:core@localhost:5432/core
+export OIDC_ISSUER=https://<instance>.zitadel.cloud
+export OIDC_AUDIENCE=<zitadel project id>
+go run ./cmd/core            # applies migrations, serves :8080
+```
+
+Tests run against real PostgreSQL as an ordinary (non-superuser) role, so row-level security is exercised exactly as in production:
+
+```sh
+export CORE_TEST_DATABASE_URL=postgres://core_test:<password>@localhost:5432/core_test
+go test -race ./...
+```
+
+Configuration, Zitadel and M-Pesa setup: [`services/core/README.md`](services/core/README.md).
+
+### App
+
+```sh
+cd frontends/app
+npm ci
+cp .env.example .env.local   # fill in the API and Zitadel addresses
+npx expo start               # scan the QR code with Expo Go, or press w for web
+```
+
+Release builds, environments and checks: [`frontends/app/README.md`](frontends/app/README.md).
+
+## Repository layout
 
 ```
-cargotrack/
-├── services/
-│   ├── api/                     # Django REST API — core business logic
-│   ├── ws/                      # Phoenix WebSocket server (Elixir)
-│   ├── tracking-ingest/         # GPS batch ingestion (Go)
-│   ├── gps-ingest/              # Real-time GPS → Kafka (Rust)
-│   ├── route-optimizer/         # TSP/MVRP solver via gRPC (Rust)
-│   ├── notification/            # Push/SMS/Email/WhatsApp/USSD (Go)
-│   ├── webhook-dispatcher/      # External webhook fan-out (Go)
-│   ├── workflow-engine/         # Camunda BPMN workflow engine (Java)
-│   └── edi-integration/         # Apache Camel EDI gateway (Java)
-├── frontends/web/                # React + Vite + TypeScript frontend
-├── frontends/mobile/             # Expo React Native mobile app
-├── libs/shared-types/           # Shared TypeScript types
-├── deploy/                      # Traefik, Keycloak, Prometheus, Grafana, Loki, K8s, Terraform
-├── docs/                        # Full documentation → docs/index.md
-├── docker-compose.yml           # Full production stack (30+ services)
-├── docker-compose.sandbox.yml   # Lightweight sandbox environment
-├── Makefile                     # 30+ convenience targets
-├── README.md                    # This file
-├── CONTRIBUTING.md              # Contribution guidelines
-├── LICENSE                      # GNU AGPL v3.0
-└── FUNDING.yml                  # Funding configuration
-```
+contracts/openapi/     Public API contract (OpenAPI 3.1)
+services/core/         Go business API (new system)
+frontends/app/         Expo app for web, Android and iOS (new system)
+docs/adr/              Architecture decision records
+.github/workflows/     CI: core.yml, app.yml, and the legacy ci.yml
 
----
+services/api/          Legacy: Django prototype
+services/*             Legacy: prototype microservices, retired as replaced
+frontends/web/         Legacy: React prototype
+frontends/mobile/      Legacy: Expo prototype
+```
 
 ## Documentation
 
-All detailed documentation lives in [`docs/`](docs/index.md):
-
 | Document | Covers |
 |---|---|
-| [Index](docs/index.md) | Documentation hub with port map and architecture overview |
-| [Project Overview](docs/project-overview.md) | Product identity, design decisions, stack rationale |
-| [Architecture](docs/architecture.md) | System diagram, Kafka event flows, security model |
-| [Services](docs/services.md) | All microservices detailed with ports, env vars, key files |
-| [API Reference](docs/api-reference.md) | 100+ endpoints, JWT auth flow, RBAC |
-| [Data Models](docs/data-models.md) | Full DB schemas across 17 Django apps |
-| [Features](docs/features.md) | OCR, customs, USSD, ETA, finance, cold chain, ML |
-| [Development](docs/development.md) | Setup guide, Makefile targets, troubleshooting |
-| [Deployment](docs/deployment.md) | Docker, Kubernetes, Terraform, monitoring |
-| [Webhook Events](docs/webhook-events.md) | 8 event types, delivery guarantees, retry schedule |
+| [ADR 001: Monorepo directory structure](docs/adr/001-monorepo-directory-structure.md) | Folder naming |
+| [ADR 002: Target architecture](docs/adr/002-target-architecture.md) | Languages per runtime profile, rules for the core, equal features on web and mobile |
+| [Core service](services/core/README.md) | Layout, rules, configuration, roles, Zitadel and M-Pesa setup |
+| [App](frontends/app/README.md) | Structure, start-up rules, environments, release builds |
+| [API contract](contracts/openapi/core.v1.yaml) | Every endpoint, schema and error code |
 
----
+### Legacy prototype
 
-## Running Tests
+These documents describe the earlier Django-based prototype and are kept for reference while it is retired: [architecture](docs/architecture.md), [services](docs/services.md), [API reference](docs/api-reference.md), [data models](docs/data-models.md), [features](docs/features.md), [development](docs/development.md), [deployment](docs/deployment.md), [webhook events](docs/webhook-events.md).
 
-```bash
-# With venv active
-pytest tests/ -q
+## Roadmap
 
-# Inside Docker
-docker compose exec backend pytest tests/ -q
-```
+- [x] Core: organisations, prepaid wallet, M-Pesa top-ups
+- [x] Core: shipments, public tracking
+- [x] Core: fleet and assignment
+- [x] Core: freight marketplace
+- [ ] App: shipments, fleet and marketplace screens
+- [ ] Hosting: core and database on managed, pay-as-you-go infrastructure
+- [ ] App: first release build on Android
+- [ ] Geo service: live GPS from trucks, geofences, ETA
+- [ ] Realtime service: live map and chat
+- [ ] Retire the legacy prototype
 
----
+## Contributing
+
+1. Branch from `main` and open a pull request; `main` changes only through reviewed pull requests.
+2. Keep each commit to one change, with a message in the form `type: summary` (`feat`, `fix`, `docs`, `test`, `ci`).
+3. Before pushing, run the checks for what you changed:
+   - Core: `gofmt -l .`, `go vet ./...`, `go test -race ./...`
+   - App: `npx tsc --noEmit`, `npx eslint .`, `npm run gen:api` (no diff), `npx expo-doctor`
+4. A change to the API starts in [`contracts/openapi/core.v1.yaml`](contracts/openapi/core.v1.yaml); regenerate the app's types in the same pull request.
+5. Decisions that shape the system are recorded as an ADR in [`docs/adr`](docs/adr).
 
 ## License
 
-GNU Affero General Public License v3.0 — see [LICENSE](LICENSE).
+CargoTrack is licensed under the [GNU Affero General Public License v3.0](LICENSE).

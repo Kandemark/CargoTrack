@@ -13,7 +13,8 @@ const MapLibreGL = MAPLIBRE_SUPPORTED
   ? (require('@maplibre/maplibre-react-native').default as any)
   : null
 
-const DARK_MAP_STYLE = JSON.stringify(require('@/assets/cargotrack-map-style-dark.json'))
+import { MAP_STYLE } from '@/lib/mapStyle'
+const DARK_MAP_STYLE = MAP_STYLE.dark
 
 const REFRESH_INTERVAL = 60_000
 const DEFAULT_CENTER: [number, number] = [35.0, -1.5]
@@ -165,11 +166,14 @@ export default function CargoTrackMap() {
         const originLL = lookupLngLat(s.route?.origin ?? '')
         const destLL   = lookupLngLat(s.route?.destination ?? '')
         const progress = estimateProgress(s.scheduled_departure, s.scheduled_arrival)
-        // Initial position: fallback to midpoint if no route yet
-        const lngLat = originLL && destLL
-          ? interpolateAlong([originLL, destLL], progress)
-          : originLL ?? [36.8219, -1.2921] as [number, number]
-        return { ...s, lngLat, originLL, destLL, routeCoords: null, progress }
+        // The road path stored on the route, when the server has it.
+        const road = s.route?.geometry?.length ? asTupleArray(s.route.geometry) : null
+        const lngLat = road
+          ? interpolateAlong(road, progress)
+          : originLL && destLL
+            ? interpolateAlong([originLL, destLL], progress)
+            : originLL ?? [36.8219, -1.2921] as [number, number]
+        return { ...s, lngLat, originLL, destLL, routeCoords: road, progress }
       })
       setShipments(enriched)
       routesRequestedRef.current = false
@@ -186,8 +190,9 @@ export default function CargoTrackMap() {
     if (routesRequestedRef.current || !shipmentsLoaded) return
     routesRequestedRef.current = true
 
+    // Only routes the server has no road path for yet.
     const pairs = shipments
-      .filter((s) => s.originLL && s.destLL)
+      .filter((s) => !s.routeCoords && s.originLL && s.destLL)
       .map((s) => ({
         id: String(s.id),
         from: s.originLL!,
@@ -207,7 +212,7 @@ export default function CargoTrackMap() {
 
       setShipments((prev) =>
         prev.map((s) => {
-          const coords = coordMap.get(String(s.id)) ?? null
+          const coords = coordMap.get(String(s.id)) ?? s.routeCoords
           const lngLat = coords
             ? interpolateAlong(coords, s.progress)
             : s.lngLat
@@ -537,7 +542,7 @@ const styles = StyleSheet.create({
   fallbackTitle: {
     color: '#e2e8f0',
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'DMSans-Bold', fontWeight: '700',
     marginTop: 12,
     textAlign: 'center',
   },
@@ -555,7 +560,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5801e',
     borderRadius: 10,
   },
-  retryText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  retryText: { color: '#fff', fontFamily: 'DMSans-Bold', fontWeight: '700', fontSize: 12 },
   loadingOverlay: {
     position: 'absolute',
     top: 12,

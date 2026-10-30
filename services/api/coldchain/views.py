@@ -30,7 +30,7 @@ class ColdChainShipmentViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         return self.scope_by_org(super().get_queryset())
 
     @action(detail=True, methods=['get'])
-    def readings(self, request, pk=None):
+    def readings(self, request, pk=None, **kwargs):
         cc = self.get_object()
         qs = cc.readings.order_by('-timestamp')[:100]
         page = self.paginate_queryset(qs)
@@ -39,13 +39,13 @@ class ColdChainShipmentViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         return Response(TemperatureReadingSerializer(qs, many=True).data)
 
     @action(detail=True, methods=['get'])
-    def excursions(self, request, pk=None):
+    def excursions(self, request, pk=None, **kwargs):
         cc = self.get_object()
         qs = cc.excursions.order_by('-started_at')
         return Response(TemperatureExcursionSerializer(qs, many=True).data)
 
     @action(detail=True, methods=['post'])
-    def acknowledge_excursion(self, request, pk=None):
+    def acknowledge_excursion(self, request, pk=None, **kwargs):
         cc = self.get_object()
         excursion_id = request.data.get('excursion_id')
         try:
@@ -62,7 +62,7 @@ class ColdChainShipmentViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         return Response(TemperatureExcursionSerializer(exc).data)
 
     @action(detail=True, methods=['post'])
-    def generate_certificate(self, request, pk=None):
+    def generate_certificate(self, request, pk=None, **kwargs):
         cc = self.get_object()
         if hasattr(cc, 'certificate'):
             return Response(ColdChainCertificateSerializer(cc.certificate).data)
@@ -95,7 +95,7 @@ class ColdChainShipmentViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=['get'])
-    def compliance_report(self, request, pk=None):
+    def compliance_report(self, request, pk=None, **kwargs):
         """GET /api/v1/coldchain/<id>/compliance-report/ — full compliance summary."""
         cc = self.get_object()
         readings = cc.readings.order_by('timestamp')

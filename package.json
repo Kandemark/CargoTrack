@@ -2,12 +2,16 @@
   "name": "cargotrack-monorepo",
   "private": true,
   "workspaces": [
-    "frontends/*",
+    "frontends/mobile",
+    "frontends/web",
     "libs/*"
   ],
   "version": "1.0.0",
   "scripts": {
     "android": "cd frontends/mobile && expo run:android",
     "ios": "cd frontends/mobile && expo run:ios"
+  },
+  "overrides": {
+    "react-native-gesture-handler": "~2.28.0"
   }
 }

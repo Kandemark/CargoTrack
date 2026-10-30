@@ -90,7 +90,7 @@ export const useAlertStore = create<AlertState>()((set) => ({
   fetchAlerts: async (client) => {
     set({ isLoading: true, error: null })
     try {
-      const res = await client.get<{ count: number; results: Alert[] }>('/api/v1/alerts/')
+      const res = await client.get<{ count: number; results: Alert[] }>('/api/v1/alerts/', { params: { all: 1 } })
       const alerts: Alert[] = res.data.results ?? []
       set({ alerts, unreadCount: alerts.filter((a) => !a.acknowledged).length, isLoading: false })
     } catch {

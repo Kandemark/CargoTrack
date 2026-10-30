@@ -35,7 +35,7 @@ class ProofOfDeliveryViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         return super().create(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
-    def upload_photo(self, request, pk=None):
+    def upload_photo(self, request, pk=None, **kwargs):
         pod = self.get_object()
         serializer = PODPhotoSerializer(data=request.data)
         if serializer.is_valid():
@@ -44,7 +44,7 @@ class ProofOfDeliveryViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
-    def verify(self, request, pk=None):
+    def verify(self, request, pk=None, **kwargs):
         """POST /api/v1/pod/<id>/verify/ — client verifies delivery acceptance."""
         pod = self.get_object()
         if pod.verification_status == 'VERIFIED':
@@ -57,7 +57,7 @@ class ProofOfDeliveryViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         return Response(ProofOfDeliverySerializer(pod).data)
 
     @action(detail=True, methods=['post'])
-    def raise_dispute(self, request, pk=None):
+    def raise_dispute(self, request, pk=None, **kwargs):
         """POST /api/v1/pod/<id>/raise-dispute/ — client disputes delivery."""
         pod = self.get_object()
         if hasattr(pod, 'dispute'):
@@ -78,7 +78,7 @@ class ProofOfDeliveryViewSet(OrgScopedQueryset, viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
-    def resolve_dispute(self, request, pk=None):
+    def resolve_dispute(self, request, pk=None, **kwargs):
         """POST /api/v1/pod/<id>/resolve-dispute/ — admin resolves dispute."""
         pod = self.get_object()
         if not hasattr(pod, 'dispute'):

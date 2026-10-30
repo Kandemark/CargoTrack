@@ -1,0 +1,999 @@
+openapi: 3.1.0
+info:
+  title: CargoTrack Core API
+  version: 1.0.0
+  description: |
+    Organisations, prepaid billing, payments, shipments, fleet, and the freight marketplace.
+
+    Authentication: every endpoint except provider callbacks and health
+    checks takes a Zitadel access token (JWT) as `Authorization: Bearer`.
+
+    Money: every amount is an integer number of KES cents. No endpoint
+    accepts or returns floating-point money.
+
+    Paid actions answer **402** with error `insufficient_credit` when the
+    caller's wallet cannot cover the price. Clients should send the user to
+    the top-up screen, showing `details.price_cents` and
+    `details.balance_cents`.
+servers:
+  - url: /
+security:
+  - bearer: []
+
+paths:
+  /v1/me:
+    get:
+      summary: The caller, their organisation, and their roles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user_id, organization, roles]
+                properties:
+                  user_id: { type: string, format: uuid }
+                  organization: { $ref: "#/components/schemas/Organization" }
+                  roles: { type: array, items: { $ref: "#/components/schemas/Role" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/billing/wallet:
+    get:
+      summary: Balance and current prices
+      description: Requires `billing.view` (org_admin, finance, operations).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [balance_cents, currency, low_balance, prices]
+                properties:
+                  balance_cents: { type: integer, format: int64 }
+                  currency: { type: string, const: KES }
+                  low_balance: { type: boolean }
+                  prices: { type: array, items: { $ref: "#/components/schemas/Meter" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/billing/ledger:
+    get:
+      summary: Every change to the balance, newest first
+      description: Requires `billing.view`.
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: before, in: query, description: Return entries older than this entry id, schema: { type: integer, format: int64 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries, next_before]
+                properties:
+                  entries: { type: array, items: { $ref: "#/components/schemas/LedgerEntry" } }
+                  next_before:
+                    description: Pass as `before` for the next page; null on the last page.
+                    type: [integer, "null"]
+                    format: int64
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/billing/topups:
+    get:
+      summary: The 50 most recent top-ups
+      description: Requires `billing.view`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topups]
+                properties:
+                  topups: { type: array, items: { $ref: "#/components/schemas/TopUp" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Start a top-up
+      description: |
+        Requires `billing.manage` (org_admin, finance). For M-Pesa this sends
+        an STK Push prompt to the phone; the top-up stays `pending` until the
+        customer enters their PIN and Safaricom confirms it. Poll
+        `GET /v1/billing/topups/{id}` (or `POST .../check`) to follow it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [provider, amount_cents, phone]
+              properties:
+                provider: { type: string, enum: [mpesa] }
+                amount_cents:
+                  type: integer
+                  format: int64
+                  description: Whole shillings for M-Pesa (a multiple of 100). Minimum set by BILLING_MIN_TOPUP_KES.
+                phone: { type: string, examples: ["0712 345 678"] }
+      responses:
+        "201":
+          description: Prompt sent; top-up pending
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [topup, customer_message]
+                properties:
+                  topup: { $ref: "#/components/schemas/TopUp" }
+                  customer_message: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422":
+          description: The provider refused the payment (`payment_rejected`); `details.topup` is the failed top-up
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "502":
+          description: The provider could not be reached (`provider_unavailable`)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /v1/billing/topups/{id}:
+    get:
+      summary: One top-up
+      description: Requires `billing.view`. Another organisation's top-up is reported as not found.
+      parameters: [{ $ref: "#/components/parameters/TopUpID" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TopUp" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/billing/topups/{id}/check:
+    post:
+      summary: Ask the provider for the result now
+      description: |
+        Requires `billing.view`. For when the callback is slow. Rate-limited
+        per top-up (BILLING_TOPUP_CHECK_SECONDS); calls inside the window
+        return the current state without asking the provider.
+      parameters: [{ $ref: "#/components/parameters/TopUpID" }]
+      responses:
+        "200": { description: Current state, content: { application/json: { schema: { $ref: "#/components/schemas/TopUp" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/payments/{provider}/callback:
+    post:
+      summary: Payment provider callback
+      description: |
+        Called by the provider, not by clients. Authenticated per provider
+        (M-Pesa: `?token=` must equal MPESA_CALLBACK_TOKEN). The body only
+        identifies the payment; credit is released solely on the provider's
+        answer to an authenticated status query.
+      security: []
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [mpesa] } }
+        - { name: token, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Accepted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/admin/meters:
+    get:
+      summary: All meters, including inactive ones
+      description: Requires `platform.admin`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  meters: { type: array, items: { $ref: "#/components/schemas/Meter" } }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /v1/admin/meters/{code}:
+    put:
+      summary: Change a price or switch a meter off
+      description: Requires `platform.admin`. An inactive meter makes its action free.
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string, examples: [shipment.create] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                unit_price_cents: { type: integer, format: int64, minimum: 0 }
+                active: { type: boolean }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Meter" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/admin/organizations/{id}/adjustments:
+    post:
+      summary: Credit or debit a wallet by hand
+      description: |
+        Requires `platform.admin`. For payments received outside the app
+        (bank transfer, PesaLink), promotional credit, and corrections.
+        `reference` (e.g. the bank reference) makes it safe to retry.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [amount_cents, note]
+              properties:
+                amount_cents: { type: integer, format: int64, description: Negative to debit }
+                note: { type: string }
+                reference: { type: string }
+      responses:
+        "201": { description: Applied, content: { application/json: { schema: { $ref: "#/components/schemas/LedgerEntry" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Reference already used (`duplicate_reference`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: Would take the balance below zero (`below_zero`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/shipments:
+    post:
+      summary: Book a shipment (paid)
+      description: |
+        Requires `shipments.manage` (org_admin, operations). Charged once
+        (meter `shipment.create`); the charge covers every status change and
+        checkpoint afterwards. Without credit: 402 and nothing is booked.
+
+        `Idempotency-Key` is required. Retrying with the same key and the
+        same body returns the original shipment with 200 and
+        `Idempotent-Replayed: true`, and is not charged again. The same key
+        with a different body is refused with 422 `idempotency_key_reused`.
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 100 }, description: A new UUID per booking }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ShipmentInput" } } }
+      responses:
+        "201": { description: Booked and charged, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "200": { description: Replay of an earlier request with this key; not charged, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "402": { $ref: "#/components/responses/PaymentRequired" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { description: Idempotency key reused for a different booking, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: Shipments, newest first
+      description: Requires `shipments.view`, or `shipments.view_assigned` (drivers), which lists only shipments assigned to the caller.
+      parameters:
+        - { name: status, in: query, description: Comma-separated statuses, schema: { type: string, examples: ["in_transit,customs"] } }
+        - { name: q, in: query, description: Exact tracking number or part of the client reference, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: cursor, in: query, description: next_cursor from the previous page, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [shipments, next_cursor]
+                properties:
+                  shipments: { type: array, items: { $ref: "#/components/schemas/Shipment" } }
+                  next_cursor: { type: [string, "null"] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /v1/shipments/{id}:
+    get:
+      summary: One shipment
+      description: Requires `shipments.view` or `shipments.view_assigned`. Another organisation's shipment, or for a driver one not assigned to them, is reported as not found.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      summary: Edit a shipment before pickup (free)
+      description: Requires `shipments.manage`. Only while `booked`; afterwards 409 `not_editable`. Send only the fields that change.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ShipmentPatch" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Already picked up (`not_editable`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/shipments/{id}/status:
+    post:
+      summary: Move a shipment to its next status
+      description: |
+        Requires `shipments.track` (drivers included); `cancelled` also
+        requires `shipments.manage`. Allowed moves:
+
+        - booked → picked_up, cancelled
+        - picked_up → in_transit, customs, delivered, exception
+        - in_transit → customs, delivered, exception
+        - customs → in_transit, delivered, exception
+        - exception → in_transit, customs, delivered, cancelled
+
+        Anything else is 409 `invalid_transition` with `details.allowed`.
+        Cancelling does not refund the booking; edit before pickup instead.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  required: [status]
+                  properties:
+                    status: { $ref: "#/components/schemas/ShipmentStatus" }
+                - $ref: "#/components/schemas/EventFields"
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shipment: { $ref: "#/components/schemas/Shipment" }
+                  event: { $ref: "#/components/schemas/ShipmentEvent" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Move not allowed (`invalid_transition`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/shipments/{id}/events:
+    get:
+      summary: Full history, oldest first, including internal events
+      description: Requires `shipments.view`.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events: { type: array, items: { $ref: "#/components/schemas/ShipmentEvent" } }
+    post:
+      summary: Record a checkpoint, delay or note
+      description: |
+        Requires `shipments.track`. A checkpoint needs a location or
+        coordinates; a delay or note needs a note. Delivered and cancelled
+        shipments accept notes only (409 `shipment_closed`). Free.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - type: object
+                  required: [kind]
+                  properties:
+                    kind: { type: string, enum: [checkpoint, delay, note] }
+                - $ref: "#/components/schemas/EventFields"
+      responses:
+        "201": { description: Recorded, content: { application/json: { schema: { $ref: "#/components/schemas/ShipmentEvent" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Shipment closed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/shipments/{id}/assignment:
+    put:
+      summary: Set the vehicle and driver of a shipment
+      description: |
+        Requires `shipments.manage`. Send both fields; `null` unassigns.
+        Swapping mid-route is allowed; delivered and cancelled shipments
+        cannot be reassigned. Refused when the vehicle is inactive or its
+        insurance or inspection has lapsed (`vehicle_inactive`,
+        `vehicle_not_compliant`), or the driver is inactive or their licence
+        has expired (`driver_inactive`, `driver_not_compliant`). Another
+        organisation's vehicle or driver is `unknown_vehicle` /
+        `unknown_driver`. Recorded as an internal `assignment` event. Free.
+      parameters: [{ $ref: "#/components/parameters/ShipmentID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                vehicle_id: { type: [string, "null"], format: uuid }
+                driver_id: { type: [string, "null"], format: uuid }
+      responses:
+        "200": { description: Assigned, content: { application/json: { schema: { $ref: "#/components/schemas/Shipment" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Not compliant, inactive, or shipment closed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: No such vehicle or driver in your fleet, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/fleet/vehicles:
+    post:
+      summary: Add a vehicle
+      description: Requires `fleet.manage`. The registration is matched ignoring case, spaces and dashes; a duplicate is 409 `duplicate_registration`.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/VehicleInput" } } }
+      responses:
+        "201": { description: Added, content: { application/json: { schema: { $ref: "#/components/schemas/Vehicle" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { description: Duplicate registration, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: Vehicles
+      description: Requires `fleet.view`. Inactive vehicles are left out unless `include_inactive=true`.
+      parameters:
+        - { name: include_inactive, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicles: { type: array, items: { $ref: "#/components/schemas/Vehicle" } }
+
+  /v1/fleet/vehicles/{id}:
+    get:
+      summary: One vehicle
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Vehicle" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      summary: Edit a vehicle
+      description: Requires `fleet.manage`. Send only the fields that change; dates cannot be cleared.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/VehicleInput" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Vehicle" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/fleet/drivers:
+    post:
+      summary: Add a driver
+      description: |
+        Requires `fleet.manage`. When a user with the `driver` role signs in
+        with a verified email equal to `email`, their login is linked to this
+        record and they see shipments assigned to it.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DriverInput" } } }
+      responses:
+        "201": { description: Added, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { description: Email used by another driver (`duplicate_email`), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: Drivers
+      description: Requires `fleet.view`.
+      parameters:
+        - { name: include_inactive, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  drivers: { type: array, items: { $ref: "#/components/schemas/Driver" } }
+
+  /v1/fleet/drivers/{id}:
+    get:
+      summary: One driver
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      summary: Edit a driver
+      description: Requires `fleet.manage`. Changing the email unlinks the current login.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DriverInput" } } }
+      responses:
+        "200": { description: Updated, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/fleet/me:
+    get:
+      summary: The caller's own driver profile
+      description: Any signed-in user. Links the login on first call if a driver record has the caller's verified email; otherwise 404 `not_a_driver`.
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Driver" } } } }
+        "404": { description: No matching driver record, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/marketplace/listings:
+    post:
+      summary: Put a booked shipment out to carriers (paid)
+      description: |
+        Requires `shipments.manage`. Charged once (meter
+        `marketplace.listing`); bidding is free for carriers. The shipment
+        must be the caller's own, still `booked`, with no carrier, vehicle
+        or driver (`not_listable`). One open listing per shipment
+        (`already_listed`, not charged). While listed the shipment cannot be
+        edited. `closes_at` defaults to the earlier of pickup or three days.
+        The bid price is agreed here and paid between the two companies;
+        CargoTrack does not hold freight money.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [shipment_id]
+              properties:
+                shipment_id: { type: string, format: uuid }
+                closes_at: { type: string, format: date-time, description: At least 15 minutes from now, no later than pickup }
+                notes: { type: string, maxLength: 2000 }
+      responses:
+        "201": { description: Listed and charged, content: { application/json: { schema: { $ref: "#/components/schemas/Listing" } } } }
+        "402": { $ref: "#/components/responses/PaymentRequired" }
+        "409": { description: Already listed or not listable, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: The load board, or your own listings
+      description: |
+        Requires `marketplace.view`. `scope=open` (default): other
+        organisations' loads still taking bids, without client reference,
+        tracking number or shipper name. `scope=mine`: your listings in
+        any status, with `shipment_id` and `bid_count`.
+      parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [open, mine], default: open } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  listings: { type: array, items: { $ref: "#/components/schemas/Listing" } }
+
+  /v1/marketplace/listings/{id}:
+    get:
+      summary: One listing
+      description: Requires `marketplace.view`. Carriers see open listings only.
+      parameters: [{ $ref: "#/components/parameters/ListingID" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Listing" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/marketplace/listings/{id}/withdraw:
+    post:
+      summary: Take a load off the marketplace (free)
+      description: Requires `shipments.manage`; owner only. Pending bids are turned down. Cancelling the shipment does this too.
+      parameters: [{ $ref: "#/components/parameters/ListingID" }]
+      responses:
+        "200": { description: Withdrawn, content: { application/json: { schema: { $ref: "#/components/schemas/Listing" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Already awarded or withdrawn, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/marketplace/listings/{id}/bids:
+    post:
+      summary: Bid on a load (free)
+      description: |
+        Requires `marketplace.bid`. One pending bid per carrier per load
+        (`already_bid`; withdraw to change it). Not on your own loads
+        (`own_listing`) or after `closes_at` (`bidding_closed`).
+      parameters: [{ $ref: "#/components/parameters/ListingID" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [price_cents]
+              properties:
+                price_cents: { type: integer, format: int64, description: Your price for the whole job, KES cents }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        "201": { description: Bid placed, content: { application/json: { schema: { $ref: "#/components/schemas/Bid" } } } }
+        "409": { description: Already bid, own load, or bidding closed, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    get:
+      summary: Bids on a load
+      description: Requires `marketplace.view`. The owner sees every bid, cheapest first; a carrier sees only its own. Bids are sealed.
+      parameters: [{ $ref: "#/components/parameters/ListingID" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bids: { type: array, items: { $ref: "#/components/schemas/Bid" } }
+
+  /v1/marketplace/bids:
+    get:
+      summary: Your organisation's bids
+      description: Requires `marketplace.bid`. An accepted bid carries the `shipment_id` you now operate.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bids: { type: array, items: { $ref: "#/components/schemas/Bid" } }
+
+  /v1/marketplace/bids/{id}/withdraw:
+    post:
+      summary: Withdraw your pending bid
+      description: Requires `marketplace.bid`.
+      parameters: [{ $ref: "#/components/parameters/BidID" }]
+      responses:
+        "200": { description: Withdrawn, content: { application/json: { schema: { $ref: "#/components/schemas/Bid" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Not pending, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/marketplace/bids/{id}/accept:
+    post:
+      summary: Award the load to this bid
+      description: |
+        Requires `shipments.manage`; listing owner only. Allowed after
+        bidding closes. Other pending bids are turned down. The carrier now
+        sees the shipment, assigns its own vehicles and drivers, and records
+        progress; the shipper keeps editing rights (none after pickup) and
+        cancellation. Two accepts racing on one load: one wins, the other
+        gets 409.
+      parameters: [{ $ref: "#/components/parameters/BidID" }]
+      responses:
+        "200":
+          description: Awarded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  listing: { $ref: "#/components/schemas/Listing" }
+                  bid: { $ref: "#/components/schemas/Bid" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Load already awarded or withdrawn, or bid not pending, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /v1/track/{tracking_number}:
+    get:
+      summary: Public tracking for consignees
+      description: |
+        No login. Case, spaces and dashes in the number are ignored. Shows
+        route, status, dates, and status and checkpoint events; never the
+        client reference, cargo, weight, notes, internal events, or who
+        recorded anything. Cached for 30 seconds.
+      security: []
+      parameters:
+        - { name: tracking_number, in: path, required: true, schema: { type: string, examples: [CT7KQ2M9XHRP] } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tracking_number: { type: string }
+                  status: { $ref: "#/components/schemas/ShipmentStatus" }
+                  origin_name: { type: string }
+                  origin_country: { type: string }
+                  destination_name: { type: string }
+                  destination_country: { type: string }
+                  deliver_by: { type: string, format: date-time }
+                  picked_up_at: { type: [string, "null"], format: date-time }
+                  delivered_at: { type: [string, "null"], format: date-time }
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind: { type: string, enum: [status, checkpoint, delay] }
+                        status: { $ref: "#/components/schemas/ShipmentStatus" }
+                        location: { type: string }
+                        occurred_at: { type: string, format: date-time }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /healthz:
+    get:
+      summary: Process is up
+      security: []
+      responses: { "200": { description: OK } }
+  /readyz:
+    get:
+      summary: Process can reach the database
+      security: []
+      responses: { "200": { description: Ready }, "503": { description: Database unreachable } }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+
+  parameters:
+    TopUpID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    ShipmentID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    ListingID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    BidID: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Unauthorized: { description: Missing or invalid token, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Forbidden: { description: Role lacks permission, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    NotFound: { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    PaymentRequired:
+      description: Not enough credit (`insufficient_credit`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/InsufficientCredit" }
+
+  schemas:
+    Role:
+      type: string
+      enum: [platform_owner, org_admin, finance, operations, driver]
+
+    ShipmentStatus:
+      type: string
+      enum: [booked, picked_up, in_transit, customs, exception, delivered, cancelled]
+
+    ShipmentInput:
+      type: object
+      additionalProperties: false
+      required: [origin_name, origin_country, destination_name, destination_country, weight_kg, pickup_at, deliver_by]
+      properties:
+        reference: { type: string, maxLength: 100, description: "The client's own PO, booking or job number" }
+        origin_name: { type: string, maxLength: 200, examples: [Mombasa Port] }
+        origin_country: { type: string, description: ISO 3166-1 alpha-2, case-insensitive, examples: [KE] }
+        destination_name: { type: string, maxLength: 200, examples: [Kampala ICD] }
+        destination_country: { type: string, examples: [UG] }
+        cargo_description: { type: string, maxLength: 1000 }
+        weight_kg: { type: number, exclusiveMinimum: 0, maximum: 200000 }
+        pieces: { type: integer, minimum: 1, default: 1 }
+        pickup_at: { type: string, format: date-time }
+        deliver_by: { type: string, format: date-time, description: Must be after pickup_at }
+
+    ShipmentPatch:
+      type: object
+      additionalProperties: false
+      description: Any subset of ShipmentInput fields.
+      properties:
+        reference: { type: string }
+        origin_name: { type: string }
+        origin_country: { type: string }
+        destination_name: { type: string }
+        destination_country: { type: string }
+        cargo_description: { type: string }
+        weight_kg: { type: number }
+        pieces: { type: integer }
+        pickup_at: { type: string, format: date-time }
+        deliver_by: { type: string, format: date-time }
+
+    Shipment:
+      type: object
+      required: [id, org_id, carrier_org_id, tracking_number, reference, status, origin_name, origin_country, destination_name, destination_country, cargo_description, weight_kg, pieces, pickup_at, deliver_by, picked_up_at, delivered_at, vehicle_id, driver_id, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        org_id: { type: string, format: uuid, description: The shipper, who booked and paid }
+        carrier_org_id: { type: [string, "null"], format: uuid, description: Carrier awarded on the marketplace }
+        tracking_number: { type: string, description: CT plus 10 characters, without 0/O/1/I/L, examples: [CT7KQ2M9XHRP] }
+        reference: { type: string }
+        status: { $ref: "#/components/schemas/ShipmentStatus" }
+        origin_name: { type: string }
+        origin_country: { type: string }
+        destination_name: { type: string }
+        destination_country: { type: string }
+        cargo_description: { type: string }
+        weight_kg: { type: number }
+        pieces: { type: integer }
+        pickup_at: { type: string, format: date-time }
+        deliver_by: { type: string, format: date-time }
+        picked_up_at: { type: [string, "null"], format: date-time }
+        delivered_at: { type: [string, "null"], format: date-time }
+        vehicle_id: { type: [string, "null"], format: uuid }
+        driver_id: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Date: { type: string, format: date, examples: ["2027-03-31"], description: "YYYY-MM-DD; valid through the end of that day in Kenya" }
+
+    VehicleInput:
+      type: object
+      additionalProperties: false
+      description: registration and kind are required when adding.
+      properties:
+        registration: { type: string, examples: [KDA 123A] }
+        kind: { type: string, enum: [prime_mover, rigid_truck, trailer, van, pickup, motorbike] }
+        capacity_kg: { type: number, exclusiveMinimum: 0, maximum: 200000 }
+        insurance_expires_on: { $ref: "#/components/schemas/Date" }
+        inspection_expires_on: { $ref: "#/components/schemas/Date" }
+        active: { type: boolean }
+
+    Vehicle:
+      type: object
+      required: [id, registration, kind, capacity_kg, insurance_expires_on, inspection_expires_on, active, lapsed, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        registration: { type: string }
+        kind: { type: string }
+        capacity_kg: { type: [number, "null"] }
+        insurance_expires_on: { oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }] }
+        inspection_expires_on: { oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }] }
+        active: { type: boolean }
+        lapsed: { type: array, items: { type: string, enum: [insurance, inspection] }, description: Empty when compliant }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DriverInput:
+      type: object
+      additionalProperties: false
+      description: name, licence_number and licence_expires_on are required when adding.
+      properties:
+        name: { type: string, maxLength: 200 }
+        email: { type: string, description: Used to link the driver's login; case-insensitive }
+        phone: { type: string, maxLength: 20 }
+        licence_number: { type: string, maxLength: 50 }
+        licence_expires_on: { $ref: "#/components/schemas/Date" }
+        active: { type: boolean }
+
+    Driver:
+      type: object
+      required: [id, name, email, phone, licence_number, licence_expires_on, active, signed_in, licence_lapsed, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        licence_number: { type: string }
+        licence_expires_on: { $ref: "#/components/schemas/Date" }
+        active: { type: boolean }
+        signed_in: { type: boolean, description: Linked to a CargoTrack login }
+        licence_lapsed: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Listing:
+      type: object
+      required: [id, mine, origin_name, origin_country, destination_name, destination_country, cargo_description, weight_kg, pieces, pickup_at, deliver_by, notes, closes_at, status, bidding_open, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        mine: { type: boolean }
+        shipment_id: { type: string, format: uuid, description: Owner only }
+        origin_name: { type: string }
+        origin_country: { type: string }
+        destination_name: { type: string }
+        destination_country: { type: string }
+        cargo_description: { type: string }
+        weight_kg: { type: number }
+        pieces: { type: integer }
+        pickup_at: { type: string, format: date-time }
+        deliver_by: { type: string, format: date-time }
+        notes: { type: string }
+        closes_at: { type: string, format: date-time }
+        status: { type: string, enum: [open, awarded, withdrawn] }
+        bidding_open: { type: boolean }
+        bid_count: { type: integer, description: Owner only }
+        created_at: { type: string, format: date-time }
+
+    Bid:
+      type: object
+      required: [id, listing_id, carrier_name, price_cents, currency, note, status, shipment_id, created_at, mine]
+      properties:
+        id: { type: string, format: uuid }
+        listing_id: { type: string, format: uuid }
+        carrier_name: { type: string }
+        price_cents: { type: integer, format: int64 }
+        currency: { type: string, const: KES }
+        note: { type: string }
+        status: { type: string, enum: [pending, accepted, rejected, withdrawn] }
+        shipment_id: { type: [string, "null"], format: uuid, description: Set once accepted }
+        created_at: { type: string, format: date-time }
+        mine: { type: boolean }
+
+    EventFields:
+      type: object
+      properties:
+        location: { type: string, maxLength: 200, examples: [Malaba border] }
+        latitude: { type: number, minimum: -90, maximum: 90, description: Send with longitude }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        note: { type: string, maxLength: 2000 }
+        internal: { type: boolean, default: false, description: Hidden from public tracking }
+        occurred_at: { type: string, format: date-time, description: Defaults to now; not in the future }
+
+    ShipmentEvent:
+      type: object
+      required: [id, kind, from_status, to_status, location, latitude, longitude, note, internal, occurred_at, recorded_by, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [status, checkpoint, delay, note, assignment] }
+        from_status: { oneOf: [{ $ref: "#/components/schemas/ShipmentStatus" }, { type: "null" }] }
+        to_status: { oneOf: [{ $ref: "#/components/schemas/ShipmentStatus" }, { type: "null" }] }
+        location: { type: string }
+        latitude: { type: [number, "null"] }
+        longitude: { type: [number, "null"] }
+        note: { type: string }
+        internal: { type: boolean }
+        occurred_at: { type: string, format: date-time }
+        recorded_by: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Stable machine-readable code. Switch on this, never on `message`.
+          examples: [invalid_request, unauthorized, forbidden, not_found, insufficient_credit, invalid_phone, payment_rejected, provider_unavailable, duplicate_reference, below_zero, idempotency_key_required, idempotency_key_reused, not_editable, invalid_transition, shipment_closed, duplicate_registration, duplicate_email, not_a_driver, unknown_vehicle, unknown_driver, vehicle_inactive, vehicle_not_compliant, driver_inactive, driver_not_compliant, not_your_fleet, shipper_only, listed, not_listable, already_listed, listing_closed, own_listing, bidding_closed, already_bid, bid_closed, internal]
+        message: { type: string, description: Human-readable; may change. }
+        details: { type: object, additionalProperties: true }
+
+    InsufficientCredit:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            details:
+              type: object
+              required: [meter, price_cents, balance_cents, currency]
+              properties:
+                meter: { type: string }
+                price_cents: { type: integer, format: int64 }
+                balance_cents: { type: integer, format: int64 }
+                currency: { type: string, const: KES }
+
+    Organization:
+      type: object
+      required: [id, name, country]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        country: { type: string, description: ISO 3166-1 alpha-2, examples: [KE] }
+
+    Meter:
+      type: object
+      required: [code, name, description, unit_price_cents, active, updated_at]
+      properties:
+        code: { type: string, examples: [shipment.create, prediction.run, document.ocr] }
+        name: { type: string }
+        description: { type: string }
+        unit_price_cents: { type: integer, format: int64 }
+        active: { type: boolean }
+        updated_at: { type: string, format: date-time }
+
+    LedgerEntry:
+      type: object
+      required: [id, kind, amount_cents, balance_after_cents, quantity, description, created_at]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [topup, charge, adjustment] }
+        amount_cents: { type: integer, format: int64, description: Positive for credit, negative for debit }
+        balance_after_cents: { type: integer, format: int64 }
+        meter_code: { type: [string, "null"] }
+        quantity: { type: integer }
+        unit_price_cents: { type: [integer, "null"], format: int64 }
+        description: { type: string }
+        actor_user_id: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+
+    TopUp:
+      type: object
+      required: [id, reference_code, provider, amount_cents, phone_masked, status, created_at, credited_at]
+      properties:
+        id: { type: string, format: uuid }
+        reference_code:
+          type: string
+          description: Shown on the customer's M-Pesa receipt as the account reference.
+          examples: [TU7F3A91C2D0]
+        provider: { type: string, enum: [mpesa] }
+        amount_cents: { type: integer, format: int64 }
+        phone_masked: { type: string, examples: ["2547*****678"] }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        failure_reason: { type: string }
+        created_at: { type: string, format: date-time }
+        credited_at: { type: [string, "null"], format: date-time }
