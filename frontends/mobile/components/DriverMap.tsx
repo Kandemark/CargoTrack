@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   name: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'DMSans-Bold', fontWeight: '700',
   },
   plate: {
     color: '#93b4d8',

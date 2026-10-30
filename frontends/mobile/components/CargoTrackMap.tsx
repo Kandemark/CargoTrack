@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   fallbackTitle: {
     color: '#e2e8f0',
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'DMSans-Bold', fontWeight: '700',
     marginTop: 12,
     textAlign: 'center',
   },
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5801e',
     borderRadius: 10,
   },
-  retryText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  retryText: { color: '#fff', fontFamily: 'DMSans-Bold', fontWeight: '700', fontSize: 12 },
   loadingOverlay: {
     position: 'absolute',
     top: 12,

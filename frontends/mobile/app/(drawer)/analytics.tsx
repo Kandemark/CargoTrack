@@ -3,6 +3,7 @@ import { ScrollView, View } from 'react-native'
 import { apiClient } from '@/lib/api'
 import { useAuthStore } from '@/lib/store'
 import { useBack } from '@/lib/useBack'
+import { carrierLabel } from '@/lib/carrier'
 import { useAppTheme } from '@/lib/useAppTheme'
 import { money } from '@/lib/data'
 import { Chip, Empty, HeroStats, ListRow, Loading, ScreenFrame, Section, Txt } from '@/components/ui'
@@ -25,6 +26,7 @@ type Tab = 'money' | 'routes' | 'corridors'
 export default function AnalyticsScreen() {
   const back = useBack()
   const role = useAuthStore((s) => s.user?.role)
+  const ownOrg = useAuthStore((s) => s.user?.org_name)
   const [profit, setProfit] = useState<Profit | null>(null)
   const [routes, setRoutes] = useState<RouteRow[]>([])
   const [corridors, setCorridors] = useState<Corridor[]>([])
@@ -92,7 +94,7 @@ export default function AnalyticsScreen() {
                   {profit.by_carrier.map((c, i) => (
                     <ListRow
                       key={c.carrier_name}
-                      title={c.carrier_name}
+                      title={carrierLabel(c.carrier_name, ownOrg)}
                       subtitle={`${c.shipments} shipment${c.shipments === 1 ? '' : 's'} · ${Math.round(c.margin_pct)}% margin`}
                       trailing={money(c.profit)}
                       last={i === profit.by_carrier.length - 1}
@@ -149,7 +151,7 @@ function ProfitBars({ months }: { months: Profit['monthly'] }) {
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: 12 }}>
         {months.map((m) => (
           <View key={m.month} style={{ flex: 1, height: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <View style={{ width: '60%', height: `${Math.max((m.revenue / max) * 100, 2)}%`, backgroundColor: `${bar}55`, borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' }}>
+            <View style={{ width: '60%', maxWidth: 36, height: `${Math.max((m.revenue / max) * 100, 2)}%`, backgroundColor: `${bar}55`, borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' }}>
               <View style={{ height: `${Math.max((m.profit / Math.max(m.revenue, 1)) * 100, 0)}%`, backgroundColor: status.delivered }} />
             </View>
           </View>

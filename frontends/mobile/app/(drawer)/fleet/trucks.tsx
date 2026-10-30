@@ -106,8 +106,8 @@ export default function TrucksScreen() {
                 <ListRow
                   key={t.id}
                   icon="bus-outline"
-                  title={`${t.plate} · ${t.make} ${t.model}`}
-                  subtitle={[t.current_location, t.assigned_driver_name].filter(Boolean).join(' · ') || 'No driver'}
+                  title={t.plate}
+                  subtitle={[`${t.make} ${t.model}`, t.current_location, t.assigned_driver_name].filter(Boolean).join(' · ')}
                   trailing={<Pill label={st.label} tone={st.tone} />}
                   onPress={() => setSelected(t)}
                   last={i === shown.length - 1}

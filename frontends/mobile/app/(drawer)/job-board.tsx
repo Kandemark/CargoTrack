@@ -189,8 +189,9 @@ function ListingDetail({ listing: l, mine, canBid, onBack }: { listing: Listing;
                 <View key={b.id}>
                   <ListRow
                     icon="business-outline"
-                    title={`${b.carrier_name} · ${money(b.amount)}`}
-                    subtitle={[b.estimated_days ? `${b.estimated_days} days` : null, b.notes].filter(Boolean).join(' · ')}
+                    title={b.carrier_name}
+                    subtitle={[money(b.amount), b.estimated_days ? `${b.estimated_days} days` : null, b.notes].filter(Boolean).join(' · ')}
+                    subtitleLines={3}
                     trailing={<Pill label={st.label} tone={st.tone} />}
                     onPress={!anyAccepted && b.status === 'PENDING' ? () => accept(b) : undefined}
                     last={i === all.length - 1}

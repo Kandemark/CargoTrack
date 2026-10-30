@@ -106,7 +106,7 @@ function Row({ n, last, onPress }: { n: Notification; last: boolean; onPress: ()
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-          <Txt variant={n.is_read ? 'body' : 'bodyStrong'} style={{ flex: 1 }} numberOfLines={1}>{n.title}</Txt>
+          <Txt variant={n.is_read ? 'body' : 'bodyStrong'} style={{ flex: 1 }} numberOfLines={2}>{n.title}</Txt>
           <Txt variant="caption" tone="faint">{timeAgo(n.created_at)}</Txt>
         </View>
         <Txt variant="caption" tone="muted" numberOfLines={3} style={{ marginTop: 2 }}>{n.message.split('\n')[0]}</Txt>

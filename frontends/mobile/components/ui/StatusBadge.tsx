@@ -64,7 +64,7 @@ export default function StatusBadge({ status, label, size = 'md', style }: Statu
           marginRight: 4,
         }}
       />
-      <Text style={{ color: badgeColors.text, fontSize: textSize, fontWeight: '700' }}>
+      <Text style={{ color: badgeColors.text, fontSize: textSize, fontFamily: 'DMSans-Bold', fontWeight: '700' }}>
         {displayLabel}
       </Text>
     </View>

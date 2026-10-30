@@ -94,7 +94,7 @@ export default function Toast({
         flex: 1,
         marginLeft: 8,
         fontSize: T.font.size.sm,
-        fontWeight: T.font.weight.bold,
+        fontFamily: 'DMSans-Bold', fontWeight: T.font.weight.bold,
         color: c.textColor,
       }} numberOfLines={2}>
         {message}

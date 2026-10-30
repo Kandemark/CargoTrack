@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { View } from 'react-native'
 import { apiClient } from '@/lib/api'
 import { useBack } from '@/lib/useBack'
+import { useAuthStore } from '@/lib/store'
+import { carrierLabel } from '@/lib/carrier'
 import { useAppTheme } from '@/lib/useAppTheme'
 import { Empty, HeroStats, ListRow, Loading, Pill, ScreenFrame, Section, Txt, type PillTone } from '@/components/ui'
 
@@ -23,6 +25,7 @@ function weight(kg: number): string {
 /** Emissions from road freight, what was offset, and which carriers emit most. */
 export default function CarbonScreen() {
   const back = useBack()
+  const ownOrg = useAuthStore((s) => s.user?.org_name)
   const [data, setData] = useState<CarbonData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -68,7 +71,7 @@ export default function CarbonScreen() {
             {data.by_carrier.map((c, i) => (
               <ListRow
                 key={c.name}
-                title={c.name}
+                title={carrierLabel(c.name, ownOrg)}
                 subtitle={`${weight(c.total_kg)} · ${c.shipments} shipment${c.shipments === 1 ? '' : 's'}`}
                 trailing={<Pill label={`Grade ${c.grade}`} tone={GRADE[c.grade] ?? 'neutral'} />}
                 last={i === data.by_carrier.length - 1}
@@ -90,7 +93,7 @@ function MonthBars({ months }: { months: CarbonData['monthly'] }) {
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: 10 }}>
         {months.map((m, i) => (
           <View key={`${m.month}-${i}`} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-            <View style={{ width: '70%', height: `${Math.max((m.emissions / max) * 100, 2)}%`, borderRadius: 6, backgroundColor: m.emissions ? bar : colors.border, overflow: 'hidden', justifyContent: 'flex-end' }}>
+            <View style={{ width: '70%', maxWidth: 36, height: `${Math.max((m.emissions / max) * 100, 2)}%`, borderRadius: 6, backgroundColor: m.emissions ? bar : colors.border, overflow: 'hidden', justifyContent: 'flex-end' }}>
               {m.offset ? <View style={{ height: `${(m.offset / Math.max(m.emissions, 1)) * 100}%`, backgroundColor: status.delivered }} /> : null}
             </View>
           </View>

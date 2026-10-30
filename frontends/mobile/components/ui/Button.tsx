@@ -108,8 +108,8 @@ export default function Button({
             />
           )}
           <Text style={{
+            // The family is already the bold file; adding a weight makes Android fall back to the system font.
             fontFamily: font.family.heading,
-            fontWeight: font.weight.bold,
             color: textColor,
             fontSize: sizeText[size],
           }}>

@@ -96,19 +96,19 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
+    fontFamily: 'DMSans-Bold', fontWeight: '800',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: 'DMSans-Medium', fontWeight: '500',
     textAlign: 'center',
     marginBottom: 28,
     lineHeight: 20,
   },
   error: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'DMSans-SemiBold', fontWeight: '600',
     color: '#ef4444',
     textAlign: 'center',
     marginBottom: 20,
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   unlockText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: 'DMSans-Bold', fontWeight: '700',
   },
   logoutBtn: {
     marginTop: 20,
@@ -135,6 +135,6 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: 'DMSans-SemiBold', fontWeight: '600',
   },
 })
