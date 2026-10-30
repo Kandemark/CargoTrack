@@ -16,7 +16,6 @@ type IconName = React.ComponentProps<typeof Ionicons>['name']
 const ITEMS = {
   messages:      { route: '/messages',            label: 'Messages',          icon: 'chatbubbles-outline' },
   notifications: { route: '/notifications',       label: 'Notifications',     icon: 'megaphone-outline' },
-  ops:           { route: '/ops/dashboard',       label: 'Operations',        icon: 'pulse-outline' },
   liveMap:       { route: '/live-map',            label: 'Live map',          icon: 'map-outline' },
   sla:           { route: '/sla',                 label: 'SLA monitor',       icon: 'speedometer-outline' },
   pod:           { route: '/pod',                 label: 'Proof of delivery', icon: 'checkmark-done-outline' },
@@ -27,7 +26,6 @@ const ITEMS = {
   drivers:       { route: '/fleet/drivers',       label: 'Drivers',           icon: 'id-card-outline' },
   carbon:        { route: '/carbon',              label: 'Carbon',            icon: 'leaf-outline' },
   dispatchQueue: { route: '/dispatch/queue',      label: 'Dispatch queue',    icon: 'list-outline' },
-  routes:        { route: '/dispatch/routes',     label: 'Route planning',    icon: 'git-branch-outline' },
   customsQueue:  { route: '/customs/queue',       label: 'Clearance queue',   icon: 'hourglass-outline' },
   inventory:     { route: '/warehouse/inventory', label: 'Inventory',         icon: 'file-tray-stacked-outline' },
   inbound:       { route: '/warehouse/inbound',   label: 'Inbound',           icon: 'arrow-down-circle-outline' },
@@ -37,7 +35,6 @@ const ITEMS = {
   manifests:     { route: '/port/manifest',       label: 'Manifests',         icon: 'clipboard-outline' },
   payments:      { route: '/payments',            label: 'Payments',          icon: 'card-outline' },
   rates:         { route: '/rates',               label: 'Rate cards',        icon: 'pricetags-outline' },
-  revenue:       { route: '/finance/revenue',     label: 'Revenue',           icon: 'cash-outline' },
   financeReports:{ route: '/finance/reports',     label: 'Finance reports',   icon: 'receipt-outline' },
   analytics:     { route: '/analytics',           label: 'Analytics',         icon: 'bar-chart-outline' },
   documents:     { route: '/documents',           label: 'Documents',         icon: 'document-text-outline' },
@@ -55,7 +52,7 @@ const INBOX: NavSection = { items: ['messages', 'notifications'] }
 const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   ADMIN: [
     INBOX,
-    { title: 'Operations', items: ['ops', 'liveMap', 'sla', 'pod', 'coldChain', 'jobBoard'] },
+    { title: 'Operations', items: ['liveMap', 'sla', 'pod', 'coldChain', 'jobBoard'] },
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'carbon'] },
     { title: 'Money', items: ['payments', 'rates'] },
     { title: 'Reports and records', items: ['analytics', 'documents', 'audit'] },
@@ -63,7 +60,7 @@ const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   ],
   LOGISTICS_MGR: [
     INBOX,
-    { title: 'Operations', items: ['liveMap', 'sla', 'pod', 'coldChain'] },
+    { title: 'Operations', items: ['liveMap', 'jobBoard', 'sla', 'pod', 'coldChain'] },
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers', 'carbon'] },
     { title: 'Money', items: ['payments', 'rates'] },
     { title: 'Reports and records', items: ['analytics', 'documents'] },
@@ -80,7 +77,7 @@ const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   ],
   DISPATCHER: [
     INBOX,
-    { title: 'Dispatch', items: ['dispatchQueue', 'routes', 'jobBoard', 'liveMap', 'sla', 'pod'] },
+    { title: 'Dispatch', items: ['dispatchQueue', 'jobBoard', 'liveMap', 'sla', 'pod'] },
     { title: 'Fleet', items: ['carriers', 'trucks', 'drivers'] },
   ],
   CUSTOMS_BROKER: [
@@ -100,7 +97,7 @@ const DRAWER_SECTIONS: Record<string, NavSection[]> = {
   ],
   FINANCE_OFFICER: [
     INBOX,
-    { title: 'Money', items: ['payments', 'revenue', 'financeReports', 'rates'] },
+    { title: 'Money', items: ['payments', 'rates'] },
     { title: 'Reports and records', items: ['analytics', 'carbon', 'pod', 'documents', 'audit'] },
   ],
 }

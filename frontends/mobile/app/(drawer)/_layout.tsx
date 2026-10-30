@@ -43,12 +43,8 @@ export default function DrawerLayout() {
         <Drawer.Screen name="shipment/log-event" />
         <Drawer.Screen name="customs/queue" />
         <Drawer.Screen name="dispatch/queue" />
-        <Drawer.Screen name="dispatch/routes" />
-        <Drawer.Screen name="finance/reports" />
-        <Drawer.Screen name="finance/revenue" />
         <Drawer.Screen name="fleet/drivers" />
         <Drawer.Screen name="fleet/trucks" />
-        <Drawer.Screen name="ops/dashboard" />
         <Drawer.Screen name="port/containers" />
         <Drawer.Screen name="port/manifest" />
         <Drawer.Screen name="port/vessels" />

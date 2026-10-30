@@ -112,6 +112,38 @@ function write(path: string, method: string, body?: unknown): unknown {
     Object.assign(target, body)
     return target
   }
+  const accept = path.match(/^\/api\/v1\/marketplace\/bids\/(\d+)\/accept\/$/)
+  if (accept) {
+    Object.values(s).forEach((data) =>
+      results(data)?.forEach((listing) => {
+        const bids = listing.bids as Record<string, unknown>[] | undefined
+        if (bids?.some((b) => String(b.id) === accept[1])) {
+          bids.forEach((b) => { b.status = String(b.id) === accept[1] ? 'ACCEPTED' : 'REJECTED' })
+          listing.status = 'AWARDED'
+        }
+      }),
+    )
+    return { detail: 'Bid accepted.' }
+  }
+  const event = path.match(/^\/api\/v1\/shipments\/(\d+)\/tracking-events\/$/)
+  if (event && body && typeof body === 'object') {
+    const b = body as { event_type?: string; location?: string; notes?: string }
+    const labels: Record<string, string> = {
+      DEPARTURE: 'Departure', CHECKPOINT: 'Checkpoint', CUSTOMS_ENTRY: 'Customs Entry', CUSTOMS_CLEAR: 'Customs Cleared',
+      ARRIVAL: 'Arrival', DELAY: 'Delay Reported', NOTE: 'Note',
+    }
+    const me = s['/api/v1/accounts/me/'] as { first_name?: string; last_name?: string } | undefined
+    const created = {
+      id: Date.now(), shipment: Number(event[1]), event_type: b.event_type, event_type_display: labels[b.event_type ?? ''] ?? b.event_type,
+      location: b.location, notes: b.notes ?? '', timestamp: new Date().toISOString(),
+      recorded_by_name: `${me?.first_name ?? ''} ${me?.last_name ?? ''}`.trim(),
+    }
+    const key = `/api/v1/shipments/${event[1]}/tracking-events/`
+    const list = results(s[key])
+    if (list) list.unshift(created)
+    else s[key] = [created]
+    return created
+  }
   if (ack) touch((r) => String(r.id) === ack[1] && 'acknowledged' in r, { acknowledged: true })
   else if (read) touch((r) => String(r.id) === read[1] && 'is_read' in r, { is_read: true })
   else if (path === '/api/v1/notifications/mark-all-read/') touch((r) => 'is_read' in r && 'title' in r, { is_read: true })
