@@ -81,12 +81,31 @@ function find(path: string): unknown {
 }
 
 /** Apply a write to every recorded copy of the record it targets. */
-function write(path: string, method: string): unknown {
+function write(path: string, method: string, body?: unknown): unknown {
   const s = load()
   const ack = path.match(/^\/api\/v1\/alerts\/(\d+)\/acknowledge\/$/)
   const read = path.match(/^\/api\/v1\/notifications\/(\d+)\/read\/$/)
   const touch = (pred: (r: Record<string, unknown>) => boolean, patch: Record<string, unknown>) => {
     Object.values(s).forEach((data) => results(data)?.forEach((r) => pred(r) && Object.assign(r, patch)))
+  }
+  const chat = path.match(/^\/api\/v1\/chat\/conversations\/(\d+)\/messages\/$/)
+  if (chat && body) {
+    const conv = s[`/api/v1/chat/conversations/${chat[1]}/`] as { messages?: Record<string, unknown>[] } | undefined
+    const me = s['/api/v1/accounts/me/'] as { id?: number; first_name?: string; last_name?: string } | undefined
+    const message = {
+      id: Date.now(), sender_id: me?.id ?? null, sender_name: `${me?.first_name ?? ''} ${me?.last_name ?? ''}`.trim(),
+      content: String((body as { content?: unknown }).content ?? ''), is_system: false, created_at: new Date().toISOString(),
+    }
+    conv?.messages?.push(message)
+    return message
+  }
+  const pay = path.match(/^\/api\/v1\/invoices\/(\d+)\/pay\/$/)
+  if (pay) {
+    const paid = { status: 'PAID', paid_at: new Date().toISOString() }
+    touch((r) => String(r.id) === pay[1] && 'invoice_number' in r, paid)
+    const detail = s[`/api/v1/invoices/${pay[1]}/`] as Record<string, unknown> | undefined
+    if (detail) Object.assign(detail, paid)
+    return { detail: 'Payment started.' }
   }
   if (ack) touch((r) => String(r.id) === ack[1] && 'acknowledged' in r, { acknowledged: true })
   else if (read) touch((r) => String(r.id) === read[1] && 'is_read' in r, { is_read: true })
@@ -112,7 +131,8 @@ export const demoAdapter: AxiosAdapter = async (config) => {
       } else data = filtered(found, params)
     }
   } else {
-    data = write(path, method)
+    const body = typeof config.data === 'string' ? JSON.parse(config.data || 'null') : config.data
+    data = write(path, method, body)
   }
   const response: AxiosResponse = { data, status, statusText: status === 200 ? 'OK' : 'Not Found', headers: {}, config, request: {} }
   if (status >= 400) {

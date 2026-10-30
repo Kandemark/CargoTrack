@@ -1,116 +1,119 @@
-import { useState, useEffect, useCallback } from 'react'
-import { View, Text, ScrollView, RefreshControl, StyleSheet } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { useCallback, useEffect, useState } from 'react'
+import { View } from 'react-native'
 import { apiClient } from '@/lib/api'
+import { useBack } from '@/lib/useBack'
 import { useAppTheme } from '@/lib/useAppTheme'
-import ScreenHeader from '@/components/ScreenHeader'
+import { Empty, HeroStats, ListRow, Loading, Pill, ScreenFrame, Section, Txt, type PillTone } from '@/components/ui'
 
 interface CarbonData {
-  total_kg: number; offset_kg: number; net_kg: number
-  monthly: Array<{ month: string; emissions_kg: number; offset_kg: number }>
-  by_carrier: Array<{ carrier_name: string; emissions_kg: number; offset_kg: number; grade: string }>
+  total_kg: number
+  offset_kg: number
+  net_kg: number
+  monthly: { month: string; emissions: number; offset: number }[]
+  by_carrier: { name: string; total_kg: number; shipments: number; grade: string }[]
 }
 
+const GRADE: Record<string, PillTone> = { 'A+': 'success', A: 'success', B: 'info', C: 'warning', D: 'warning', E: 'danger', F: 'danger' }
+
+/** Tonnes, or kilograms below one tonne. */
+function weight(kg: number): string {
+  return kg >= 1000 ? `${(kg / 1000).toFixed(1)} t` : `${Math.round(kg)} kg`
+}
+
+/** Emissions from road freight, what was offset, and which carriers emit most. */
 export default function CarbonScreen() {
+  const back = useBack()
   const [data, setData] = useState<CarbonData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const { colors, font, brand, spacing } = useAppTheme()
 
-  const fetchData = useCallback(async () => {
-    try { const res = await apiClient.get<CarbonData>('/api/v1/analytics/carbon/'); setData(res.data) } catch {}
+  const load = useCallback(async () => {
+    try {
+      const res = await apiClient.get<CarbonData>('/api/v1/carbon/')
+      setData(res.data)
+    } catch {
+      setData(null)
+    }
   }, [])
 
-  useEffect(() => { fetchData().finally(() => setLoading(false)) }, [fetchData])
-  async function handleRefresh() { setRefreshing(true); await fetchData(); setRefreshing(false) }
-
-  const gradeColor: Record<string, string> = { 'A+': '#16a34a', A: '#16a34a', B: '#2563eb', C: '#eab308', D: '#f5801e', F: '#ef4444' }
+  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title="Carbon Tracker" backButton />
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        contentContainerStyle={{ padding: spacing.md, paddingBottom: 40 }}
-      >
-        {data ? (
-          <>
-            {/* Main KPIs */}
-            <View style={s.kpiRow}>
-              <View style={[s.kpi, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[s.kpiVal, { color: colors.text }]}>{(data.total_kg / 1000).toFixed(1)}t</Text>
-                <Text style={[s.kpiLabel, { color: colors.textFaint }]}>Total Emissions</Text>
-              </View>
-              <View style={[s.kpi, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[s.kpiVal, { color: '#16a34a' }]}>{(data.offset_kg / 1000).toFixed(1)}t</Text>
-                <Text style={[s.kpiLabel, { color: colors.textFaint }]}>Offset</Text>
-              </View>
-              <View style={[s.kpi, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[s.kpiVal, { color: brand.primary }]}>{(data.net_kg / 1000).toFixed(1)}t</Text>
-                <Text style={[s.kpiLabel, { color: colors.textFaint }]}>Net</Text>
-              </View>
-            </View>
-
-            {/* Monthly breakdown */}
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Monthly Emissions</Text>
-            {data.monthly.slice(-6).map((m) => {
-              const max = Math.max(...data.monthly.map(x => x.emissions_kg), 1)
-              return (
-                <View key={m.month} style={{ marginBottom: 10 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textMuted }}>{m.month}</Text>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.text }}>{(m.emissions_kg / 1000).toFixed(1)}t</Text>
-                  </View>
-                  <View style={[s.barTrack, { backgroundColor: colors.muted }]}>
-                    <View style={[s.barFill, { width: `${(m.emissions_kg / max) * 100}%`, backgroundColor: brand.primary }]} />
-                    {m.offset_kg > 0 && (
-                      <View style={[s.offsetMarker, { left: `${((m.emissions_kg - m.offset_kg) / max) * 100}%` }]} />
-                    )}
-                  </View>
-                </View>
-              )
-            })}
-
-            {/* Carrier grades */}
-            <Text style={[s.sectionTitle, { color: colors.text, marginTop: 16 }]}>Carrier Grades</Text>
-            {data.by_carrier.map((c) => (
-              <View key={c.carrier_name} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{c.carrier_name}</Text>
-                    <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
-                      {(c.emissions_kg / 1000).toFixed(1)}t emitted · {(c.offset_kg / 1000).toFixed(1)}t offset
-                    </Text>
-                  </View>
-                  <View style={[s.grade, { backgroundColor: (gradeColor[c.grade] ?? '#64748b') + '20' }]}>
-                    <Text style={[s.gradeText, { color: gradeColor[c.grade] ?? '#64748b' }]}>{c.grade}</Text>
-                  </View>
-                </View>
-              </View>
+    <ScreenFrame
+      title="Carbon"
+      onBack={back}
+      refreshing={refreshing}
+      onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false) }}
+      hero={
+        data ? (
+          <HeroStats
+            items={[
+              { label: 'Emitted', value: weight(data.total_kg) },
+              { label: 'Offset', value: weight(data.offset_kg) },
+              { label: 'Net', value: weight(data.net_kg) },
+            ]}
+          />
+        ) : null
+      }>
+      {loading ? (
+        <Loading />
+      ) : !data || data.total_kg === 0 ? (
+        <Empty icon="leaf-outline" title="No emissions recorded yet" body="Emissions are worked out from distance and weight once shipments move." />
+      ) : (
+        <>
+          <Section label="Last six months">
+            <MonthBars months={data.monthly.slice(-6)} />
+          </Section>
+          <Section label="By carrier">
+            {data.by_carrier.map((c, i) => (
+              <ListRow
+                key={c.name}
+                title={c.name}
+                subtitle={`${weight(c.total_kg)} · ${c.shipments} shipment${c.shipments === 1 ? '' : 's'}`}
+                trailing={<Pill label={`Grade ${c.grade}`} tone={GRADE[c.grade] ?? 'neutral'} />}
+                last={i === data.by_carrier.length - 1}
+              />
             ))}
-          </>
-        ) : !loading ? (
-          <View style={s.empty}>
-            <Ionicons name="leaf-outline" size={48} color={colors.textFaint} />
-            <Text style={{ fontSize: font.size.base, fontWeight: '700', color: colors.textMuted, marginTop: 12 }}>No carbon data</Text>
+          </Section>
+        </>
+      )}
+    </ScreenFrame>
+  )
+}
+
+function MonthBars({ months }: { months: CarbonData['monthly'] }) {
+  const { colors, brand, isDark, status } = useAppTheme()
+  const max = Math.max(1, ...months.map((m) => m.emissions))
+  const bar = isDark ? colors.textBrand : brand.primary
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: 10 }}>
+        {months.map((m, i) => (
+          <View key={`${m.month}-${i}`} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+            <View style={{ width: '70%', height: `${Math.max((m.emissions / max) * 100, 2)}%`, borderRadius: 6, backgroundColor: m.emissions ? bar : colors.border, overflow: 'hidden', justifyContent: 'flex-end' }}>
+              {m.offset ? <View style={{ height: `${(m.offset / Math.max(m.emissions, 1)) * 100}%`, backgroundColor: status.delivered }} /> : null}
+            </View>
           </View>
-        ) : null}
-      </ScrollView>
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+        {months.map((m, i) => (
+          <Txt key={`${m.month}-l${i}`} variant="caption" tone="faint" style={{ flex: 1, textAlign: 'center' }}>{m.month}</Txt>
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 16, marginTop: 10 }}>
+        <Legend color={bar} label="Emitted" />
+        <Legend color={status.delivered} label="Offset" />
+      </View>
     </View>
   )
 }
 
-const s = StyleSheet.create({
-  kpiRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  kpi: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 14, alignItems: 'center' },
-  kpiVal: { fontSize: 24, fontWeight: '800' },
-  kpiLabel: { fontSize: 10, fontWeight: '600', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionTitle: { fontSize: 15, fontWeight: '800', marginBottom: 12 },
-  barTrack: { height: 10, borderRadius: 5, overflow: 'hidden' },
-  barFill: { height: 10, borderRadius: 5, position: 'absolute', left: 0 },
-  offsetMarker: { position: 'absolute', width: 2, height: 14, backgroundColor: '#16a34a', top: -2 },
-  card: { borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 8 },
-  grade: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  gradeText: { fontSize: 14, fontWeight: '800' },
-  empty: { alignItems: 'center', paddingTop: 80 },
-})
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: color }} />
+      <Txt variant="caption" tone="muted">{label}</Txt>
+    </View>
+  )
+}

@@ -303,7 +303,7 @@ function attentionItems(data: PageData, danger: string, warning: string, ownOrg?
       color: warning,
       title: `${d.doc_type_display} expires ${d.days_until_expiry! <= 0 ? 'today' : `in ${d.days_until_expiry} days`}`,
       subtitle: d.tracking_number,
-      onPress: () => router.push('/(drawer)/compliance' as any),
+      onPress: () => router.push('/(drawer)/documents' as any),
     })
   }
   for (const inv of data.invoices.filter((x) => x.status === 'FAILED' || x.status === 'OVERDUE')) {

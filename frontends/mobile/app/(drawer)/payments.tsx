@@ -1,267 +1,234 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, TextInput, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import * as Haptics from 'expo-haptics'
 import { apiClient } from '@/lib/api'
+import { useBack } from '@/lib/useBack'
 import { useAppTheme } from '@/lib/useAppTheme'
-import { EmptyState, Button, GlassCard } from '@/components/ui'
-import type { Invoice, InvoiceStatus, PaymentProvider } from '@shared/api/types'
+import { day, listOf, money } from '@/lib/data'
+import { Button, Chip, Empty, HeroStats, Loading, Pill, ScreenFrame, Section, Txt, type PillTone } from '@/components/ui'
+import type { Invoice, PaymentProvider } from '@shared/api/types'
 
-const STATUS_CONFIG: Record<InvoiceStatus, { label: string; bg: string; text: string }> = {
-  PENDING:  { label: 'Pending',  bg: '#fef3c7', text: '#92400e' },
-  PAID:     { label: 'Paid',     bg: '#d1fae5', text: '#065f46' },
-  FAILED:   { label: 'Failed',   bg: '#fee2e2', text: '#991b1b' },
-  REFUNDED: { label: 'Refunded', bg: '#f3f4f6', text: '#6b7280' },
-  OVERDUE:  { label: 'Overdue',  bg: '#ffedd5', text: '#9a3412' },
+const STATUS: Record<string, { label: string; tone: PillTone }> = {
+  PENDING: { label: 'To pay', tone: 'warning' },
+  PAID: { label: 'Paid', tone: 'success' },
+  FAILED: { label: 'Failed', tone: 'danger' },
+  REFUNDED: { label: 'Refunded', tone: 'neutral' },
+  OVERDUE: { label: 'Overdue', tone: 'danger' },
 }
 
-const PROVIDERS: { key: PaymentProvider; label: string; emoji: string; placeholder: string; inputLabel: string }[] = [
-  { key: 'MPESA', label: 'M-Pesa', emoji: '🇰🇪', inputLabel: 'M-Pesa phone', placeholder: '254712345678' },
-  { key: 'AIRTEL', label: 'Airtel Money', emoji: '🇺🇬', inputLabel: 'Airtel number', placeholder: '256712345678' },
-  { key: 'MTN', label: 'MTN MoMo', emoji: '🇷🇼', inputLabel: 'MTN number', placeholder: '250712345678' },
-  { key: 'FLUTTERWAVE', label: 'Flutterwave', emoji: '🌍', inputLabel: 'Phone/email', placeholder: '256712345678' },
+const PROVIDERS: { key: PaymentProvider; label: string; inputLabel: string; placeholder: string }[] = [
+  { key: 'MPESA', label: 'M-Pesa', inputLabel: 'M-Pesa phone number', placeholder: '254712345678' },
+  { key: 'AIRTEL', label: 'Airtel Money', inputLabel: 'Airtel number', placeholder: '256712345678' },
+  { key: 'MTN', label: 'MTN MoMo', inputLabel: 'MTN number', placeholder: '250712345678' },
+  { key: 'FLUTTERWAVE', label: 'Flutterwave', inputLabel: 'Phone or email', placeholder: '256712345678' },
 ]
 
-// ── Pay Modal ─────────────────────────────────────────────────────────────────
+const payable = (i: Invoice) => i.status === 'PENDING' || i.status === 'FAILED' || (i.status as string) === 'OVERDUE'
 
-function PayModal({ invoice, onClose, onPaid }: { invoice: Invoice; onClose: () => void; onPaid: () => void }) {
-  const { colors, font, radius, isDark } = useAppTheme()
-  const [selectedProvider, setProvider] = useState<PaymentProvider>('MPESA')
-  const [input, setInput] = useState('')
-  const [paying, setPaying] = useState(false)
-  const [polling, setPolling] = useState(false)
-  const [errMsg, setErrMsg] = useState('')
-  const [success, setSuccess] = useState(false)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+/** Invoices for shipments: what is owed, what is paid, and paying by mobile money. */
+export default function PaymentsScreen() {
+  const back = useBack()
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [filter, setFilter] = useState<'open' | 'paid'>('open')
+  const [payTarget, setPayTarget] = useState<Invoice | null>(null)
 
-  const provider = PROVIDERS.find((p) => p.key === selectedProvider) ?? PROVIDERS[0]
-
-  // Cleanup polling interval on unmount (modal close)
-  useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  const load = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/api/v1/invoices/', { params: { page_size: 50 } })
+      setInvoices(listOf<Invoice>(res.data))
+    } catch {
+      setInvoices([])
+    }
   }, [])
 
+  useEffect(() => { load().finally(() => setLoading(false)) }, [load])
+
+  const open = invoices.filter(payable)
+  const paid = invoices.filter((i) => i.status === 'PAID')
+  const owed = open.reduce((s, i) => s + Number(i.amount_kes), 0)
+  const failed = invoices.filter((i) => i.status === 'FAILED').length
+  const shown = filter === 'open' ? open : invoices.filter((i) => !payable(i))
+
+  return (
+    <ScreenFrame
+      title="Payments"
+      onBack={back}
+      refreshing={refreshing}
+      onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false) }}
+      hero={
+        invoices.length ? (
+          <HeroStats
+            items={[
+              { label: 'To pay', value: money(owed).replace('KES ', '') },
+              { label: 'Failed', value: String(failed), tone: failed ? 'danger' : undefined },
+              { label: 'Paid', value: String(paid.length) },
+            ]}
+          />
+        ) : null
+      }>
+      {loading ? (
+        <Loading />
+      ) : invoices.length === 0 ? (
+        <Empty icon="card-outline" title="No invoices yet" body="Invoices appear here when a shipment is billed." />
+      ) : (
+        <View>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+            <Chip label="To pay" selected={filter === 'open'} onPress={() => setFilter('open')} />
+            <Chip label="Settled" selected={filter === 'paid'} onPress={() => setFilter('paid')} />
+          </View>
+          <Section label={filter === 'open' ? 'Amounts in KES' : 'Paid and refunded'}>
+            {shown.length === 0 ? (
+              <Empty icon="checkmark-circle-outline" title={filter === 'open' ? 'Nothing to pay' : 'Nothing settled yet'} />
+            ) : (
+              shown.map((inv, i) => <InvoiceRow key={inv.id} inv={inv} last={i === shown.length - 1} onPay={() => setPayTarget(inv)} />)
+            )}
+          </Section>
+        </View>
+      )}
+      {payTarget ? <PaySheet invoice={payTarget} onClose={() => setPayTarget(null)} onPaid={() => { setPayTarget(null); load() }} /> : null}
+    </ScreenFrame>
+  )
+}
+
+function InvoiceRow({ inv, last, onPay }: { inv: Invoice; last: boolean; onPay: () => void }) {
+  const { colors } = useAppTheme()
+  const st = STATUS[inv.status] ?? STATUS.PENDING
+  const canPay = payable(inv)
+  return (
+    <Pressable
+      onPress={canPay ? onPay : undefined}
+      disabled={!canPay}
+      accessibilityRole="button"
+      style={({ pressed }) => ({
+        paddingVertical: 16,
+        borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
+        borderBottomColor: colors.borderMid,
+        opacity: pressed ? 0.6 : 1,
+      })}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Txt variant="bodyStrong" numberOfLines={1}>{(inv as { description?: string }).description || inv.shipment_tracking}</Txt>
+          <Txt variant="caption" tone="muted" style={{ marginTop: 2 }}>
+            {inv.invoice_number} · {inv.shipment_tracking} · {day(inv.created_at)}
+          </Txt>
+        </View>
+        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+          <Txt variant="bodyStrong">{money(inv.amount_kes, inv.currency)}</Txt>
+          <Pill label={st.label} tone={st.tone} />
+        </View>
+      </View>
+      {canPay ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+          <Ionicons name="phone-portrait-outline" size={16} color={colors.textSecondary} />
+          <Txt variant="caption" tone="secondary" style={{ fontFamily: 'DMSans-SemiBold' }}>
+            {inv.status === 'FAILED' ? 'Try paying again' : 'Pay with mobile money'}
+          </Txt>
+        </View>
+      ) : null}
+    </Pressable>
+  )
+}
+
+function PaySheet({ invoice, onClose, onPaid }: { invoice: Invoice; onClose: () => void; onPaid: () => void }) {
+  const { colors } = useAppTheme()
+  const [provider, setProvider] = useState<PaymentProvider>('MPESA')
+  const [input, setInput] = useState('')
+  const [state, setState] = useState<'form' | 'sending' | 'waiting' | 'done'>('form')
+  const [error, setError] = useState('')
+  const poll = useRef<ReturnType<typeof setInterval> | null>(null)
+  const p = PROVIDERS.find((x) => x.key === provider) ?? PROVIDERS[0]
+
+  useEffect(() => () => { if (poll.current) clearInterval(poll.current) }, [])
+
   async function pay() {
-    if (!input.trim()) { setErrMsg(`Please enter your ${provider.inputLabel}.`); return }
-    setPaying(true); setErrMsg('')
+    if (!input.trim()) { setError(`Enter your ${p.inputLabel.toLowerCase()}.`); return }
+    setState('sending')
+    setError('')
     try {
-      await apiClient.post(`/api/v1/invoices/${invoice.id}/pay/`, { provider: selectedProvider, phone_number: input.trim() })
-      setPolling(true)
-      let attempts = 0
-      pollRef.current = setInterval(async () => {
-        attempts++
+      await apiClient.post(`/api/v1/invoices/${invoice.id}/pay/`, { provider, phone_number: input.trim() })
+      setState('waiting')
+      let tries = 0
+      poll.current = setInterval(async () => {
+        tries++
         try {
           const res = await apiClient.get<Invoice>(`/api/v1/invoices/${invoice.id}/`)
-          if (res.data.status === 'PAID') { clearInterval(pollRef.current!); pollRef.current = null; setPolling(false); setSuccess(true); setTimeout(() => onPaid(), 1800) }
-        } catch { /* keep polling */ }
-        if (attempts >= 12) { clearInterval(pollRef.current!); pollRef.current = null; setPolling(false); setErrMsg('Payment timed out. Check your phone and try again.') }
+          if (res.data.status === 'PAID') {
+            clearInterval(poll.current!)
+            setState('done')
+            setTimeout(onPaid, 1500)
+            return
+          }
+        } catch { /* keep waiting */ }
+        if (tries >= 12) {
+          clearInterval(poll.current!)
+          setState('form')
+          setError('No confirmation yet. Check your phone, then try again.')
+        }
       }, 5000)
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setErrMsg(msg ?? 'Payment failed. Please try again.')
-    } finally { setPaying(false) }
+      setState('form')
+      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'The payment could not start. Try again.')
+    }
   }
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: isDark ? colors.background : '#fff' }}>
-          {/* Header */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-            <View>
-              <Text style={{ fontSize: font.size.base, fontWeight: font.weight.extrabold, color: colors.text }}>Pay Invoice</Text>
-              <Text style={{ fontSize: font.size.xs, color: '#94a3b8', marginTop: 1 }}>{invoice.invoice_number} · {Number(invoice.amount_kes).toLocaleString()} {invoice.currency}</Text>
+        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.card }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 }}>
+            <View style={{ flex: 1 }}>
+              <Txt variant="title">Pay {money(invoice.amount_kes, invoice.currency)}</Txt>
+              <Txt variant="caption" tone="muted">{invoice.invoice_number} · {invoice.shipment_tracking}</Txt>
             </View>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-circle" size={26} color="#94a3b8" />
-            </TouchableOpacity>
+            <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
+              <Ionicons name="close" size={26} color={colors.textMuted} />
+            </Pressable>
           </View>
-
-          <ScrollView contentContainerStyle={{ padding: 20 }}>
-            {success ? (
-              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <Ionicons name="checkmark-circle" size={64} color="#10b981" />
-                <Text style={{ fontSize: font.size.lg, fontWeight: font.weight.extrabold, color: colors.text, marginTop: 12 }}>Payment Initiated!</Text>
-                <Text style={{ fontSize: font.size.sm, color: colors.textMuted, textAlign: 'center', marginTop: 6, maxWidth: 260 }}>Check your phone for the payment prompt. Enter your PIN to complete.</Text>
-              </View>
-            ) : polling ? (
-              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <ActivityIndicator size="large" color="#0f2d5e" />
-                <Text style={{ fontSize: font.size.base, fontWeight: font.weight.bold, color: colors.text, marginTop: 16 }}>Waiting for payment…</Text>
-                <Text style={{ fontSize: font.size.xs, color: '#94a3b8', textAlign: 'center', marginTop: 6 }}>Check your phone and enter your PIN</Text>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
+            {state === 'done' ? (
+              <Empty icon="checkmark-circle-outline" title="Paid" body="Thank you. The invoice is settled." />
+            ) : state === 'waiting' ? (
+              <View style={{ alignItems: 'center', paddingVertical: 40, gap: 12 }}>
+                <ActivityIndicator size="large" color={colors.textBrand} />
+                <Txt variant="heading">Check your phone</Txt>
+                <Txt variant="body" tone="muted" style={{ textAlign: 'center' }}>Enter your PIN on the prompt from {p.label} to finish.</Txt>
               </View>
             ) : (
               <>
-                {/* Provider tabs */}
-                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Select Provider</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                  {PROVIDERS.map((p) => (
-                    <TouchableOpacity
-                      key={p.key}
-                      onPress={() => { setProvider(p.key); setInput(''); setErrMsg('') }}
-                      style={{
-                        marginRight: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.md,
-                        backgroundColor: selectedProvider === p.key ? (isDark ? '#f5801e' : '#0f2d5e') : (isDark ? '#1e293b' : '#f1f5f9'),
-                      }}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.bold, color: selectedProvider === p.key ? '#fff' : colors.textMuted }}>{p.emoji} {p.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-
-                {/* Input */}
-                <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: isDark ? '#cbd5e1' : '#334155', marginBottom: 6 }}>{provider.inputLabel} *</Text>
-                <TextInput
-                  value={input}
-                  onChangeText={(t) => { setInput(t); setErrMsg('') }}
-                  placeholder={provider.placeholder}
-                  keyboardType="phone-pad"
-                  style={{ borderWidth: 1.5, borderColor: isDark ? '#334155' : '#e2e8f0', borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: font.size.sm, color: colors.text, backgroundColor: isDark ? colors.muted : '#fff', marginBottom: 8 }}
-                />
-
-                {errMsg ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(127,29,29,0.2)' : '#fef2f2', borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
-                    <Ionicons name="alert-circle" size={14} color="#dc2626" />
-                    <Text style={{ fontSize: font.size.xs, color: '#EF4444', marginLeft: 6, flex: 1 }}>{errMsg}</Text>
-                  </View>
-                ) : null}
-
-                {selectedProvider === 'MPESA' && (
-                  <Text style={{ fontSize: font.size.xs, color: '#94a3b8', marginBottom: 16, lineHeight: 16 }}>An STK push will be sent to your M-Pesa number. Enter your PIN when prompted.</Text>
-                )}
-
-                <TouchableOpacity
-                  onPress={() => void pay()}
-                  disabled={paying}
-                  style={{
-                    borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 8,
-                    backgroundColor: paying ? '#94a3b8' : (isDark ? '#f5801e' : '#0f2d5e'),
-                    opacity: paying ? 0.7 : 1,
-                  }}
-                  activeOpacity={0.8}
-                >
-                  {paying ? <ActivityIndicator color="#fff" /> : (
-                    <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: '#fff' }}>Pay {Number(invoice.amount_kes).toLocaleString()} {invoice.currency} via {provider.label}</Text>
-                  )}
-                </TouchableOpacity>
+                <View>
+                  <Txt variant="label" tone="faint" style={{ marginBottom: 8 }}>Pay with</Txt>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {PROVIDERS.map((x) => (
+                      <Chip key={x.key} label={x.label} selected={provider === x.key} onPress={() => { setProvider(x.key); setInput(''); setError('') }} />
+                    ))}
+                  </ScrollView>
+                </View>
+                <View>
+                  <Txt variant="label" tone="faint" style={{ marginBottom: 8 }}>{p.inputLabel}</Txt>
+                  <TextInput
+                    value={input}
+                    onChangeText={(t) => { setInput(t); setError('') }}
+                    placeholder={p.placeholder}
+                    placeholderTextColor={colors.textFaint}
+                    keyboardType="phone-pad"
+                    style={{ borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.muted, color: colors.text, fontFamily: 'DMSans-Medium', fontSize: 16 }}
+                  />
+                  {error ? <Txt variant="caption" tone="danger" style={{ marginTop: 8 }}>{error}</Txt> : null}
+                  {provider === 'MPESA' ? (
+                    <Txt variant="caption" tone="muted" style={{ marginTop: 8 }}>You will get an M-Pesa prompt on this number. Enter your PIN to pay.</Txt>
+                  ) : null}
+                </View>
+                <Button variant="primary" onPress={pay} loading={state === 'sending'}>
+                  {`Pay ${money(invoice.amount_kes, invoice.currency)}`}
+                </Button>
               </>
             )}
           </ScrollView>
         </SafeAreaView>
       </KeyboardAvoidingView>
     </Modal>
-  )
-}
-
-// ── Invoice Row ───────────────────────────────────────────────────────────────
-
-function InvoiceRow({ invoice, onPay }: { invoice: Invoice; onPay: (inv: Invoice) => void }) {
-  const { colors, font, radius } = useAppTheme()
-  const st = STATUS_CONFIG[invoice.status] ?? STATUS_CONFIG.PENDING
-
-  return (
-    <View style={{
-      backgroundColor: colors.card,
-      marginHorizontal: 16, marginBottom: 10, borderRadius: radius.lg, padding: 14,
-      shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 1 }, shadowRadius: 4, elevation: 2,
-    }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
-        <View style={{ flex: 1, marginRight: 8 }}>
-          <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: colors.text, fontVariant: ['tabular-nums'] }}>{invoice.invoice_number}</Text>
-          <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>Shipment: {invoice.shipment_tracking}</Text>
-        </View>
-        <View style={{ borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: st.bg }}>
-          <Text style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: st.text }}>{st.label}</Text>
-        </View>
-      </View>
-
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View>
-          <Text style={{ fontSize: font.size.lg, fontWeight: font.weight.extrabold, color: colors.text }}>
-            {Number(invoice.amount_kes).toLocaleString()}
-            <Text style={{ fontSize: font.size.sm, color: colors.textFaint, fontWeight: font.weight.semibold }}> {invoice.currency}</Text>
-          </Text>
-          <Text style={{ fontSize: font.size.xs, color: colors.textFaint, marginTop: 2 }}>
-            {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-          </Text>
-        </View>
-
-        {(invoice.status === 'PENDING' || invoice.status === 'FAILED') && (
-          <TouchableOpacity
-            onPress={() => onPay(invoice)}
-            style={{ backgroundColor: '#f5801e', borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 8 }}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: font.size.sm, fontWeight: font.weight.extrabold, color: '#fff' }}>Pay Now</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  )
-}
-
-// ── Screen ────────────────────────────────────────────────────────────────────
-
-export default function PaymentsScreen() {
-  const { colors, font, radius, spacing, isDark } = useAppTheme()
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [payTarget, setPayTarget] = useState<Invoice | null>(null)
-
-  const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true); else setLoading(true)
-    try {
-      const res = await apiClient.get<{ results?: Invoice[] } | Invoice[]>('/api/v1/invoices/?page_size=50')
-      const data = (res.data as { results?: Invoice[] })?.results ?? (res.data as Invoice[]) ?? []
-      setInvoices(data)
-    } catch {
-      Alert.alert('Error', 'Failed to load invoices.')
-    } finally { setLoading(false); setRefreshing(false) }
-  }, [])
-
-  useEffect(() => { void load() }, [load])
-
-  return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flex: 1 }}>
-        {/* Glass header */}
-        <GlassCard variant="elevated" accentColor="#16a34a" accentPosition="left" style={{ marginHorizontal: 16, marginTop: spacing.lg, marginBottom: 8 }}>
-          <View style={{ padding: spacing.lg }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12, padding: 4 }} activeOpacity={0.7}>
-                <Ionicons name="arrow-back" size={22} color="#e2e8f0" />
-              </TouchableOpacity>
-              <Text style={{ fontSize: font.size.xl, fontWeight: font.weight.extrabold, color: colors.text, flex: 1 }}>Payments</Text>
-              <Text style={{ fontSize: font.size.sm, color: colors.textMuted }}>{invoices.length} invoices</Text>
-            </View>
-          </View>
-        </GlassCard>
-
-        {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator size="large" color="#f5801e" />
-          </View>
-        ) : (
-          <FlatList
-            data={invoices}
-            keyExtractor={(inv) => String(inv.id)}
-            renderItem={({ item }) => <InvoiceRow invoice={item} onPay={setPayTarget} />}
-            contentContainerStyle={{ paddingTop: 14, paddingBottom: 24 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor="#f5801e" />}
-            ListEmptyComponent={
-              <EmptyState icon="card-outline" title="No invoices yet" description="Invoices will appear here once generated" size="lg" />
-            }
-          />
-        )}
-
-        {payTarget && (
-          <PayModal invoice={payTarget} onClose={() => setPayTarget(null)} onPaid={() => { setPayTarget(null); void load() }} />
-        )}
-      </View>
-    </SafeAreaView>
   )
 }
